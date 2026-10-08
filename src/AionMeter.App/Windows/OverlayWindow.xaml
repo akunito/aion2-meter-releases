@@ -470,6 +470,13 @@
                                 <TextBlock Text="{Binding TimersLabel}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
+                        <!-- Atlas (private branch): the nodes map -->
+                        <Button Style="{StaticResource TimersPill}" Click="Atlas_Click" ToolTip="{Binding T.TrayAtlas}" Margin="6,0,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE707;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding T.AtlasTitle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                         <Button Style="{StaticResource FooterLink}" Content="{Binding T.OpenFight}" Click="Details_Click" Effect="{StaticResource TextShadow}" />
                         <Button Style="{StaticResource FooterLink}" Click="Segments_Click" Effect="{StaticResource TextShadow}">
                             <TextBlock><Run Text="{Binding T.Fights, Mode=OneWay}" /><Run Text=" " /><Run Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" /></TextBlock>

@@ -602,6 +602,11 @@ public partial class OverlayWindow : Window
         if (!_drag.JustDragged) AppHost.Current.ShowBossTimers();
     }
 
+    private void Atlas_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_drag.JustDragged) AppHost.Current.ShowAtlas();
+    }
+
     private long _timersLabelAt;
 
     /// <summary>The next respawn among watched bosses (or all, when none is watched): "Gartua 12:34".</summary>
