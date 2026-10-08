@@ -36,7 +36,9 @@ public sealed class MeterService : IDisposable
         {
             if (Data.Objects.ContainsKey(spot.Code) || !spot.IsNode) return;
             var now = Environment.TickCount64;
-            if (_askedCodes.TryGetValue(spot.Code, out var asked) && now - asked < 10 * 60_000) { Log.Info($"Atlas: object {spot.Code} gathered again, asked {(now - asked) / 1000}s ago"); return; }
+            // The three units of one node arrive as three gather starts within ~20 s: one prompt per node, and if it closed
+            // unanswered the next node of that kind asks again (Diego: an unseen 15 s prompt must not silence the kind).
+            if (_askedCodes.TryGetValue(spot.Code, out var asked) && now - asked < 20_000) { Log.Info($"Atlas: object {spot.Code} gathered again, asked {(now - asked) / 1000}s ago"); return; }
             _askedCodes[spot.Code] = now;
             Log.Info($"Atlas: asking the name of object {spot.Code} (spot {spot.X:0},{spot.Y:0})");
             NodeNameWanted?.Invoke(spot.Code);
@@ -98,7 +100,7 @@ public sealed class MeterService : IDisposable
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
     private readonly ObjectNames _objectNames;
     private readonly Dictionary<int, (string Name, string Category)> _userNames;
-    private readonly Dictionary<int, long> _askedCodes = new(); // code → when the prompt was last shown (asked again after 10 min)
+    private readonly Dictionary<int, long> _askedCodes = new(); // code → when the prompt was last shown (asked again after 20 s)
     /// <summary>The player just started gathering an object code nobody has named yet (capture thread).</summary>
     public event Action<int>? NodeNameWanted;
 

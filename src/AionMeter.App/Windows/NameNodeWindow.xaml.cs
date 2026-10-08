@@ -35,6 +35,7 @@ public partial class NameNodeWindow : Window
         if (meter.Data.Objects.TryGetValue(code, out var current)) NameBox.Text = current;
         BuildCatalog();
         TimerChip.Visibility = autoClose ? Visibility.Visible : Visibility.Collapsed;
+        if (autoClose) System.Media.SystemSounds.Asterisk.Play(); // the prompt lives 15 s on the other monitor: say so
         Tick();
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clock.Tick += (_, _) => Tick();
