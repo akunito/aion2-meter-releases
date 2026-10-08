@@ -18,6 +18,8 @@ public partial class NameNodeWindow : Window
 {
     private readonly MeterService _meter;
     private readonly int _code;
+    private string? _current;
+    private bool _currentShown;
     private readonly DateTimeOffset _askedAt = DateTimeOffset.UtcNow;
     private readonly bool _autoClose;
     private readonly DispatcherTimer _clock;
@@ -32,8 +34,9 @@ public partial class NameNodeWindow : Window
         _autoClose = autoClose;
         InitializeComponent();
         Question.Text = string.Format(UiText.Current.NameNodeQuestion, code);
-        if (meter.Data.Objects.TryGetValue(code, out var current)) NameBox.Text = current;
+        meter.Data.Objects.TryGetValue(code, out _current); // the kind already chosen for this code: its button is highlighted
         BuildCatalog();
+        if (_current is not null && !_currentShown) NameBox.Text = _current; // a typed name that is not in the catalogue
         TimerChip.Visibility = autoClose ? Visibility.Visible : Visibility.Collapsed;
         if (autoClose) System.Media.SystemSounds.Asterisk.Play(); // the prompt lives 15 s on the other monitor: say so
         Tick();
@@ -81,7 +84,14 @@ public partial class NameNodeWindow : Window
                         content.Children.Add(new Image { Source = bmp, Width = 24, Height = 24, Margin = new Thickness(0, 0, 6, 0) });
                     }
                     content.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
-                    var button = new Button { Style = (Style)FindResource("Chip"), Height = 32, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(8, 0, 10, 0), Content = content, Tag = (name, catKey) };
+                    var selected = _current is not null && string.Equals(_current.Trim(), name, StringComparison.OrdinalIgnoreCase);
+                    if (selected) _currentShown = true;
+                    // The kind already chosen for this code stands out in the theme's gold (right-click rename case).
+                    object inner = selected
+                        ? new Border { Child = content, BorderBrush = (Brush)FindResource("Gold"), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(Color.FromArgb(0x40, 0xC9, 0xA4, 0x5C)), Padding = new Thickness(6, 2, 8, 2), Margin = new Thickness(-6, -2, -8, -2) }
+                        : content;
+                    var button = new Button { Style = (Style)FindResource("Chip"), Height = 32, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(8, 0, 10, 0), Content = inner, Tag = (name, catKey) };
+                    if (selected) button.FontWeight = FontWeights.SemiBold;
                     button.Click += Pick_Click;
                     row.Children.Add(button);
                 }
