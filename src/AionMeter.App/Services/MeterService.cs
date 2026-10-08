@@ -5,6 +5,7 @@ using AionMeter.Core.Combat;
 using AionMeter.Core.Demo;
 using AionMeter.Core.Game;
 using AionMeter.Core.Armory;
+using AionMeter.Core.Leaderboard;
 using AionMeter.Core.Ranking;
 using AionMeter.Core.Storage;
 
@@ -107,6 +108,8 @@ public sealed class MeterService : IDisposable
     public TopDpsStore Top { get; }
     /// <summary>Official character pages (GET only, cached 12 h); used on demand from the Top DPS window.</summary>
     public ArmoryClient Armory { get; } = new(Path.Combine(AppSettings.AppDataDir, "armory"));
+    /// <summary>aion2index.com combat-power ranking pages (GET only, one page per 400 ms, one snapshot per day).</summary>
+    public Aion2IndexClient Leaderboard { get; } = new(Path.Combine(AppSettings.AppDataDir, "armory", "leaderboard"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
     /// <summary>Recurring server events (Shugo, Rift, siege, reset) from data/atlas/events.json.</summary>
     public IReadOnlyList<ScheduledEvent> Events { get; } = ScheduledEvent.Load(Path.Combine(DataDirectory, "atlas", "events.json"));

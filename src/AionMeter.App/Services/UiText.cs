@@ -374,6 +374,12 @@ public sealed class UiText
     public string TopRepeated { get; init; } = "MOST REPEATED 3-CAST SEQUENCES";
     public string TopCadence { get; init; } = "CASTS PER MINUTE";
     public string TopProfile { get; init; } = "PROFILE (official character page)";
+    public string TopScopeHistory { get; init; } = "My fights";
+    public string TopScopeServer { get; init; } = "Server {0}";
+    public string TopScopeGlobal { get; init; } = "Europe";
+    public string TopBoardLoading { get; init; } = "Reading the ranking pages (aion2index.com, one per 400 ms)…";
+    public string TopBoardHint { get; init; } = "Strongest characters by combat power (aion2index.com, refreshed daily; the game publishes no DPS ranking). Load profile shows their official gear, Daevanion and skill levels to compare with yours.";
+    public string TopBoardFailed { get; init; } = "The ranking pages did not answer: {0}";
     public string TopProfileFetch { get; init; } = "Load profile";
     public string TopProfileLoading { get; init; } = "Loading…";
     public string TopProfileMissing { get; init; } = "Not found on the official character search (renamed, deleted or another server).";

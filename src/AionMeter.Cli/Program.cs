@@ -30,6 +30,7 @@ return args.FirstOrDefault() switch
     "atlas" when args.Length > 1 => Atlas(args[1], args.Length > 2 ? args[2] : null),
     "top" when args.Length > 1 => Top(args[1], args.Length > 2 ? args[2] : null),
     "armory" when args.Length > 1 => Armory(args[1], args.Length > 2 ? int.Parse(args[2]) : 1303).GetAwaiter().GetResult(),
+    "leaderboard" => Leaderboard(args.Length > 1 ? args[1] : "eu", args.Length > 2 ? args[2] : null, args.Length > 3 ? args[3] : null).GetAwaiter().GetResult(),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
     _ => Usage(),
@@ -217,6 +218,17 @@ async Task<int> Armory(string name, int serverId)
     Console.WriteLine("  daevanion effects: " + string.Join(", ", p.DaevanionEffects));
     foreach (var g in p.Daevanion.Where(n => n.Open && n.Effects.Count > 0).GroupBy(n => n.BoardId))
         Console.WriteLine($"  board {g.Key}: {string.Join(" | ", g.Select(n => n.Name.Length > 0 ? n.Name : string.Join(",", n.Effects)).Take(40))}");
+    return 0;
+}
+
+// aion2index.com combat-power ranking: top 10 of a region, optionally one class and one server (e.g. leaderboard eu templar vaizel).
+async Task<int> Leaderboard(string region, string? cls, string? server)
+{
+    using var client = new AionMeter.Core.Leaderboard.Aion2IndexClient(Path.Combine(Path.GetTempPath(), "aionmeter-leaderboard"));
+    var gc = cls is null ? AionMeter.Core.Events.GameClass.Unknown : AionMeter.Core.Leaderboard.LeaderboardRow.ClassOf(cls);
+    var rows = await client.TopAsync(region, gc, server);
+    Console.WriteLine($"{rows.Count} rows ({client.Requests} requests)");
+    foreach (var r in rows) Console.WriteLine($"  #{r.Rank,-5} {r.Name,-16} {r.ServerName,-10} {r.ClassKey,-13} lv{r.Level} CP {r.CombatPower,8:N0}  item level {r.ItemLevel}");
     return 0;
 }
 

@@ -59,3 +59,22 @@ public class ArmoryTests
         Assert.Empty(ArmoryParser.ParseSearch("{\"list\":null}"));
     }
 }
+
+public class LeaderboardTests
+{
+    [Fact]
+    public void Aion2index_ranking_page_rows_are_read_from_the_embedded_payload()
+    {
+        var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "armory", "aion2index-rankings-p1.html"));
+        var (rows, total) = AionMeter.Core.Leaderboard.Aion2IndexClient.ParsePage(html);
+        Assert.Equal(50, rows.Count);
+        Assert.True(total > 100_000);
+        Assert.Equal(1, rows[0].Rank);
+        Assert.Equal("gigawhaleYT", rows[0].Name);
+        Assert.Equal("Israphel", rows[0].ServerName);
+        Assert.Equal(AionMeter.Core.Events.GameClass.Chanter, rows[0].Class);
+        Assert.Equal(214645, rows[0].CombatPower);
+        Assert.Equal(3273, rows[0].ItemLevel);
+        Assert.Empty(AionMeter.Core.Leaderboard.Aion2IndexClient.ParsePage("<html>changed</html>").Rows);
+    }
+}

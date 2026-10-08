@@ -33,6 +33,13 @@
             </Grid>
 
             <StackPanel Grid.Row="1" Margin="18,0,18,10">
+                <StackPanel Orientation="Horizontal" Margin="-4,0,0,2">
+                    <RadioButton x:Name="ScopeHistory" Style="{StaticResource TabToggle}" GroupName="TopScope" IsChecked="True" Checked="Scope_Checked" Tag="0"
+                                 Content="{Binding TopScopeHistory, Source={x:Static s:UiText.Current}}" />
+                    <RadioButton x:Name="ScopeServer" Style="{StaticResource TabToggle}" GroupName="TopScope" Checked="Scope_Checked" Tag="1" />
+                    <RadioButton x:Name="ScopeGlobal" Style="{StaticResource TabToggle}" GroupName="TopScope" Checked="Scope_Checked" Tag="2"
+                                 Content="{Binding TopScopeGlobal, Source={x:Static s:UiText.Current}}" />
+                </StackPanel>
                 <ItemsControl x:Name="ClassTabs" Margin="-4,0,0,6">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
@@ -44,7 +51,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextMute}"
+                <TextBlock x:Name="HintText" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextMute}"
                            Text="{Binding TopHint, Source={x:Static s:UiText.Current}}" />
             </StackPanel>
 
@@ -73,11 +80,12 @@
                                                            FontFamily="{StaticResource NumberFont}" FontSize="19" FontWeight="Bold" />
                                                 <TextBlock Text="{Binding Duration}" HorizontalAlignment="Right" FontSize="11" Foreground="{StaticResource TextDim}" Margin="0,-1,0,0" />
                                             </StackPanel>
-                                            <Button Grid.Column="3" Style="{StaticResource Chip}" Height="26" FontSize="12" VerticalAlignment="Center"
+                                            <Button Grid.Column="3" Style="{StaticResource Chip}" Height="26" FontSize="12" VerticalAlignment="Center" Visibility="{Binding RotationVisibility}"
                                                     Content="{Binding TopOpenFight, Source={x:Static s:UiText.Current}}" Click="Open_Click" />
                                         </Grid>
                                         <Border Visibility="{Binding DetailVisibility}" Margin="40,8,0,0" Padding="0,8,0,0" BorderBrush="#22FFFFFF" BorderThickness="0,1,0,0">
                                             <StackPanel>
+                                              <StackPanel Visibility="{Binding RotationVisibility}">
                                                 <TextBlock Text="{Binding TopSkills, Source={x:Static s:UiText.Current}}" FontSize="11" Foreground="{StaticResource Gold}" Margin="0,0,0,3" />
                                                 <TextBlock Text="{Binding SkillsText}" TextWrapping="Wrap" FontSize="12" />
                                                 <TextBlock Text="{Binding TopOpening, Source={x:Static s:UiText.Current}}" FontSize="11" Foreground="{StaticResource Gold}" Margin="0,8,0,3" />
@@ -86,6 +94,7 @@
                                                 <TextBlock Text="{Binding RepeatedText}" TextWrapping="Wrap" FontSize="12" />
                                                 <TextBlock Text="{Binding TopCadence, Source={x:Static s:UiText.Current}}" FontSize="11" Foreground="{StaticResource Gold}" Margin="0,8,0,3" />
                                                 <TextBlock Text="{Binding CadenceText}" TextWrapping="Wrap" FontSize="12" />
+                                              </StackPanel>
                                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,3">
                                                     <TextBlock Text="{Binding TopProfile, Source={x:Static s:UiText.Current}}" FontSize="11" Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
                                                     <Button Style="{StaticResource Chip}" Height="22" FontSize="11" Margin="10,0,0,0" Click="Profile_Click"
