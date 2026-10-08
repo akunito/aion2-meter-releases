@@ -129,12 +129,19 @@ public class ProtocolTests
 
     // Records the server only ever sends about the local player (three EU captures): their first varint is the local id.
     [Theory]
-    [InlineData(Opcodes.SelfSkillState, "b33d651bb7000100")]
-    [InlineData(Opcodes.SelfStatus, "b33d000000000000000000")]
-    public void Self_only_records_hint_the_local_player_id(ushort op, string hex)
+    [InlineData(Opcodes.SelfStatus, "b33d000000000000000000", 7859u)]
+    [InlineData(Opcodes.SelfState46, "b36f75eafa45", 14259u)]
+    [InlineData(Opcodes.RemainHp, "b36f01010328b30100", 14259u)]
+    public void Self_only_records_hint_the_local_player_id(ushort op, string hex, uint id)
     {
-        var h = Assert.IsType<LocalPlayerHintEvent>(Assert.Single(Parse(op, hex)));
-        Assert.Equal(7859u, h.ActorId);
+        var h = Assert.Single(Parse(op, hex).OfType<LocalPlayerHintEvent>());
+        Assert.Equal(id, h.ActorId);
+    }
+
+    [Fact]
+    public void Another_entitys_hp_record_is_no_self_hint()
+    {
+        Assert.Empty(Parse(Opcodes.RemainHp, "f2c9030201008fcc12070000000").OfType<LocalPlayerHintEvent>()); // boss 58610: 02 01 header
     }
 
     // Altgard's field boss list (map 1110) as the in-game map showed it at 00:30:07 on 2026-10-06 (UTC+3): 24 slots,

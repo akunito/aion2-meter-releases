@@ -68,8 +68,9 @@ public sealed class PacketParser
             case Opcodes.Positions:
                 ParsePosition(body);
                 break;
-            case Opcodes.SelfSkillState:
             case Opcodes.SelfStatus:
+            case Opcodes.SelfState46:
+            case Opcodes.SelfState44:
                 ParseSelfHint(body);
                 break;
             case Opcodes.EntityState:
@@ -103,6 +104,7 @@ public sealed class PacketParser
                 ParseMapLoad(body);
                 break;
             case Opcodes.RemainHp:
+                HintSelfFromHp(body);
                 ParseRemainHp(body);
                 break;
             case Opcodes.HpMp:
@@ -268,6 +270,14 @@ public sealed class PacketParser
         var n = start ? 0 : b[o];
         if (n > 9) return;
         Emit(new GatherEvent(TimeMs, node, player, start, n));
+    }
+
+    /// <summary>The own-HP record: <c>id varint, 01 01, …</c> — other entities' HP records carry 02 01 or 03 xx.</summary>
+    private void HintSelfFromHp(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (Wire.TryVarint(b, ref o, out var id) && IsEntityId(id) && o + 2 <= b.Length && b[o] == 1 && b[o + 1] == 1)
+            Emit(new LocalPlayerHintEvent(TimeMs, id));
     }
 
     private void ParseSelfHint(ReadOnlySpan<byte> b)
