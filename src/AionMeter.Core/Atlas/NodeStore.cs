@@ -67,6 +67,7 @@ public sealed class NodeStore
     private readonly Dictionary<uint, long> _selfGatheredUnknown = new();
     private readonly (long At, float X, float Y)[] _recent = new (long, float, float)[64];
     private int _recentAt;
+    private float _emaX, _emaY; private int _emaN;
 
     /// <summary>Centroid of the positions seen in the last <paramref name="windowMs"/>: a rough (view-radius) stand-in for the player.</summary>
     public (float X, float Y, int Samples) Estimate(long nowMs, long windowMs = 15_000)
@@ -76,7 +77,7 @@ public sealed class NodeStore
             double sx = 0, sy = 0; var n = 0;
             foreach (var (at, x, y) in _recent)
                 if (at > 0 && nowMs - at <= windowMs) { sx += x; sy += y; n++; }
-            return n == 0 ? (0, 0, 0) : ((float)(sx / n), (float)(sy / n), n);
+            return n == 0 ? (0, 0, 0) : (_emaX, _emaY, n);
         }
     }
     private int _savedMap;
@@ -110,6 +111,10 @@ public sealed class NodeStore
                     // Everything in view reports positions (~5/s): their recent centroid stands in for the player while
                     // the server says nothing about the player's own walking.
                     _recent[_recentAt] = (p.TimeMs, p.X, p.Y); _recentAt = (_recentAt + 1) % _recent.Length;
+                    // Smoothed centroid (EMA, ~4 s at 5 samples/s): the raw centroid jumps as entities enter and leave view.
+                    if (_emaN == 0) { _emaX = p.X; _emaY = p.Y; }
+                    else { _emaX += 0.05f * (p.X - _emaX); _emaY += 0.05f * (p.Y - _emaY); }
+                    _emaN++;
                     break;
                 case ObjectSeenEvent o when MapId != 0:
                     OnSeen(o);

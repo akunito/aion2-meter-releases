@@ -84,13 +84,13 @@ public partial class AtlasWindow : Window
         foreach (var s in atlas.Spots(map))
         {
             var (px, py) = _cal.ToPixel(s.X, s.Y);
-            var name = _meter.Data.ObjectName(s.Code);
-            if (s.Alive && s.InView) Dot(px, py, 5, Live, $"{name} {s.UnitsLeft}", Live);
-            else if (s.Alive) Dot(px, py, 4, Live, $"{name} {s.UnitsLeft}?", Gone);
+            var name = _meter.Data.Objects.TryGetValue(s.Code, out var known) ? known + " " : ""; // unknown kinds show no id
+            if (s.Alive && s.InView) Dot(px, py, 5, Live, $"{name}{s.UnitsLeft}", Live);
+            else if (s.Alive) Dot(px, py, 4, Live, $"{name}{s.UnitsLeft}?", Gone);
             else
             {
                 var eta = s.NextSpawnMs > 0 ? Countdown(DateTimeOffset.FromUnixTimeMilliseconds(s.NextSpawnMs), now) : "";
-                Dot(px, py, 4, Gone, eta.Length > 0 ? $"{name} · {eta}" : name, Gone);
+                Dot(px, py, 4, Gone, (name + eta).Trim(), Gone);
             }
         }
 
@@ -99,7 +99,7 @@ public partial class AtlasWindow : Window
         var age = atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : long.MaxValue;
         var (ex, ey, en) = atlas.Estimate(now);
         float wx, wy; bool exact;
-        if (age <= 20) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
+        if (age <= 60) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; } // an action's position holds a minute
         else if (en >= 3) { wx = ex; wy = ey; exact = false; }
         else if (age < 30 * 60) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
         else { wx = wy = 0; exact = false; }
@@ -108,7 +108,7 @@ public partial class AtlasWindow : Window
             var (sx, sy) = _cal.ToPixel(wx, wy);
             if (FollowBox.IsChecked == true && sx >= 0 && sy >= 0 && sx <= _cal.Width && sy <= _cal.Height && Viewport.ActualWidth > 0)
             {
-                if (!_followZoomed) { _scale = 4; _followZoomed = true; } // following starts at the closest zoom (Diego's pick); the wheel adjusts from there
+                if (!_followZoomed) { _scale = 10; _followZoomed = true; } // ~420 px per 100 m: nodes a few metres apart stay separate (Diego's pick: closest)
                 _tx = Viewport.ActualWidth / 2 - sx * _f * _scale;
                 _ty = Viewport.ActualHeight / 2 - sy * _f * _scale;
                 Apply();
@@ -133,7 +133,7 @@ public partial class AtlasWindow : Window
         var h = _imgH > 0 ? _imgH : 1000;
         var vw = Math.Max(Viewport.ActualWidth, 100);
         var vh = Math.Max(Viewport.ActualHeight, 100);
-        _scale = Math.Clamp(Math.Min(vw / w, vh / h), 0.08, 4);
+        _scale = Math.Clamp(Math.Min(vw / w, vh / h), 0.08, 12);
         _tx = (vw - w * _scale) / 2; _ty = (vh - h * _scale) / 2;
         Apply();
     }
@@ -187,7 +187,7 @@ public partial class AtlasWindow : Window
     {
         var p = e.GetPosition(Viewport);
         var k = e.Delta > 0 ? 1.15 : 1 / 1.15;
-        var next = Math.Clamp(_scale * k, 0.08, 4);
+        var next = Math.Clamp(_scale * k, 0.08, 12);
         k = next / _scale; _scale = next;
         _tx = p.X - (p.X - _tx) * k; _ty = p.Y - (p.Y - _ty) * k;
         Apply(); Refresh(); // zooming keeps Follow: the next tick re-centres at the new zoom
