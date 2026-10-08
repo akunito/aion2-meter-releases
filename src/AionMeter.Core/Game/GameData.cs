@@ -19,6 +19,8 @@ public sealed class GameData
     public HashSet<int> HealSkills { get; } = new();
     public Dictionary<int, string> Maps { get; private set; } = new();
     public Dictionary<int, string> Servers { get; private set; } = new();
+    /// <summary>World object codes (gathering nodes) → name, from data/objects.json; grows as the player names nodes.</summary>
+    public Dictionary<int, string> Objects { get; private set; } = new();
 
     public static GameData Empty => new();
 
@@ -77,6 +79,13 @@ public sealed class GameData
 
         ReadIntArray(Path.Combine(directory, "dot_skill_ids.json"), data.DotSkills);
         ReadIntArray(Path.Combine(directory, "healing_skill_ids.json"), data.HealSkills);
+        foreach (var (key, value) in ReadObject(Path.Combine(directory, "objects.json")))
+        {
+            if (!int.TryParse(key, out var code) || value.ValueKind != JsonValueKind.Object) continue;
+            var name = value.TryGetProperty(language, out var n) && n.GetString() is { Length: > 0 } local ? local
+                : value.TryGetProperty("en", out var en) ? en.GetString() : null;
+            if (name is not null) data.Objects[code] = name;
+        }
         return data;
     }
 
@@ -235,6 +244,8 @@ public sealed class GameData
     // ------------------------------------------------------------------ npcs / maps
 
     public string NpcName(int code) => Npcs.TryGetValue(code, out var n) && n.Name.Length > 0 ? n.Name : $"NPC {code}";
+
+    public string ObjectName(int code) => Objects.TryGetValue(code, out var n) ? n : $"Object {code}";
 
     /// <summary>Dungeon name from the tables; maps the tables do not name are open-world fields and layers.</summary>
     public string MapName(int id) => Maps.TryGetValue(id, out var name) ? name : IsDungeonMap(id) ? $"Dungeon {id}" : "Open world";

@@ -27,6 +27,7 @@ return args.FirstOrDefault() switch
     "times" when args.Length > 1 => Times(args[1]),
     "fieldbosses" when args.Length > 1 => FieldBosses(args[1]),
     "nodes" when args.Length > 1 => Nodes(args[1]),
+    "atlas" when args.Length > 1 => Atlas(args[1], args.Length > 2 ? args[2] : null),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
     _ => Usage(),
@@ -157,6 +158,21 @@ int Dump(string path, string? opcodeHex)
     };
     replay.EventDecoded += e => Console.WriteLine($"    -> {e}");
     replay.RunToEnd();
+    return 0;
+}
+
+// Runs the atlas store over a capture (optionally persisting into <dir>) and prints the spots per map.
+int Atlas(string path, string? dir)
+{
+    var store = new AionMeter.Core.Atlas.NodeStore(dir ?? Path.Combine(Path.GetTempPath(), "aionmeter-atlas"));
+    var replay = new PcapReplaySource(data, path, realtime: false);
+    replay.EventDecoded += store.OnEvent;
+    replay.RunToEnd();
+    store.Save();
+    var spots = store.Spots(store.MapId);
+    Console.WriteLine($"map {store.MapId}: {spots.Count} spots, self {store.SelfId} at ({store.SelfX:0},{store.SelfY:0},{store.SelfZ:0})");
+    foreach (var sp in spots.OrderBy(s => s.Code).ThenBy(s => s.FirstSeenMs))
+        Console.WriteLine($"  {data.ObjectName(sp.Code),-16} ({sp.X,7:0},{sp.Y,7:0}) spawns {sp.Spawns} {(sp.Alive ? $"alive, {sp.UnitsLeft} left" : "exhausted")}{(sp.RespawnMinutes > 0 ? $", respawn {sp.RespawnMinutes} min" : "")}");
     return 0;
 }
 
