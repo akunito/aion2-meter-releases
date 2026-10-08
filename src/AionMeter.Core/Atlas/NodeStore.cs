@@ -121,7 +121,8 @@ public sealed class NodeStore
                     break;
                 case GatherEvent g when g.Started && g.PlayerId == SelfId && SelfId != 0:
                     if (_live.TryGetValue(g.ObjectId, out var mine)) SelfGathering?.Invoke(mine);
-                    else _selfGatheredUnknown[g.ObjectId] = g.TimeMs; // in view before the meter started: asked when it is seen again
+                    else if (BindByPosition(g.ObjectId, g.TimeMs) is { } bound) SelfGathering?.Invoke(bound);
+                    else _selfGatheredUnknown[g.ObjectId] = g.TimeMs; // asked when it is seen again
                     break;
                 case GatherEvent g when !g.Started && _live.TryGetValue(g.ObjectId, out var spot):
                     if (g.Count > spot.Taken) spot.Taken = g.Count;
@@ -158,6 +159,31 @@ public sealed class NodeStore
     {
         if (mapId <= 0 || mapId == MapId) return;
         MapId = mapId; _live.Clear(); Load(mapId);
+    }
+
+    /// <summary>
+    /// A node in view before the meter started has a remembered spot but no entity id. Gathering happens at the node,
+    /// so the player's position names it: the nearest alive spot within 12 m of an exact position (a recent cast or
+    /// action), or within 40 m of the smoothed centroid. Mislabelling a neighbour self-corrects when nodes are seen again.
+    /// </summary>
+    private NodeSpot? BindByPosition(uint objectId, long nowMs)
+    {
+        if (!_maps.TryGetValue(MapId, out var m)) return null;
+        float px, py, max;
+        if (SelfAtMs > 0 && nowMs - SelfAtMs < 30_000) { px = SelfX; py = SelfY; max = 1_200; }
+        else if (_emaN > 0) { px = _emaX; py = _emaY; max = 4_000; }
+        else return null;
+        NodeSpot? best = null; var bestD = max * max;
+        foreach (var s in m.Values)
+        {
+            if (!s.Alive || s.LiveId != 0) continue;
+            var d = (s.X - px) * (s.X - px) + (s.Y - py) * (s.Y - py);
+            if (d < bestD) { bestD = d; best = s; }
+        }
+        if (best is null) return null;
+        best.LiveId = objectId; best.InView = true; best.LastSeenMs = nowMs;
+        _live[objectId] = best;
+        return best;
     }
 
     private void OnSeen(ObjectSeenEvent o)
