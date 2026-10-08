@@ -29,6 +29,7 @@ return args.FirstOrDefault() switch
     "nodes" when args.Length > 1 => Nodes(args[1]),
     "atlas" when args.Length > 1 => Atlas(args[1], args.Length > 2 ? args[2] : null),
     "top" when args.Length > 1 => Top(args[1], args.Length > 2 ? args[2] : null),
+    "armory" when args.Length > 1 => Armory(args[1], args.Length > 2 ? int.Parse(args[2]) : 1303).GetAwaiter().GetResult(),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
     _ => Usage(),
@@ -198,6 +199,24 @@ int Top(string fightsDir, string? onlyClass)
                 Console.WriteLine($"      loop  : {string.Join(" > ", skills.Select(data.SkillName))}  x{count}");
         }
     }
+    return 0;
+}
+
+// Official character pages: profile, stats, gear, Dp skills and Daevanion boards of one character (default server Vaizel 1303).
+async Task<int> Armory(string name, int serverId)
+{
+    using var client = new AionMeter.Core.Armory.ArmoryClient(Path.Combine(Path.GetTempPath(), "aionmeter-armory"));
+    var p = await client.LookupAsync(name, serverId, withDaevanion: true, force: true);
+    if (p is null) { Console.WriteLine($"{name} not found on server {serverId}"); return 1; }
+    Console.WriteLine($"{p.Ref.Name} ({p.Ref.ServerName}) {p.ClassName} lv{p.Level}  CP {p.CombatPower:N0}  item level {p.ItemLevel}  legion {p.Legion}  title {p.Title}  [{client.Requests} requests]");
+    foreach (var s in p.Stats) Console.WriteLine($"  {s.Type,-12} {s.Value,6}  {string.Join(", ", s.Effects)}");
+    Console.WriteLine("  boards: " + string.Join("  ", p.Boards.Select(b => $"{b.Name} {b.Open}/{b.Total}")));
+    foreach (var e in p.Equipment.OrderBy(e => e.SlotPos)) Console.WriteLine($"  {e.Slot,-10} {e.Name,-28} {e.Grade,-8} +{e.Enchant,-3} id {e.Id}");
+    Console.WriteLine("  pet " + p.Pet + "   wing " + p.Wing);
+    foreach (var k in p.Skills.Where(k => k.Equipped || k.Category == "Passive")) Console.WriteLine($"  {k.Category,-8} {k.Name,-28} lv{k.Level,-3} {(k.Equipped ? "equipped" : "")} {k.Id}");
+    Console.WriteLine("  daevanion effects: " + string.Join(", ", p.DaevanionEffects));
+    foreach (var g in p.Daevanion.Where(n => n.Open && n.Effects.Count > 0).GroupBy(n => n.BoardId))
+        Console.WriteLine($"  board {g.Key}: {string.Join(" | ", g.Select(n => n.Name.Length > 0 ? n.Name : string.Join(",", n.Effects)).Take(40))}");
     return 0;
 }
 
