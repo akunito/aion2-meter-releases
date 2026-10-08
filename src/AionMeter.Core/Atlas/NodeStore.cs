@@ -32,6 +32,8 @@ public sealed class NodeSpot
     [JsonIgnore] public uint LiveId { get; set; }
     [JsonIgnore] public bool InView { get; set; }
     public string? Name { get; set; }
+    /// <summary>Known from the map data (shugo.gg markers, every node of the zone), never seen by this meter yet; the kind is in Name.</summary>
+    public bool Seeded { get; set; }
 
     public const int MaxUnits = 3;
 
@@ -39,7 +41,7 @@ public sealed class NodeSpot
     /// Gathering nodes are object codes 15xxxxx; 11/12/14xxxxx objects (scenery, quest pickups) also arrive as 34 36 but
     /// nobody ever gathers them (471 spots, 2026-10-08: every gathered code was 15xxxxx). Gather evidence overrides.
     /// </summary>
-    public bool IsNode => Code / 100_000 == 15 || Taken > 0 || ExhaustedAtMs > 0 || Spawns > 1;
+    public bool IsNode => Seeded || Code / 100_000 == 15 || Taken > 0 || ExhaustedAtMs > 0 || Spawns > 1;
     public int UnitsLeft => Alive ? Math.Max(0, MaxUnits - Taken) : 0;
     public long NextSpawnMs => !Alive && ExhaustedAtMs > 0 && RespawnMinutes > 0 ? ExhaustedAtMs + RespawnMinutes * 60_000L : 0;
 }
@@ -216,6 +218,7 @@ public sealed class NodeStore
         if (!map.TryGetValue(key, out var spot))
         {
             map[key] = spot = new NodeSpot { Code = o.ObjectCode, Kind = o.Kind, X = o.X, Y = o.Y, Z = o.Z, FirstSeenMs = o.TimeMs };
+            DropSeedsNear(map, o.X, o.Y); // the real node replaces the map-data one (shugo positions match ours within 1.3 m, 2026-10-08)
         }
         var newSpawn = spot.LiveId != o.ActorId && (o.SpawnedAtMs == 0 || o.SpawnedAtMs != spot.SpawnedAtMs);
         if (newSpawn)
@@ -257,6 +260,54 @@ public sealed class NodeStore
             s.Alive = false; s.Taken = NodeSpot.MaxUnits; s.ExhaustedAtMs = nowMs; s.GoneUnseen = true;
             _dirty.Add(MapId);
         }
+    }
+
+    private static void DropSeedsNear(Dictionary<(int Code, int Gx, int Gy), NodeSpot> map, float x, float y)
+    {
+        List<(int Code, int Gx, int Gy)>? gone = null;
+        foreach (var (k, s) in map)
+            if (s.Seeded && Math.Abs(s.X - x) < 400 && Math.Abs(s.Y - y) < 400 && (s.X - x) * (s.X - x) + (s.Y - y) * (s.Y - y) < 300f * 300f) (gone ??= new()).Add(k);
+        if (gone is not null) foreach (var k in gone) map.Remove(k);
+    }
+
+    /// <summary>
+    /// Every gathering node of a zone from the map data (<c>data/atlas/&lt;map&gt;/nodes.json</c>: name, x, y in world cm, fitted
+    /// on the named bosses), added as seeded spots unless a seen spot already sits within 3 m. Call once after construction.
+    /// </summary>
+    public int LoadSeeds(string atlasDataDir)
+    {
+        var n = 0;
+        if (!Directory.Exists(atlasDataDir)) return 0;
+        foreach (var dir in Directory.EnumerateDirectories(atlasDataDir))
+        {
+            var path = Path.Combine(dir, "nodes.json");
+            if (!int.TryParse(Path.GetFileName(dir), out var mapId) || !File.Exists(path)) continue;
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (!doc.RootElement.TryGetProperty("nodes", out var nodes)) continue;
+                lock (_gate)
+                {
+                    var map = _maps.TryGetValue(mapId, out var m) ? m : _maps[mapId] = new();
+                    var real = map.Values.Where(s => !s.Seeded).ToList();
+                    foreach (var e in nodes.EnumerateArray())
+                    {
+                        var x = e.GetProperty("x").GetSingle(); var y = e.GetProperty("y").GetSingle();
+                        var name = e.GetProperty("name").GetString() ?? "";
+                        var kind = name.Split(' ', 2)[0]; // "Yggdrasil Log" → "Yggdrasil", matching the catalogue icons and objects.json
+                        var key = KeyOf(0, x, y); // code 0 = seeded, so it never collides with a seen spot
+                        if (map.ContainsKey(key)) continue;
+                        var taken = false;
+                        foreach (var s in real) if ((s.X - x) * (s.X - x) + (s.Y - y) * (s.Y - y) < 300f * 300f) { taken = true; break; }
+                        if (taken) continue;
+                        map[key] = new NodeSpot { Code = 0, X = x, Y = y, Name = kind, Seeded = true };
+                        n++;
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or KeyNotFoundException or InvalidOperationException) { }
+        }
+        return n;
     }
 
     /// <summary>The spot nearest to a world point within <paramref name="maxCm"/>, or null.</summary>
@@ -309,7 +360,7 @@ public sealed class NodeStore
         int current;
         lock (_gate)
         {
-            work = _dirty.Select(m => (m, JsonSerializer.Serialize(_maps[m].Values, Json))).ToList();
+            work = _dirty.Select(m => (m, JsonSerializer.Serialize(_maps[m].Values.Where(v => !v.Seeded), Json))).ToList();
             _dirty.Clear();
             current = MapId;
         }

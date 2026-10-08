@@ -36,6 +36,7 @@ public sealed class MeterService : IDisposable
         Timers = new BossTimers(Path.Combine(AppSettings.AppDataDir, "boss-timers.json"), Data, DataDirectory, persistent: !settings.Transient);
         Updates = new Updater(settings);
         Atlas = new NodeStore(Path.Combine(AppSettings.AppDataDir, "atlas"));
+        Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
         // First run with the ranking: fill it from the fights already on disk, off the UI thread.
         if (!settings.Transient && Top.Count == 0 && History.List(1).Count > 0)

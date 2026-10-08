@@ -115,7 +115,8 @@ public partial class AtlasWindow : Window
         {
             var (px, py) = _cal.ToPixel(s.X, s.Y);
             // Known kinds draw their icon at the spot (name kept for the tooltip-less reader: none); unknown kinds a plain dot.
-            var icon = _meter.Data.Objects.TryGetValue(s.Code, out var known) ? Icon(known) : null;
+            var icon = KindOf(s) is { } kn ? Icon(kn) : null;
+            if (s.Seeded) { Mark(px, py, 3, Gone, icon, "", Gone, dim: true); continue; }
             if (s.Alive && s.InView) Mark(px, py, 5, Live, icon, $"{s.UnitsLeft}", Live);
             else if (s.Alive) Mark(px, py, 4, Live, icon, $"{s.UnitsLeft}?", Gone);
             else
@@ -160,6 +161,9 @@ public partial class AtlasWindow : Window
         }
     }
 
+    /// <summary>The kind name of a spot: from objects.json for seen codes, from the map data for seeded ones.</summary>
+    private string? KindOf(NodeSpot s) => s.Seeded ? s.Name : _meter.Data.Objects.TryGetValue(s.Code, out var n) ? n : null;
+
     // ------------------------------------------------------------------ best areas per kind (A2M-3)
 
     /// <summary>The kinds known on this map, one toggle each; rebuilt when the spot count changes.</summary>
@@ -168,7 +172,7 @@ public partial class AtlasWindow : Window
         if (spots.Count == _toggleSpots) return;
         _toggleSpots = spots.Count;
         var kinds = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in spots) if (_meter.Data.Objects.TryGetValue(s.Code, out var n)) kinds.Add(n);
+        foreach (var s in spots) if (KindOf(s) is { } n) kinds.Add(n);
         var on = _meter.Settings.AtlasZoneKinds;
         _zoneToggles.Clear();
         foreach (var name in kinds)
@@ -206,7 +210,7 @@ public partial class AtlasWindow : Window
         {
             var mine = new List<NodeSpot>();
             foreach (var s in spots)
-                if (_meter.Data.Objects.TryGetValue(s.Code, out var n) && string.Equals(n.Trim(), key, StringComparison.OrdinalIgnoreCase)) mine.Add(s);
+                if (KindOf(s) is { } n && string.Equals(n.Trim(), key, StringComparison.OrdinalIgnoreCase)) mine.Add(s);
             if (mine.Count == 0) continue;
             var brush = IconBrush(key);
             var fill = brush is SolidColorBrush sc ? new SolidColorBrush(Color.FromArgb(0x2A, sc.Color.R, sc.Color.G, sc.Color.B)) : Brushes.Transparent;
