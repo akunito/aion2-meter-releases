@@ -1,10 +1,18 @@
+using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using AionMeter.App.Services;
 
 namespace AionMeter.App.Windows;
 
-/// <summary>Asked once per unknown object code when the player starts gathering it; the answer names every node of that kind.</summary>
+/// <summary>
+/// Asked once per unknown object code when the player starts gathering it (or by right-click in the atlas): pick the
+/// kind from the catalogue (data/atlas/gather-catalog.json, icons in data/atlas/icons), typing only as a fallback.
+/// </summary>
 public partial class NameNodeWindow : Window
 {
     private readonly MeterService _meter;
@@ -17,13 +25,63 @@ public partial class NameNodeWindow : Window
         InitializeComponent();
         Question.Text = string.Format(UiText.Current.NameNodeQuestion, code);
         if (meter.Data.Objects.TryGetValue(code, out var current)) NameBox.Text = current;
-        Loaded += (_, _) => { NameBox.Focus(); };
+        BuildCatalog();
     }
 
-    private void Save_Click(object sender, RoutedEventArgs e)
+    private void BuildCatalog()
     {
-        var category = CategoryBox.SelectedItem is ComboBoxItem item ? item.Content?.ToString() ?? "" : CategoryBox.Text;
-        _meter.NameObject(_code, NameBox.Text, category ?? "");
+        var dir = Path.Combine(MeterService.DataDirectory, "atlas");
+        var path = Path.Combine(dir, "gather-catalog.json");
+        if (!File.Exists(path)) return;
+        var lang = UiText.Current.Code == "ru" ? "en" : _meter.Settings.Language is "es" ? "es" : "en";
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            foreach (var cat in doc.RootElement.GetProperty("categories").EnumerateArray())
+            {
+                var catKey = cat.GetProperty("key").GetString() ?? "";
+                var header = new TextBlock { Text = (cat.TryGetProperty("es", out var ces) ? ces.GetString() : null) ?? catKey, Foreground = (Brush)FindResource("TextMute"), FontSize = 11, Margin = new Thickness(0, 6, 0, 2) };
+                Catalog.Children.Add(header);
+                var row = new WrapPanel();
+                foreach (var node in cat.GetProperty("nodes").EnumerateArray())
+                {
+                    var key = node.GetProperty("key").GetString() ?? "";
+                    var name = (node.TryGetProperty(lang, out var n) ? n.GetString() : null) ?? (node.TryGetProperty("en", out var en) ? en.GetString() : key) ?? key;
+                    var icon = Path.Combine(dir, "icons", key + ".png");
+                    var content = new StackPanel { Orientation = Orientation.Horizontal };
+                    if (File.Exists(icon))
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.UriSource = new Uri(icon); bmp.DecodePixelWidth = 40; bmp.EndInit(); bmp.Freeze();
+                        content.Children.Add(new Image { Source = bmp, Width = 24, Height = 24, Margin = new Thickness(0, 0, 6, 0) });
+                    }
+                    content.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
+                    var button = new Button { Style = (Style)FindResource("Chip"), Height = 32, Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(8, 0, 10, 0), Content = content, Tag = (name, catKey) };
+                    button.Click += Pick_Click;
+                    row.Children.Add(button);
+                }
+                Catalog.Children.Add(row);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or KeyNotFoundException)
+        {
+            Log.Info($"gather-catalog.json ignored: {ex.Message}");
+        }
+    }
+
+    private void Pick_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: (string name, string category) })
+        {
+            _meter.NameObject(_code, name, category);
+            Close();
+        }
+    }
+
+    private void NameBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || NameBox.Text.Trim().Length == 0) return;
+        _meter.NameObject(_code, NameBox.Text, "");
         Close();
     }
 
