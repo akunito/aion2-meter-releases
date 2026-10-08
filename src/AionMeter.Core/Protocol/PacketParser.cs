@@ -61,6 +61,15 @@ public sealed class PacketParser
             case Opcodes.InventoryUpdate:
                 ParseInventory(body, full: false);
                 break;
+            case Opcodes.PetList:
+                ParsePetList(body);
+                break;
+            case Opcodes.TitleList:
+                ParseTitleList(body);
+                break;
+            case Opcodes.AchievementList:
+                ParseAchievementList(body);
+                break;
             case Opcodes.FieldBossList:
                 ParseFieldBossList(body);
                 break;
@@ -407,6 +416,54 @@ public sealed class PacketParser
             else o++;
         }
         if (stacks.Count > 0) Emit(new InventoryEvent(TimeMs, full, stacks));
+    }
+
+    // ------------------------------------------------------------------ character collections (00 90, 79 56, 83 56)
+
+    private void ParsePetList(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryU32(b, ref o, out var equipped) || !Wire.TryVarint(b, ref o, out var count) || count > 5000) return;
+        var pets = new List<Character.PetOwned>((int)count);
+        for (var i = 0; i < count && o + 12 <= b.Length; i++, o += 12)
+        {
+            var id = BitConverter.ToInt32(b.Slice(o, 4));
+            var level = BitConverter.ToInt32(b.Slice(o + 8, 4));
+            if (id is <= 0 or > 1_000_000 || level is < 0 or > 100) break;
+            pets.Add(new Character.PetOwned(id, level));
+        }
+        if (pets.Count > 0) Emit(new PetListEvent(TimeMs, (int)equipped, pets));
+    }
+
+    private void ParseTitleList(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var count) || count > 5000) return;
+        var titles = new List<int>((int)count);
+        for (var i = 0; i < count && o + 4 <= b.Length; i++, o += 4)
+        {
+            var id = BitConverter.ToInt32(b.Slice(o, 4));
+            if (id is < 10_000_000 or > 99_999_999) break;
+            titles.Add(id);
+        }
+        if (titles.Count > 0) Emit(new TitleListEvent(TimeMs, titles));
+    }
+
+    /// <summary>Rows of 17 bytes after a u16; the packet goes on with another section (gear ids) that stops the walk.</summary>
+    private void ParseAchievementList(ReadOnlySpan<byte> b)
+    {
+        var o = 2;
+        var rows = new List<Character.AchievementRow>();
+        while (o + 17 <= b.Length)
+        {
+            var id = BitConverter.ToInt32(b.Slice(o, 4));
+            var state = BitConverter.ToInt32(b.Slice(o + 4, 4));
+            var ts = BitConverter.ToInt64(b.Slice(o + 8, 8));
+            if (id is < 100_000_000 or > 199_999_999 || state is < 0 or > 100_000 || (ts != 0 && ts is < 1_600_000_000_000 or > 2_000_000_000_000)) break;
+            rows.Add(new Character.AchievementRow(id, state, ts));
+            o += 17;
+        }
+        if (rows.Count > 0) Emit(new AchievementListEvent(TimeMs, rows));
     }
 
     // ------------------------------------------------------------------ damage (04 38)

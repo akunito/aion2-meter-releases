@@ -57,6 +57,20 @@ public sealed class ItemCatalog : IDisposable
                 info = new ItemInfo(id, Str(r, "name") ?? $"Item {id}", Str(stats, "grade"), Str(stats, "category") ?? Str(stats, "type"), Str(r, "icon"));
             }
             else if (resp.StatusCode != HttpStatusCode.NotFound) return null; // transient: ask again later
+            else
+            {
+                // aion2hub.me misses a few Global-only items (tickets, event materials, 2026-10-08: 8 of 142); the official page
+                // knows every item: gameconst/item under the /en-us/ prefix (without it the site answers 302).
+                await Task.Delay(400, ct).ConfigureAwait(false);
+                Requests++;
+                using var official = await _http.GetAsync($"https://aion2.plaync.com/en-us/api/gameconst/item?id={id}&enchantLevel=0&region=eu&lang=en-US", ct).ConfigureAwait(false);
+                if (official.IsSuccessStatusCode)
+                {
+                    using var doc = JsonDocument.Parse(await official.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+                    var r = doc.RootElement;
+                    if (Str(r, "name") is { } name) info = new ItemInfo(id, name, Str(r, "gradeName") ?? Str(r, "grade"), Str(r, "categoryName"), Str(r, "icon"));
+                }
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { return null; }
         finally { _gate.Release(); }

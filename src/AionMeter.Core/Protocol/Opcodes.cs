@@ -45,6 +45,10 @@ public static class Opcodes
     // uid u32, 00, u16, 00, item id u32, count u32, u32 0, container u8, slot u8, then 13 zero bytes (gear: a longer tail with the enchant).
     public const ushort Inventory = 0x1156;       // every container at login (12.7 KB for 188 stacks)
     public const ushort InventoryUpdate = 0x1B56; // count u8, 01, flag, then records: a container re-sent when opened, or the slots a gather/loot/move changed
+    // Character collections, sent once at login (same capture):
+    public const ushort PetList = 0x0090;         // equipped pet u32, count varint, {pet id u32, pet id u32, level u32} × count (124 pets); more data follows
+    public const ushort TitleList = 0x7956;       // count varint, title id u32 × count (182; ids = aion2hub titles, 12010061 = Through Hell and Back)
+    public const ushort AchievementList = 0x8356; // u16, then {id u32, state u32, completed u64 ms, 00} rows (1512) before another section
 
     public static string Name(ushort op) => op switch
     {
@@ -58,6 +62,9 @@ public static class Opcodes
         Cast => "Cast",
         SkillHit => "SkillHit",
         Inventory => "Inventory",
+        PetList => "Pets",
+        TitleList => "Titles",
+        AchievementList => "Achievements",
         InventoryUpdate => "InventoryUpd",
         Damage => "Damage",
         Dot => "Dot",

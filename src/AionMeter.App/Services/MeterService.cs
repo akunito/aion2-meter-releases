@@ -5,6 +5,7 @@ using AionMeter.Core.Combat;
 using AionMeter.Core.Demo;
 using AionMeter.Core.Game;
 using AionMeter.Core.Armory;
+using AionMeter.Core.Character;
 using AionMeter.Core.GameDb;
 using AionMeter.Core.Inventory;
 using AionMeter.Core.Leaderboard;
@@ -114,6 +115,8 @@ public sealed class MeterService : IDisposable
     public Aion2IndexClient Leaderboard { get; } = new(Path.Combine(AppSettings.AppDataDir, "armory", "leaderboard"));
     /// <summary>Bag, second bag, equipped set and warehouse from the login list and the refreshes (private branch).</summary>
     public InventoryStore Inventory { get; } = new(Path.Combine(AppSettings.AppDataDir, "inventory.json"));
+    /// <summary>Pets, titles and achievements from the login lists (private branch); saved to state\character.json for the AI side.</summary>
+    public CharacterState Character { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
@@ -250,7 +253,7 @@ public sealed class MeterService : IDisposable
         // Persist the name map a few seconds after it changes (not on every packet).
         if (Settings.Transient || _replaying || DemoRunning) return;
         var now = Environment.TickCount64;
-        if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); Inventory.Save(); }
+        if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); Inventory.Save(); Character.Save(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
         SaveNames();
@@ -330,6 +333,7 @@ public sealed class MeterService : IDisposable
 
     private void InventoryOnEvent(Core.Events.GameEvent e)
     {
+        if (e is Core.Events.PetListEvent or Core.Events.TitleListEvent or Core.Events.AchievementListEvent) { try { Character.OnEvent(e); } catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Character state failed", ex); } return; }
         if (e is not Core.Events.InventoryEvent) return;
         try { Inventory.OnEvent(e); }
         catch (Exception ex) when (ex is not OutOfMemoryException)
