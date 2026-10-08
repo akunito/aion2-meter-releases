@@ -30,6 +30,7 @@ return args.FirstOrDefault() switch
     "atlas" when args.Length > 1 => Atlas(args[1], args.Length > 2 ? args[2] : null),
     "top" when args.Length > 1 => Top(args[1], args.Length > 2 ? args[2] : null),
     "armory" when args.Length > 1 => Armory(args[1], args.Length > 2 ? int.Parse(args[2]) : 1303).GetAwaiter().GetResult(),
+    "inventory" when args.Length > 1 => Inventory(args[1]).GetAwaiter().GetResult(),
     "leaderboard" => Leaderboard(args.Length > 1 ? args[1] : "eu", args.Length > 2 ? args[2] : null, args.Length > 3 ? args[3] : null).GetAwaiter().GetResult(),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
@@ -229,6 +230,31 @@ async Task<int> Leaderboard(string region, string? cls, string? server)
     var rows = await client.TopAsync(region, gc, server);
     Console.WriteLine($"{rows.Count} rows ({client.Requests} requests)");
     foreach (var r in rows) Console.WriteLine($"  #{r.Rank,-5} {r.Name,-16} {r.ServerName,-10} {r.ClassKey,-13} lv{r.Level} CP {r.CombatPower,8:N0}  item level {r.ItemLevel}");
+    return 0;
+}
+
+// The character's containers from a recording that includes a login (11 56) or container refreshes (1b 56), names from aion2hub.me (cached in the temp dir).
+async Task<int> Inventory(string path)
+{
+    var store = new AionMeter.Core.Inventory.InventoryStore(null);
+    var replay = new PcapReplaySource(data, path, realtime: false);
+    replay.EventDecoded += store.OnEvent;
+    replay.RunToEnd();
+    using var catalog = new AionMeter.Core.GameDb.ItemCatalog(Path.Combine(Path.GetTempPath(), "aionmeter-gamedb", "items.json"));
+    var all = store.All();
+    Console.WriteLine($"{all.Count} stacks in {store.ContainerIds.Count} containers; resolving names…");
+    await catalog.ResolveAsync(all.Select(s => s.Item));
+    foreach (var c in store.ContainerIds)
+    {
+        var items = store.Items(c);
+        Console.WriteLine($"== {AionMeter.Core.Inventory.Containers.Name(c)} ({items.Count})");
+        foreach (var s in items)
+        {
+            var info = catalog.Cached(s.Item);
+            Console.WriteLine($"   {s.Slot,3}  x{s.Count,-7} {s.Item}  {info?.Name ?? "?"}{(s.Enchant > 0 ? $" +{s.Enchant}" : "")}  {info?.Grade ?? ""} {info?.Category ?? ""}");
+        }
+    }
+    Console.WriteLine($"[{catalog.Requests} catalogue requests]");
     return 0;
 }
 

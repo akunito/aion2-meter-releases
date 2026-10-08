@@ -55,6 +55,12 @@ public sealed class PacketParser
             case Opcodes.SkillHit:
                 ParseSkillHit(body);
                 break;
+            case Opcodes.Inventory:
+                ParseInventory(body, full: true);
+                break;
+            case Opcodes.InventoryUpdate:
+                ParseInventory(body, full: false);
+                break;
             case Opcodes.FieldBossList:
                 ParseFieldBossList(body);
                 break;
@@ -368,6 +374,39 @@ public sealed class PacketParser
         o += 2;
         if (!Wire.TryVarint(b, ref o, out var target) || !IsEntityId(target)) return;
         EmitTargetPosition(b, o, target);
+    }
+
+    // ------------------------------------------------------------------ inventory (11 56, 1b 56)
+
+    /// <summary>
+    /// Records are found by shape rather than walked, because gear records carry a variable tail (enchant, stones, the
+    /// crafter's name): <c>uid u32, 00, u16, 00, item u32 (9 digits), count u32 (1..9,999,999), u32 0, container, slot</c>.
+    /// Measured 2026-10-08: the login list gave 188 stacks, the 20 equipped ones matching the official character page exactly.
+    /// The enchant of a piece of gear sits 12–13 bytes after the slot byte (both offsets seen; the first non-zero one wins).
+    /// </summary>
+    private void ParseInventory(ReadOnlySpan<byte> b, bool full)
+    {
+        var stacks = new List<Inventory.ItemStack>();
+        var o = 0;
+        while (o + 22 <= b.Length)
+        {
+            var item = BitConverter.ToInt32(b.Slice(o + 8, 4));
+            var count = BitConverter.ToInt32(b.Slice(o + 12, 4));
+            if (b[o + 4] == 0 && b[o + 7] == 0 && item is >= 100_000_000 and <= 999_999_999 && count is >= 1 and <= 9_999_999 &&
+                BitConverter.ToInt32(b.Slice(o + 16, 4)) == 0)
+            {
+                var enchant = 0;
+                if (count == 1 && item < 400_000_000 && o + 22 + 14 <= b.Length)
+                {
+                    int e1 = b[o + 34], e2 = b[o + 35];
+                    enchant = e1 is > 0 and <= 30 ? e1 : e2 is > 0 and <= 30 ? e2 : 0;
+                }
+                stacks.Add(new Inventory.ItemStack(BitConverter.ToUInt32(b.Slice(o, 4)), item, count, b[o + 20], b[o + 21], enchant));
+                o += 22;
+            }
+            else o++;
+        }
+        if (stacks.Count > 0) Emit(new InventoryEvent(TimeMs, full, stacks));
     }
 
     // ------------------------------------------------------------------ damage (04 38)

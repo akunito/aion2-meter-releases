@@ -124,6 +124,9 @@ public sealed record ObjectSeenEvent(long TimeMs, uint ActorId, byte Kind, int O
 /// <summary>An object left (<c>35 36</c>): <paramref name="Exhausted"/> after its last unit, otherwise it only left the client's view.</summary>
 public sealed record ObjectGoneEvent(long TimeMs, uint ActorId, bool Exhausted) : GameEvent(TimeMs);
 
+/// <summary>Stacks of the local character's containers: the whole set at login (Full) or a refresh of some slots/containers.</summary>
+public sealed record InventoryEvent(long TimeMs, bool Full, IReadOnlyList<Inventory.ItemStack> Stacks) : GameEvent(TimeMs);
+
 /// <summary>Gathering on a node by any player in view: a start (<c>38 36</c>, <paramref name="Count"/> = 0) or a
 /// result (<c>3a 36</c>, <paramref name="Count"/> = units taken from the node so far, shared by all gatherers).</summary>
 public sealed record GatherEvent(long TimeMs, uint ObjectId, uint PlayerId, bool Started, int Count) : GameEvent(TimeMs);

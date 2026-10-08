@@ -5,6 +5,8 @@ using AionMeter.Core.Combat;
 using AionMeter.Core.Demo;
 using AionMeter.Core.Game;
 using AionMeter.Core.Armory;
+using AionMeter.Core.GameDb;
+using AionMeter.Core.Inventory;
 using AionMeter.Core.Leaderboard;
 using AionMeter.Core.Ranking;
 using AionMeter.Core.Storage;
@@ -110,6 +112,10 @@ public sealed class MeterService : IDisposable
     public ArmoryClient Armory { get; } = new(Path.Combine(AppSettings.AppDataDir, "armory"));
     /// <summary>aion2index.com combat-power ranking pages (GET only, one page per 400 ms, one snapshot per day).</summary>
     public Aion2IndexClient Leaderboard { get; } = new(Path.Combine(AppSettings.AppDataDir, "armory", "leaderboard"));
+    /// <summary>Bag, second bag, equipped set and warehouse from the login list and the refreshes (private branch).</summary>
+    public InventoryStore Inventory { get; } = new(Path.Combine(AppSettings.AppDataDir, "inventory.json"));
+    /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
+    public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
     /// <summary>Recurring server events (Shugo, Rift, siege, reset) from data/atlas/events.json.</summary>
     public IReadOnlyList<ScheduledEvent> Events { get; } = ScheduledEvent.Load(Path.Combine(DataDirectory, "atlas", "events.json"));
@@ -180,6 +186,7 @@ public sealed class MeterService : IDisposable
                 _capture = CaptureFactory(Data);
                 _capture.EventDecoded += Tracker.Process;
                 _capture.EventDecoded += AtlasOnEvent;
+                _capture.EventDecoded += InventoryOnEvent;
                 _capture.Start();
             }
             catch (Exception ex)
@@ -243,7 +250,7 @@ public sealed class MeterService : IDisposable
         // Persist the name map a few seconds after it changes (not on every packet).
         if (Settings.Transient || _replaying || DemoRunning) return;
         var now = Environment.TickCount64;
-        if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
+        if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); Inventory.Save(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
         SaveNames();
@@ -319,6 +326,17 @@ public sealed class MeterService : IDisposable
     private bool _exiting;
 
     private int _atlasFaults;
+    private int _inventoryFaults;
+
+    private void InventoryOnEvent(Core.Events.GameEvent e)
+    {
+        if (e is not Core.Events.InventoryEvent) return;
+        try { Inventory.OnEvent(e); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            if (++_inventoryFaults <= 5) Log.Error("Inventory handler failed", ex);
+        }
+    }
     private int _loggedFaults;
 
     /// <summary>

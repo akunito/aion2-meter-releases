@@ -41,6 +41,10 @@ public static class Opcodes
     public const ushort SelfStatus = 0x4A36;
     public const ushort SelfState46 = 0x4637;
     public const ushort SelfState44 = 0x4437;
+    // Inventory (EU, relog capture 2026-10-08): the login list and the refreshes share one record shape,
+    // uid u32, 00, u16, 00, item id u32, count u32, u32 0, container u8, slot u8, then 13 zero bytes (gear: a longer tail with the enchant).
+    public const ushort Inventory = 0x1156;       // every container at login (12.7 KB for 188 stacks)
+    public const ushort InventoryUpdate = 0x1B56; // count u8, 01, flag, then records: a container re-sent when opened, or the slots a gather/loot/move changed
 
     public static string Name(ushort op) => op switch
     {
@@ -53,6 +57,8 @@ public static class Opcodes
         Teleport => "Teleport",
         Cast => "Cast",
         SkillHit => "SkillHit",
+        Inventory => "Inventory",
+        InventoryUpdate => "InventoryUpd",
         Damage => "Damage",
         Dot => "Dot",
         RemainHp => "RemainHp",
