@@ -179,7 +179,7 @@ public sealed class MeterService : IDisposable
             {
                 _capture = CaptureFactory(Data);
                 _capture.EventDecoded += Tracker.Process;
-                _capture.EventDecoded += Atlas.OnEvent;
+                _capture.EventDecoded += AtlasOnEvent;
                 _capture.Start();
             }
             catch (Exception ex)
@@ -234,6 +234,11 @@ public sealed class MeterService : IDisposable
     {
         // The wall clock means nothing to a recording's timestamps: idle checks wait until the replay is done.
         if (!_replaying) Tracker.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        if (_capture is Core.Capture.LiveCapture live && live.Faults != _loggedFaults)
+        {
+            _loggedFaults = live.Faults;
+            Log.Error($"Capture: {live.Faults} packets lost to handler faults", live.LastFault);
+        }
 
         // Persist the name map a few seconds after it changes (not on every packet).
         if (Settings.Transient || _replaying || DemoRunning) return;
@@ -312,6 +317,23 @@ public sealed class MeterService : IDisposable
             : zone;
 
     private bool _exiting;
+
+    private int _atlasFaults;
+    private int _loggedFaults;
+
+    /// <summary>
+    /// The capture thread swallows handler exceptions per packet (LiveCapture.OnPacketArrival), which would silently drop every
+    /// combat record of that packet: the atlas, a side feature, must never cost the meter a hit. Logged, first 5 with the stack.
+    /// </summary>
+    private void AtlasOnEvent(Core.Events.GameEvent e)
+    {
+        try { Atlas.OnEvent(e); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            if (++_atlasFaults <= 5) Log.Error($"Atlas handler failed on {e.GetType().Name}", ex);
+            else if (_atlasFaults % 1000 == 0) Log.Info($"Atlas handler failed {_atlasFaults} times");
+        }
+    }
 
     private void OnEncounterFinished(FightRecord record)
     {

@@ -606,7 +606,7 @@ public partial class OverlayWindow : Window
     private void UpdateEventLabels()
     {
         var now = DateTimeOffset.Now;
-        var labels = _vm.EventLabels;
+        var pills = _vm.EventLabels;
         var i = 0;
         foreach (var ev in _meter.Events)
         {
@@ -614,11 +614,16 @@ public partial class OverlayWindow : Window
             var left = running ? end - now : start - now;
             var span = left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{Math.Max(0, (int)Math.Ceiling(left.TotalMinutes))}m";
             var text = running ? $"{ev.Name} ● {span}" : $"{ev.Name} {span}";
-            if (i < labels.Count) { if (labels[i] != text) labels[i] = text; }
-            else labels.Add(text);
+            if (i >= pills.Count || pills[i].Key != ev.Key)
+            {
+                var pill = new EventPill(ev.Key, ev.Name, _meter.Settings.AlertFor(ev.Key), _meter.Settings.Save);
+                if (i >= pills.Count) pills.Add(pill); else pills[i] = pill;
+            }
+            if (pills[i].Text != text) pills[i].Text = text;
+            pills[i].Paint(left, running);
             i++;
         }
-        while (labels.Count > i) labels.RemoveAt(labels.Count - 1);
+        while (pills.Count > i) pills.RemoveAt(pills.Count - 1);
     }
 
     private void Top_Click(object sender, RoutedEventArgs e)

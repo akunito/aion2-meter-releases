@@ -451,18 +451,26 @@ public partial class App : Application
         _atlasWindow.Show();
     }
 
-    private readonly HashSet<(string, DateTimeOffset)> _eventAlerted = new();
+    private readonly HashSet<(string, DateTimeOffset, int)> _eventAlerted = new();
 
-    /// <summary>Tray notification (and a chime) alert_minutes before each recurring server event (Shugo, Rift, …).</summary>
+    /// <summary>Windows notification and/or sound 10 and/or 5 minutes before each recurring event, as chosen on the pill's right-click menu.</summary>
     private void CheckEventAlerts()
     {
         var now = DateTimeOffset.Now;
         foreach (var ev in _meter.Events)
         {
             var (start, _, running) = ev.Next(now);
-            if (running || start - now > TimeSpan.FromMinutes(ev.AlertMinutes) || !_eventAlerted.Add((ev.Key, start))) continue;
-            _tray?.ShowBalloon(ev.Name, $"{ev.Name} starts at {start:HH:mm} ({(int)Math.Ceiling((start - now).TotalMinutes)} min)");
-            System.Media.SystemSounds.Asterisk.Play();
+            if (running) continue;
+            var a = _meter.Settings.AlertFor(ev.Key);
+            if (!a.Notify && !a.Sound) continue;
+            var left = start - now;
+            foreach (var minutes in (int[])[10, 5])
+            {
+                if (minutes == 10 ? !a.At10 : !a.At5) continue;
+                if (left > TimeSpan.FromMinutes(minutes) || left < TimeSpan.FromMinutes(minutes - 1) || !_eventAlerted.Add((ev.Key, start, minutes))) continue;
+                if (a.Notify) _tray?.ShowBalloon(ev.Name, string.Format(UiText.Current.EventStartsAt, ev.Name, start.ToString("HH:mm"), (int)Math.Ceiling(left.TotalMinutes)));
+                if (a.Sound) System.Media.SystemSounds.Asterisk.Play();
+            }
         }
     }
 

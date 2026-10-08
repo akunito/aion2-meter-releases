@@ -45,6 +45,23 @@ public sealed class AppSettings
     /// <summary>Tray notification this many minutes before a tracked boss respawns; 0 = off.</summary>
     public int BossAlertMinutes { get; set; } = 2;
 
+    /// <summary>Per recurring event (key from data/atlas/events.json): Windows notification and/or sound, 10 and/or 5 minutes before the start.</summary>
+    public sealed class EventAlert
+    {
+        public bool Notify { get; set; } = true;
+        public bool Sound { get; set; } = true;
+        public bool At10 { get; set; } = true;
+        public bool At5 { get; set; } = true;
+    }
+
+    public Dictionary<string, EventAlert> EventAlerts { get; set; } = new();
+
+    public EventAlert AlertFor(string key)
+    {
+        if (!EventAlerts.TryGetValue(key, out var a)) EventAlerts[key] = a = new EventAlert();
+        return a;
+    }
+
     // Meter
     public TargetMode TargetMode { get; set; } = TargetMode.BossOnly;
     /// <summary>True: the leader's bar is full and the rest are sized against it. False: bars show share of party damage.</summary>

@@ -374,6 +374,11 @@ public sealed class UiText
     public string TopRepeated { get; init; } = "MOST REPEATED 3-CAST SEQUENCES";
     public string TopCadence { get; init; } = "CASTS PER MINUTE";
     public string TopProfile { get; init; } = "PROFILE (official character page)";
+    public string EventMenuNotify { get; init; } = "Windows notification";
+    public string EventMenuSound { get; init; } = "Sound";
+    public string EventMenuAt10 { get; init; } = "Alert 10 min before";
+    public string EventMenuAt5 { get; init; } = "Alert 5 min before";
+    public string EventStartsAt { get; init; } = "{0} starts at {1} ({2} min)";
     public string TopScopeHistory { get; init; } = "My fights";
     public string TopScopeServer { get; init; } = "Server {0}";
     public string TopScopeGlobal { get; init; } = "Europe";

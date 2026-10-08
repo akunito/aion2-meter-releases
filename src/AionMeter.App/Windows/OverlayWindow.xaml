@@ -4,6 +4,7 @@
         xmlns:c="clr-namespace:AionMeter.App.Controls"
         xmlns:vm="clr-namespace:AionMeter.App.ViewModels"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        xmlns:s="clr-namespace:AionMeter.App.Services"
         x:Name="Root"
         Title="AION2 DPS Meter" Width="470" Height="540" MinWidth="340" MinHeight="220"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
@@ -160,6 +161,56 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bd" Property="BorderBrush" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Recurring event pill: colour comes from the item (EventPill.Fill / Stroke), right-click opens the alert toggles -->
+        <Style x:Key="EventPill" TargetType="Button">
+            <Setter Property="Foreground" Value="#F4F1E8" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="{StaticResource NumberFont}" />
+            <Setter Property="Cursor" Value="Arrow" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="11" Padding="10,3,11,3" BorderThickness="1" BorderBrush="{TemplateBinding BorderBrush}"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Tool pills (Atlas, Top): outlined, not filled, so they do not read as timers -->
+        <Style x:Key="ToolPill" TargetType="Button">
+            <Setter Property="Foreground" Value="#F3D58F" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="{StaticResource NumberFont}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="11" Padding="10,3,11,3" BorderThickness="1" BorderBrush="#C9A45C" Background="#99111726">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FFE3A6" />
+                                <Setter TargetName="Bd" Property="Background" Value="#CC1A2235" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -477,18 +528,29 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Style="{StaticResource TimersPill}" IsHitTestVisible="False" Margin="0,0,6,0" Content="{Binding}" />
+                                    <Button Style="{StaticResource EventPill}" Margin="0,0,6,0" Content="{Binding Text}"
+                                            Background="{Binding Fill}" BorderBrush="{Binding Stroke}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="{Binding EventMenuNotify, Source={x:Static s:UiText.Current}}" IsCheckable="True" IsChecked="{Binding Notify, Mode=TwoWay}" />
+                                                <MenuItem Header="{Binding EventMenuSound, Source={x:Static s:UiText.Current}}" IsCheckable="True" IsChecked="{Binding Sound, Mode=TwoWay}" />
+                                                <Separator />
+                                                <MenuItem Header="{Binding EventMenuAt10, Source={x:Static s:UiText.Current}}" IsCheckable="True" IsChecked="{Binding At10, Mode=TwoWay}" />
+                                                <MenuItem Header="{Binding EventMenuAt5, Source={x:Static s:UiText.Current}}" IsCheckable="True" IsChecked="{Binding At5, Mode=TwoWay}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <!-- Atlas (private branch): the nodes map -->
-                        <Button Style="{StaticResource TimersPill}" Click="Atlas_Click" ToolTip="{Binding T.TrayAtlas}" Margin="6,0,0,0">
+                        <Button Style="{StaticResource ToolPill}" Click="Atlas_Click" ToolTip="{Binding T.TrayAtlas}" Margin="6,0,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE707;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding T.AtlasTitle}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource TimersPill}" Click="Top_Click" ToolTip="{Binding T.TrayTop}" Margin="6,0,0,0">
+                        <Button Style="{StaticResource ToolPill}" Click="Top_Click" ToolTip="{Binding T.TrayTop}" Margin="6,0,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE734;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding T.TopTitle}" VerticalAlignment="Center" />

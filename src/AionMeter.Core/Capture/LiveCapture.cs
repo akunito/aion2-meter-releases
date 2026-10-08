@@ -252,10 +252,16 @@ public sealed class LiveCapture : IEventSource
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // A malformed packet must never take the capture thread down.
+            // A malformed packet must never take the capture thread down; but a handler bug here loses the packet's records, so count it.
+            Faults++;
+            LastFault = ex;
             System.Diagnostics.Debug.WriteLine(ex);
         }
     }
+
+    /// <summary>Packets whose handling threw (their records were lost); the status line shows it when non-zero.</summary>
+    public int Faults { get; private set; }
+    public Exception? LastFault { get; private set; }
 
     private void OnEvent(GameEvent e)
     {

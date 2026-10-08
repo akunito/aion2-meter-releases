@@ -224,8 +224,8 @@ public sealed class OverlayViewModel : ObservableObject
 
     /// <summary>The footer's timer button: "Timers", or the next respawn ("Gartua 12:34").</summary>
     public string TimersLabel { get => _timersLabel; set => Set(ref _timersLabel, value); }
-    /// <summary>One pill per recurring server event ("Shugo 39m", "Rift ● 42m" while running), set in place every second.</summary>
-    public System.Collections.ObjectModel.ObservableCollection<string> EventLabels { get; } = new();
+    /// <summary>One pill per recurring server event ("Shugo 39m", "Rift ● 42m" while running), updated in place every second.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<EventPill> EventLabels { get; } = new();
     private string _timersLabel = UiText.Current.TimersButton;
     public string Clock { get => _clock; set => Set(ref _clock, value); }
     public bool IsActive { get => _isActive; set => Set(ref _isActive, value); }
