@@ -93,7 +93,7 @@ public partial class AtlasWindow : Window
             }
         }
 
-        if (atlas.SelfId != 0 && now - atlas.SelfAtMs < 120_000)
+        if (atlas.SelfId != 0 && atlas.SelfAtMs > 0 && now - atlas.SelfAtMs < 30 * 60_000) // the last position is kept half an hour
         {
             var (sx, sy) = _cal.ToPixel(atlas.SelfX, atlas.SelfY);
             if (FollowBox.IsChecked == true && sx >= 0 && sy >= 0 && sx <= _cal.Width && sy <= _cal.Height && Viewport.ActualWidth > 0)
@@ -102,7 +102,8 @@ public partial class AtlasWindow : Window
                 _ty = Viewport.ActualHeight / 2 - sy * _f * _scale;
                 Apply();
             }
-            Dot(sx, sy, 8, Self, "", Self);
+            var age = (now - atlas.SelfAtMs) / 1000;
+            Dot(sx, sy, 8, Self, age > 10 ? $"{age}s" : "", Self);
 
         }
     }

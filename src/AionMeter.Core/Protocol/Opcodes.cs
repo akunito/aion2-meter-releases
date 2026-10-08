@@ -31,6 +31,8 @@ public static class Opcodes
     public const ushort GatherStart = 0x3836;    // node, player, 01
     public const ushort GatherResult = 0x3A36;   // node, player, units taken so far (1..3), 7×00
     public const ushort Positions = 0x1A37;      // one entity's position: id, u16 flags, x y z, heading (every entity in view)
+    public const ushort EntityState = 0x3C37;    // id, u8, x y z, … (the local player among others; sent on state changes)
+    public const ushort ActionState = 0x2B38;    // id, …, u64 ms, id, 01 02, x y z (gathering and other actions; position = last 12 bytes)
 
     public static string Name(ushort op) => op switch
     {
@@ -55,6 +57,8 @@ public static class Opcodes
         GatherStart => "GatherStart",
         GatherResult => "GatherResult",
         Positions => "Position",
+        EntityState => "EntityState",
+        ActionState => "ActionState",
         _ => $"{op >> 8:x2} {op & 0xFF:x2}",
     };
 }

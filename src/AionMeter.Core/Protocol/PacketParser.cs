@@ -68,6 +68,12 @@ public sealed class PacketParser
             case Opcodes.Positions:
                 ParsePosition(body);
                 break;
+            case Opcodes.EntityState:
+                ParseEntityState(body);
+                break;
+            case Opcodes.ActionState:
+                ParseActionState(body);
+                break;
             case Opcodes.Dot:
                 ParseDot(body);
                 break;
@@ -260,6 +266,31 @@ public sealed class PacketParser
         Emit(new GatherEvent(TimeMs, node, player, start, n));
     }
 
+    private static bool PlausibleWorld(float x, float y, float z) =>
+        float.IsFinite(x) && float.IsFinite(y) && float.IsFinite(z) && Math.Abs(x) is > 100 and < 5e6f && Math.Abs(y) is > 100 and < 5e6f && Math.Abs(z) < 1e6f;
+
+    /// <summary><c>entity varint, u8, x y z f32, …</c> (3c 37).</summary>
+    private void ParseEntityState(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var id) || id == 0 || o + 13 > b.Length) return;
+        var x = BitConverter.ToSingle(b.Slice(o + 1, 4));
+        var y = BitConverter.ToSingle(b.Slice(o + 5, 4));
+        var z = BitConverter.ToSingle(b.Slice(o + 9, 4));
+        if (PlausibleWorld(x, y, z)) Emit(new PositionEvent(TimeMs, id, x, y, z));
+    }
+
+    /// <summary><c>entity varint, … , entity varint, 01 02, x y z f32</c> (2b 38): the position is the record's last 12 bytes.</summary>
+    private void ParseActionState(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var id) || id == 0 || b.Length < o + 12) return;
+        var x = BitConverter.ToSingle(b.Slice(b.Length - 12, 4));
+        var y = BitConverter.ToSingle(b.Slice(b.Length - 8, 4));
+        var z = BitConverter.ToSingle(b.Slice(b.Length - 4, 4));
+        if (PlausibleWorld(x, y, z)) Emit(new PositionEvent(TimeMs, id, x, y, z));
+    }
+
     /// <summary><c>entity varint, u16 flags, x y z f32, heading u16, [extra]</c>.</summary>
     private void ParsePosition(ReadOnlySpan<byte> b)
     {
@@ -284,6 +315,14 @@ public sealed class PacketParser
         o += 2;
         if (!Wire.TryVarint(b, ref o, out var target) || !IsEntityId(target)) return;
         Emit(new CastEvent(TimeMs, actor, target, (int)skill));
+        // Most casts carry the caster's position after one float (self-buffs carry a small direction vector instead).
+        if (o + 16 <= b.Length)
+        {
+            var x = BitConverter.ToSingle(b.Slice(o + 4, 4));
+            var y = BitConverter.ToSingle(b.Slice(o + 8, 4));
+            var z = BitConverter.ToSingle(b.Slice(o + 12, 4));
+            if (PlausibleWorld(x, y, z)) Emit(new PositionEvent(TimeMs, actor, x, y, z));
+        }
     }
 
     // ------------------------------------------------------------------ damage (04 38)

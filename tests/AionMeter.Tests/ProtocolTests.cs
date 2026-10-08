@@ -43,7 +43,7 @@ public class ProtocolTests
     [InlineData("d1ca0200 0d28e900 0102 d1ca02 a263c741d3c7ea47bd1ed1c70048a546ee64029a3a", 42321u, 42321u, 15280141)]
     public void Cast_announcements_decode(string hex, uint actor, uint target, int skill)
     {
-        var c = Assert.IsType<CastEvent>(Assert.Single(Parse(Opcodes.Cast, hex.Replace(" ", ""))));
+        var c = Assert.Single(Parse(Opcodes.Cast, hex.Replace(" ", "")).OfType<CastEvent>()); // a position event may ride along
         Assert.Equal(actor, c.ActorId);
         Assert.Equal(target, c.TargetId);
         Assert.Equal(skill, c.SkillCode);
@@ -100,6 +100,31 @@ public class ProtocolTests
         Assert.Equal(x, e.X, 0.5);
         Assert.Equal(y, e.Y, 0.5);
         Assert.Equal(z, e.Z, 0.5);
+    }
+
+    // The local player's position also rides on state and action records and on most casts (Verteron, 2026-10-08).
+    [Theory]
+    [InlineData(Opcodes.EntityState, "b33d035aeb0dc779fc0dc70078b84528449d42000001702cb800cb5bf1472d", -36331f, -36348f, 5903f)]
+    [InlineData(Opcodes.ActionState, "b33d1138e7000000c80000000000000056d7331ba1010000b33d0102d39100c70c1f07c70000bb45", -32914f, -34591f, 5984f)]
+    public void Self_position_from_state_records(ushort op, string hex, float x, float y, float z)
+    {
+        var p = Assert.IsType<PositionEvent>(Assert.Single(Parse(op, hex)));
+        Assert.Equal(7859u, p.ActorId);
+        Assert.Equal(x, p.X, 0.6);
+        Assert.Equal(y, p.Y, 0.6);
+        Assert.Equal(z, p.Z, 0.6);
+    }
+
+    [Fact]
+    public void Cast_also_gives_the_caster_position_when_it_carries_one()
+    {
+        var events = Parse(Opcodes.Cast, "c74300 0c28e900 9202 d1e802 b0f930c38dbae8470b71d3c700faa546ea5d01dc6f".Replace(" ", ""));
+        Assert.Equal(2, events.Count);
+        var p = Assert.IsType<PositionEvent>(events[1]);
+        Assert.Equal(8647u, p.ActorId);
+        Assert.Equal(119157f, p.X, 0.6);
+        Assert.Equal(-108258f, p.Y, 0.6);
+        Assert.Equal(21245f, p.Z, 0.6);
     }
 
     // Altgard's field boss list (map 1110) as the in-game map showed it at 00:30:07 on 2026-10-06 (UTC+3): 24 slots,
