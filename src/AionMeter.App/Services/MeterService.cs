@@ -1,4 +1,5 @@
 using System.IO;
+using AionMeter.Core.Atlas;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Demo;
@@ -27,6 +28,7 @@ public sealed class MeterService : IDisposable
         History = new HistoryStore(Path.Combine(AppSettings.AppDataDir, "fights"));
         Timers = new BossTimers(Path.Combine(AppSettings.AppDataDir, "boss-timers.json"), Data, DataDirectory, persistent: !settings.Transient);
         Updates = new Updater(settings);
+        Atlas = new NodeStore(Path.Combine(AppSettings.AppDataDir, "atlas"));
         Tracker.EncounterFinished += OnEncounterFinished;
         // A recording's or the demo's bosses must not move the live respawn timers.
         Tracker.BossNoticed += n =>
@@ -77,6 +79,9 @@ public sealed class MeterService : IDisposable
     public BossTimers Timers { get; }
     /// <summary>New versions on GitHub; checks only run once the app calls <see cref="Updater.Start"/>.</summary>
     public Updater Updates { get; }
+    /// <summary>Gathering nodes and the player's position, per map (private atlas branch).</summary>
+    public NodeStore Atlas { get; }
+    public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
     public Func<GameData, IEventSource>? CaptureFactory { get; }
 
     public CaptureStatus CaptureStatus =>
@@ -128,6 +133,7 @@ public sealed class MeterService : IDisposable
             {
                 _capture = CaptureFactory(Data);
                 _capture.EventDecoded += Tracker.Process;
+                _capture.EventDecoded += Atlas.OnEvent;
                 _capture.Start();
             }
             catch (Exception ex)
@@ -186,6 +192,7 @@ public sealed class MeterService : IDisposable
         // Persist the name map a few seconds after it changes (not on every packet).
         if (Settings.Transient || _replaying || DemoRunning) return;
         var now = Environment.TickCount64;
+        if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
         SaveNames();
@@ -194,6 +201,7 @@ public sealed class MeterService : IDisposable
     private readonly NameCache _names = new(Path.Combine(AppSettings.AppDataDir, "names-cache.json"));
     private int _savedNamesVersion;
     private long _lastNamesCheck;
+    private long _lastAtlasSave;
 
     private void SaveNames()
     {
@@ -283,6 +291,7 @@ public sealed class MeterService : IDisposable
     {
         var live = !Settings.Transient && !_replaying && !DemoRunning;
         lock (_captureGate) _capture?.Dispose(); // no more packets: the running fight is as complete as it gets
+        Atlas.Save();
         _replay?.Dispose();
         _demo?.Dispose();
         if (live)

@@ -125,6 +125,7 @@ public partial class App : Application
             Reset: RestartMeter,
             History: ShowHistory,
             BossTimers: ShowBossTimers,
+            Atlas: ShowAtlas,
             Settings: ShowSettings,
             Demo: () => _meter.StartDemo(),
             Replay: PickReplay,
@@ -282,6 +283,7 @@ public partial class App : Application
         _overlay.ApplyHotkeyTips();
         _hotkeys.Register(s.HotkeyClickThrough, ToggleClickThrough);
         _hotkeys.Register(s.HotkeyTimers, ToggleBossTimers);
+        _hotkeys.Register(s.HotkeyAtlas, ToggleAtlas);
     }
 
     /// <summary>
@@ -350,6 +352,7 @@ public partial class App : Application
         foreach (var w in _breakdowns.Values.ToList()) w.Close();
         _history?.Close();
         _timersWindow?.Close();
+        _atlasWindow?.Close();
         _updateWindow?.Close();
         _tray?.ApplyTexts();
         _overlay.OnLanguageChanged();
@@ -393,6 +396,26 @@ public partial class App : Application
         _timersWindow = new BossTimersWindow(_meter);
         _timersWindow.Closed += (_, _) => _timersWindow = null;
         _timersWindow.Show();
+    }
+
+    private AtlasWindow? _atlasWindow;
+
+    private void ToggleAtlas()
+    {
+        if (_atlasWindow is { IsLoaded: true }) _atlasWindow.Close();
+        else ShowAtlas();
+    }
+
+    public void ShowAtlas()
+    {
+        if (_atlasWindow is { IsLoaded: true })
+        {
+            Activate(_atlasWindow);
+            return;
+        }
+        _atlasWindow = new AtlasWindow(_meter);
+        _atlasWindow.Closed += (_, _) => _atlasWindow = null;
+        _atlasWindow.Show();
     }
 
     /// <summary>Tray notification (and a chime) shortly before a tracked boss respawns.</summary>

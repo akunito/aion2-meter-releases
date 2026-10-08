@@ -362,6 +362,11 @@ public sealed class UiText
     public string UpdatedBalloon { get; init; } = "Updated to version {0}.";
     public string TrayUpdate { get; init; } = "Update to {0}…";
     public string TrayCheckUpdates { get; init; } = "Check for updates";
+    public string TrayAtlas { get; init; } = "Atlas (nodes map)";
+    public string AtlasTitle { get; init; } = "Atlas";
+    public string AtlasNoMap { get; init; } = "No calibrated map for zone {0}. Nodes are still being recorded.";
+    public string AtlasFollow { get; init; } = "Follow me";
+    public string AtlasHint { get; init; } = "Drag to pan, wheel to zoom. Green = node in view (units left), grey = remembered (back in … when learned), skull = field boss.";
     public string SecUpdates { get; init; } = "UPDATES";
     public string CheckUpdatesAuto { get; init; } = "Check GitHub for new versions";
     public string UpdatesHint { get; init; } = "Shortly after start and every 2 hours. The meter only asks GitHub which version is the newest; nothing about you or your fights is sent.";
@@ -687,6 +692,11 @@ public sealed class UiText
         UpdatedBalloon = "Метр обновлён до версии {0}.",
         TrayUpdate = "Обновить до {0}…",
         TrayCheckUpdates = "Проверить обновления",
+        TrayAtlas = "Атлас (карта ресурсов)",
+        AtlasTitle = "Атлас",
+        AtlasNoMap = "Для зоны {0} нет откалиброванной карты. Ресурсы всё равно записываются.",
+        AtlasFollow = "Следовать за мной",
+        AtlasHint = "Перетаскивание — сдвиг, колесо — масштаб. Зелёный = ресурс в поле зрения (осталось единиц), серый = запомненный, череп = полевой босс.",
         SecUpdates = "ОБНОВЛЕНИЯ",
         CheckUpdatesAuto = "Проверять новые версии на GitHub",
         UpdatesHint = "Вскоре после запуска и раз в 2 часа. Метр только спрашивает у GitHub номер новой версии — ничего о вас и ваших боях не отправляется.",

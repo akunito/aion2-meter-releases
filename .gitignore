@@ -15,3 +15,6 @@ dist/
 
 # Download page kit, rebuilt by tools/make-site-kit.ps1
 site-kit/
+
+# private atlas assets copied in by ~/Projects/aion2-dps-meter/build/build.sh
+data/atlas/

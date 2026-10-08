@@ -86,6 +86,7 @@ public sealed class AppSettings
     public string HotkeyReset { get; set; } = "Ctrl+Shift+R";
     public string HotkeyClickThrough { get; set; } = "Ctrl+Shift+L";
     public string HotkeyTimers { get; set; } = "Ctrl+Shift+T";
+    public string HotkeyAtlas { get; set; } = "Ctrl+Shift+A";
 
     /// <summary>Bumped when the overlay layout changes enough that saved sizes no longer fit.</summary>
     public int LayoutVersion { get; set; } // 0 when missing from an older settings file; new installs get it in Load()
