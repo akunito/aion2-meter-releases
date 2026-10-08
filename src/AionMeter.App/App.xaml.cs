@@ -104,7 +104,8 @@ public partial class App : Application
         });
 
         _meter = new MeterService(settings, factory);
-        _meter.NodeNameWanted += code => Dispatcher.BeginInvoke(() => new NameNodeWindow(_meter, code).Show());
+        // The naming prompt opens over the atlas (or the overlay): on the monitor the player keeps the meter, not on the game's.
+        _meter.NodeNameWanted += code => Dispatcher.BeginInvoke(() => ShowNameNode(code));
         Log.Info($"Started. Data: {_meter.Data.Skills.Count} skills, {_meter.Data.Npcs.Count} npcs.");
         _meter.StartCapture();
 
@@ -400,6 +401,15 @@ public partial class App : Application
     }
 
     private AtlasWindow? _atlasWindow;
+
+    public void ShowNameNode(int code)
+    {
+        Window owner = _atlasWindow is { IsLoaded: true } a ? a : _overlay;
+        var w = new NameNodeWindow(_meter, code);
+        if (owner.IsVisible) { w.Owner = owner; w.WindowStartupLocation = WindowStartupLocation.CenterOwner; }
+        w.Show();
+        w.Activate();
+    }
 
     private void ToggleAtlas()
     {

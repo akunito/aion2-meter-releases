@@ -4,7 +4,7 @@
         xmlns:s="clr-namespace:AionMeter.App.Services"
         Title="{Binding AtlasTitle, Source={x:Static s:UiText.Current}}" Width="900" Height="760" MinWidth="500" MinHeight="400"
         WindowStyle="None" WindowStartupLocation="CenterScreen" ResizeMode="CanResize" Background="{StaticResource Bg0}"
-        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        Topmost="True" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
         FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}" FontSize="12.5">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="52" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" />

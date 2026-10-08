@@ -87,6 +87,11 @@ public sealed class AppSettings
     public string HotkeyClickThrough { get; set; } = "Ctrl+Shift+L";
     public string HotkeyTimers { get; set; } = "Ctrl+Shift+T";
     public string HotkeyAtlas { get; set; } = "Ctrl+Shift+A";
+    // Atlas window placement (DIP); NaN = not saved yet. Opens where it was closed, e.g. on the second monitor.
+    public double AtlasLeft { get; set; } = double.NaN;
+    public double AtlasTop { get; set; } = double.NaN;
+    public double AtlasWidth { get; set; } = 900;
+    public double AtlasHeight { get; set; } = 760;
 
     /// <summary>Bumped when the overlay layout changes enough that saved sizes no longer fit.</summary>
     public int LayoutVersion { get; set; } // 0 when missing from an older settings file; new installs get it in Load()

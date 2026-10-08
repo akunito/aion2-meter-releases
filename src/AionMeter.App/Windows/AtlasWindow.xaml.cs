@@ -43,8 +43,18 @@ public partial class AtlasWindow : Window
         FollowBox.IsChecked = true;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _clock.Tick += (_, _) => Refresh();
+        var s = meter.Settings;
+        if (!double.IsNaN(s.AtlasLeft) && !double.IsNaN(s.AtlasTop))
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = s.AtlasLeft; Top = s.AtlasTop; Width = Math.Max(500, s.AtlasWidth); Height = Math.Max(400, s.AtlasHeight);
+        }
         Loaded += (_, _) => { Refresh(); _clock.Start(); };
-        Closed += (_, _) => _clock.Stop();
+        Closed += (_, _) =>
+        {
+            _clock.Stop();
+            if (WindowState == WindowState.Normal) { s.AtlasLeft = Left; s.AtlasTop = Top; s.AtlasWidth = Width; s.AtlasHeight = Height; s.Save(); }
+        };
     }
 
     private void Refresh()
@@ -220,7 +230,7 @@ public partial class AtlasWindow : Window
         var wx = (float)((px - ox) / (ux - ox) * 1000); var wy = (float)((py - oy) / (uy - oy) * 1000);
         var spot = _meter.Atlas.Nearest(_mapShown, wx, wy, maxCm: (float)(14 / (_f * _scale) / _cal.Scale));
         if (spot is null) return;
-        new NameNodeWindow(_meter, spot.Code).Show();
+        AppHost.Current.ShowNameNode(spot.Code);
         e.Handled = true;
     }
 
