@@ -25,6 +25,7 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
                     <CheckBox x:Name="FollowBox" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0"
                               Content="{Binding AtlasFollow, Source={x:Static s:UiText.Current}}" />
+                    <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="0,0,10,0" Content="Fit" Click="Fit_Click" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" />
                 </StackPanel>
             </Grid>
@@ -37,7 +38,7 @@
                             <TranslateTransform x:Name="Pan" />
                         </TransformGroup>
                     </Grid.RenderTransform>
-                    <Image x:Name="MapImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                    <Image x:Name="MapImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="LowQuality" />
                     <Canvas x:Name="Overlay" IsHitTestVisible="False" />
                 </Grid>
             </Border>

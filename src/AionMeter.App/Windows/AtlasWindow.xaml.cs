@@ -25,6 +25,7 @@ public partial class AtlasWindow : Window
     private int _mapShown = -1;
     private double _scale = 0.5, _tx, _ty;
     private Point? _dragFrom;
+    private int _ticks;
     private double _dragTx, _dragTy;
     private static readonly Brush Live = new SolidColorBrush(Color.FromRgb(0x5E, 0xE0, 0x7A));
     private static readonly Brush Gone = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0x9C));
@@ -54,7 +55,15 @@ public partial class AtlasWindow : Window
             _cal = _meter.Calibration(map);
             ZoneText.Text = _cal is not null ? _cal.Name : string.Format(T.AtlasNoMap, map);
             MapImage.Source = _cal is not null && File.Exists(_cal.BackgroundPath) ? LoadBitmap(_cal.BackgroundPath) : null;
-            if (MapImage.Source is BitmapSource bs) { MapImage.Width = bs.PixelWidth; MapImage.Height = bs.PixelHeight; }
+            // The bitmap is decoded small (a 34-Mpx JPEG is a 135 MB texture: WPF showed it black); the element keeps the
+            // calibration's logical size, so pixel coordinates stay those of calibration.json.
+            if (_cal is not null && MapImage.Source is BitmapSource bs)
+            {
+                MapImage.Width = _cal.Width > 0 ? _cal.Width : bs.PixelWidth;
+                MapImage.Height = _cal.Height > 0 ? _cal.Height : bs.PixelHeight;
+                Log.Info($"Atlas map {map}: {_cal.BackgroundPath} decoded {bs.PixelWidth}x{bs.PixelHeight}, logical {MapImage.Width}x{MapImage.Height}, dpi {bs.DpiX:0}");
+            }
+            else Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})");
             FitWholeMap();
         }
         Overlay.Children.Clear();
@@ -86,12 +95,13 @@ public partial class AtlasWindow : Window
         {
             var (sx, sy) = _cal.ToPixel(atlas.SelfX, atlas.SelfY);
             Dot(sx, sy, 8, Self, "", Self);
-            if (FollowBox.IsChecked == true)
+            if (FollowBox.IsChecked == true && sx >= 0 && sy >= 0 && sx <= MapImage.Width && sy <= MapImage.Height && Viewport.ActualWidth > 0)
             {
                 _tx = Viewport.ActualWidth / 2 - sx * _scale;
                 _ty = Viewport.ActualHeight / 2 - sy * _scale;
                 Apply();
             }
+            if (++_ticks % 60 == 0) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} self px ({sx:0},{sy:0}) spots {atlas.Count(map)}");
         }
     }
 
@@ -138,6 +148,7 @@ public partial class AtlasWindow : Window
         bmp.BeginInit();
         bmp.CacheOption = BitmapCacheOption.OnLoad;
         bmp.UriSource = new Uri(path);
+        bmp.DecodePixelWidth = 3000;
         bmp.EndInit();
         bmp.Freeze();
         return bmp;
@@ -180,6 +191,13 @@ public partial class AtlasWindow : Window
     {
         _dragFrom = null;
         Viewport.ReleaseMouseCapture();
+    }
+
+    private void Fit_Click(object sender, RoutedEventArgs e)
+    {
+        FollowBox.IsChecked = false;
+        FitWholeMap();
+        Refresh();
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
