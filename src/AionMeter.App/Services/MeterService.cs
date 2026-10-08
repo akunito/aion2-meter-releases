@@ -29,6 +29,14 @@ public sealed class MeterService : IDisposable
         Timers = new BossTimers(Path.Combine(AppSettings.AppDataDir, "boss-timers.json"), Data, DataDirectory, persistent: !settings.Transient);
         Updates = new Updater(settings);
         Atlas = new NodeStore(Path.Combine(AppSettings.AppDataDir, "atlas"));
+        _objectNames = new ObjectNames(Path.Combine(AppSettings.AppDataDir, "atlas", "objects.json"));
+        _userNames = _objectNames.Load();
+        foreach (var (code, (name, _)) in _userNames) if (name.Length > 0) Data.Objects[code] = name;
+        Atlas.SelfGathering += spot =>
+        {
+            if (Data.Objects.ContainsKey(spot.Code) || !_askedCodes.Add(spot.Code)) return;
+            NodeNameWanted?.Invoke(spot.Code);
+        };
         Tracker.EncounterFinished += OnEncounterFinished;
         // A recording's or the demo's bosses must not move the live respawn timers.
         Tracker.BossNoticed += n =>
@@ -84,6 +92,21 @@ public sealed class MeterService : IDisposable
     /// <summary>Gathering nodes and the player's position, per map (private atlas branch).</summary>
     public NodeStore Atlas { get; }
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
+    private readonly ObjectNames _objectNames;
+    private readonly Dictionary<int, (string Name, string Category)> _userNames;
+    private readonly HashSet<int> _askedCodes = new();
+    /// <summary>The player just started gathering an object code nobody has named yet (capture thread).</summary>
+    public event Action<int>? NodeNameWanted;
+
+    public void NameObject(int code, string name, string category)
+    {
+        name = name.Trim();
+        if (name.Length == 0) return;
+        _userNames[code] = (name, category.Trim());
+        Data.Objects[code] = name;
+        _objectNames.Save(_userNames);
+        Log.Info($"Object {code} named \"{name}\" ({category})");
+    }
     public Func<GameData, IEventSource>? CaptureFactory { get; }
 
     public CaptureStatus CaptureStatus =>

@@ -104,6 +104,7 @@ public partial class App : Application
         });
 
         _meter = new MeterService(settings, factory);
+        _meter.NodeNameWanted += code => Dispatcher.BeginInvoke(() => new NameNodeWindow(_meter, code).Show());
         Log.Info($"Started. Data: {_meter.Data.Skills.Count} skills, {_meter.Data.Npcs.Count} npcs.");
         _meter.StartCapture();
 

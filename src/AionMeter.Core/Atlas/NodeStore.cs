@@ -80,6 +80,9 @@ public sealed class NodeStore
     }
     private int _savedMap;
 
+    /// <summary>The local player started gathering a spot (raised on the capture thread).</summary>
+    public event Action<NodeSpot>? SelfGathering;
+
     public int MapId { get; private set; }
     public uint SelfId { get; private set; }
     public float SelfX { get; private set; }
@@ -109,6 +112,9 @@ public sealed class NodeStore
                     break;
                 case ObjectSeenEvent o when MapId != 0:
                     OnSeen(o);
+                    break;
+                case GatherEvent g when g.Started && g.PlayerId == SelfId && SelfId != 0 && _live.TryGetValue(g.ObjectId, out var mine):
+                    SelfGathering?.Invoke(mine);
                     break;
                 case GatherEvent g when !g.Started && _live.TryGetValue(g.ObjectId, out var spot):
                     if (g.Count > spot.Taken) spot.Taken = g.Count;

@@ -366,6 +366,12 @@ public sealed class UiText
     public string AtlasTitle { get; init; } = "Atlas";
     public string AtlasNoMap { get; init; } = "No calibrated map for zone {0}. Nodes are still being recorded.";
     public string AtlasFollow { get; init; } = "Follow me";
+    public string NameNodeTitle { get; init; } = "New kind of node";
+    public string NameNodeQuestion { get; init; } = "What are you gathering? (object {0}) — the atlas will use this name for every node of this kind.";
+    public string NameNodeName { get; init; } = "Name";
+    public string NameNodeCategory { get; init; } = "Category";
+    public string NameNodeSave { get; init; } = "Save";
+    public string NameNodeSkip { get; init; } = "Not now";
     public string AtlasHint { get; init; } = "Drag to pan, wheel to zoom. Green = node in view (units left), grey = remembered (back in … when learned), skull = field boss.";
     public string SecUpdates { get; init; } = "UPDATES";
     public string CheckUpdatesAuto { get; init; } = "Check GitHub for new versions";
@@ -696,6 +702,12 @@ public sealed class UiText
         AtlasTitle = "Атлас",
         AtlasNoMap = "Для зоны {0} нет откалиброванной карты. Ресурсы всё равно записываются.",
         AtlasFollow = "Следовать за мной",
+        NameNodeTitle = "Новый вид ресурса",
+        NameNodeQuestion = "Что вы добываете? (объект {0}) — атлас будет использовать это имя для всех таких ресурсов.",
+        NameNodeName = "Название",
+        NameNodeCategory = "Категория",
+        NameNodeSave = "Сохранить",
+        NameNodeSkip = "Не сейчас",
         AtlasHint = "Перетаскивание — сдвиг, колесо — масштаб. Зелёный = ресурс в поле зрения (осталось единиц), серый = запомненный, череп = полевой босс.",
         SecUpdates = "ОБНОВЛЕНИЯ",
         CheckUpdatesAuto = "Проверять новые версии на GitHub",
