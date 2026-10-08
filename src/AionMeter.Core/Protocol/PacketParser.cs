@@ -70,6 +70,9 @@ public sealed class PacketParser
             case Opcodes.AchievementList:
                 ParseAchievementList(body);
                 break;
+            case Opcodes.BrokerPage:
+                ParseBrokerPage(body);
+                break;
             case Opcodes.FieldBossList:
                 ParseFieldBossList(body);
                 break;
@@ -464,6 +467,38 @@ public sealed class PacketParser
             o += 17;
         }
         if (rows.Count > 0) Emit(new AchievementListEvent(TimeMs, rows));
+    }
+
+    // ------------------------------------------------------------------ broker (91 56)
+
+    /// <summary>
+    /// Listings are found by shape (the gap between them varies by 1–2 bytes): <c>item u32 (9 digits), qty u32, u32 0, level u8 ≤ 3,
+    /// 5d, price u64, current u64</c> where current = price × 0.9/0.8/0.7/0.5 by level. Measured 2026-10-08 on three pages (30 listings).
+    /// </summary>
+    private void ParseBrokerPage(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 36) return;
+        var page = BitConverter.ToUInt16(b);
+        var list = new List<Market.Listing>(10);
+        var o = 2;
+        while (o + 30 <= b.Length)
+        {
+            var item = BitConverter.ToInt32(b.Slice(o, 4));
+            if (item is >= 100_000_000 and <= 999_999_999 && b[o + 13] == 0x5d && b[o + 12] <= 3 && BitConverter.ToInt32(b.Slice(o + 8, 4)) == 0)
+            {
+                var qty = BitConverter.ToInt32(b.Slice(o + 4, 4));
+                var price = BitConverter.ToInt64(b.Slice(o + 14, 8));
+                var current = BitConverter.ToInt64(b.Slice(o + 22, 8));
+                if (qty is >= 1 and <= 1_000_000 && price > 0 && price < 1_000_000_000_000L && current > 0 && current <= price)
+                {
+                    list.Add(new Market.Listing(TimeMs, page, item, qty, b[o + 12], price, current));
+                    o += 30;
+                    continue;
+                }
+            }
+            o++;
+        }
+        if (list.Count > 0) Emit(new BrokerPageEvent(TimeMs, page, list));
     }
 
     // ------------------------------------------------------------------ damage (04 38)

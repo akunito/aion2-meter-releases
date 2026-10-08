@@ -131,6 +131,9 @@ public sealed record PetListEvent(long TimeMs, int EquippedPet, IReadOnlyList<Ch
 public sealed record TitleListEvent(long TimeMs, IReadOnlyList<int> Titles) : GameEvent(TimeMs);
 public sealed record AchievementListEvent(long TimeMs, IReadOnlyList<Character.AchievementRow> Rows) : GameEvent(TimeMs);
 
+/// <summary>A page of the broker as the player browses it (10 listings).</summary>
+public sealed record BrokerPageEvent(long TimeMs, int Page, IReadOnlyList<Market.Listing> Listings) : GameEvent(TimeMs);
+
 /// <summary>Gathering on a node by any player in view: a start (<c>38 36</c>, <paramref name="Count"/> = 0) or a
 /// result (<c>3a 36</c>, <paramref name="Count"/> = units taken from the node so far, shared by all gatherers).</summary>
 public sealed record GatherEvent(long TimeMs, uint ObjectId, uint PlayerId, bool Started, int Count) : GameEvent(TimeMs);

@@ -31,6 +31,7 @@ return args.FirstOrDefault() switch
     "top" when args.Length > 1 => Top(args[1], args.Length > 2 ? args[2] : null),
     "armory" when args.Length > 1 => Armory(args[1], args.Length > 2 ? int.Parse(args[2]) : 1303).GetAwaiter().GetResult(),
     "inventory" when args.Length > 1 => Inventory(args[1]).GetAwaiter().GetResult(),
+    "market" when args.Length > 1 => Market(args[1]).GetAwaiter().GetResult(),
     "leaderboard" => Leaderboard(args.Length > 1 ? args[1] : "eu", args.Length > 2 ? args[2] : null, args.Length > 3 ? args[3] : null).GetAwaiter().GetResult(),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
@@ -255,6 +256,22 @@ async Task<int> Inventory(string path)
         }
     }
     Console.WriteLine($"[{catalog.Requests} catalogue requests]");
+    return 0;
+}
+
+// Broker pages in a recording: every listing with both prices, names from the item catalogue.
+async Task<int> Market(string path)
+{
+    var store = new AionMeter.Core.Market.BrokerStore(null);
+    var replay = new PcapReplaySource(data, path, realtime: false);
+    replay.EventDecoded += store.OnEvent;
+    replay.RunToEnd();
+    using var catalog = new AionMeter.Core.GameDb.ItemCatalog(Path.Combine(Path.GetTempPath(), "aionmeter-gamedb", "items.json"));
+    var all = store.All();
+    await catalog.ResolveAsync(all.Select(l => l.Item));
+    Console.WriteLine($"{all.Count} listings");
+    foreach (var l in all.OrderBy(l => l.Item).ThenBy(l => l.Price))
+        Console.WriteLine($"  {DateTimeOffset.FromUnixTimeMilliseconds(l.SeenMs).ToLocalTime():HH:mm:ss} page {l.Page,5}  {l.Item} {catalog.NameOf(l.Item),-44} x{l.Quantity,-4} {l.Price,12:N0}  now {l.Current,12:N0}  lvl {l.Level}");
     return 0;
 }
 
