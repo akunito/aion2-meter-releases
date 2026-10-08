@@ -32,6 +32,12 @@ public sealed class NodeSpot
     public string? Name { get; set; }
 
     public const int MaxUnits = 3;
+
+    /// <summary>
+    /// Gathering nodes are object codes 15xxxxx; 11/12/14xxxxx objects (scenery, quest pickups) also arrive as 34 36 but
+    /// nobody ever gathers them (471 spots, 2026-10-08: every gathered code was 15xxxxx). Gather evidence overrides.
+    /// </summary>
+    public bool IsNode => Code / 100_000 == 15 || Taken > 0 || ExhaustedAtMs > 0 || Spawns > 1;
     public int UnitsLeft => Alive ? Math.Max(0, MaxUnits - Taken) : 0;
     public long NextSpawnMs => !Alive && ExhaustedAtMs > 0 && RespawnMinutes > 0 ? ExhaustedAtMs + RespawnMinutes * 60_000L : 0;
 }
@@ -183,7 +189,7 @@ public sealed class NodeStore
         NodeSpot? best = null; var bestD = max * max;
         foreach (var s in m.Values)
         {
-            if (!s.Alive || s.LiveId != 0) continue;
+            if (!s.Alive || s.LiveId != 0 || !s.IsNode) continue;
             var d = (s.X - px) * (s.X - px) + (s.Y - py) * (s.Y - py);
             if (d < bestD) { bestD = d; best = s; }
         }
@@ -238,10 +244,10 @@ public sealed class NodeStore
         }
     }
 
-    /// <summary>Every spot of a map (a copy, safe to read from the UI thread).</summary>
+    /// <summary>Every gathering spot of a map (a copy, safe to read from the UI thread); scenery objects are left out.</summary>
     public List<NodeSpot> Spots(int mapId)
     {
-        lock (_gate) return _maps.TryGetValue(mapId, out var m) ? m.Values.ToList() : [];
+        lock (_gate) return _maps.TryGetValue(mapId, out var m) ? m.Values.Where(s => s.IsNode).ToList() : [];
     }
 
     public int Count(int mapId) { lock (_gate) return _maps.TryGetValue(mapId, out var m) ? m.Count : 0; }

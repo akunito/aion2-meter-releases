@@ -34,7 +34,7 @@ public sealed class MeterService : IDisposable
         foreach (var (code, (name, _)) in _userNames) if (name.Length > 0) Data.Objects[code] = name;
         Atlas.SelfGathering += spot =>
         {
-            if (Data.Objects.ContainsKey(spot.Code)) return;
+            if (Data.Objects.ContainsKey(spot.Code) || !spot.IsNode) return;
             var now = Environment.TickCount64;
             if (_askedCodes.TryGetValue(spot.Code, out var asked) && now - asked < 10 * 60_000) { Log.Info($"Atlas: object {spot.Code} gathered again, asked {(now - asked) / 1000}s ago"); return; }
             _askedCodes[spot.Code] = now;
