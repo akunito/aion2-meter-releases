@@ -37,6 +37,7 @@ public partial class AtlasWindow : Window
         _meter = meter;
         InitializeComponent();
         Controls.DragAnywhere.Attach(this);
+        FollowBox.IsChecked = true;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _clock.Tick += (_, _) => Refresh();
         Loaded += (_, _) => { Refresh(); _clock.Start(); };

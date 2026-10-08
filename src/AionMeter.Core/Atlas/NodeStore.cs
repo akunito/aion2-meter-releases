@@ -65,7 +65,7 @@ public sealed class NodeStore(string directory)
             switch (e)
             {
                 case ZoneChangedEvent z:
-                    if (z.MapId != MapId) { MapId = z.MapId; _live.Clear(); Load(MapId); }
+                    SetMapLocked(z.MapId);
                     break;
                 case SelfIdentifiedEvent s:
                     SelfId = s.ActorId;
@@ -92,6 +92,19 @@ public sealed class NodeStore(string directory)
                     break;
             }
         }
+    }
+
+    /// <summary>The map the player is already in when the meter starts (no zone-load packet will come until the next
+    /// loading screen): from the name cache or any other source that knows it.</summary>
+    public void SetMap(int mapId)
+    {
+        lock (_gate) SetMapLocked(mapId);
+    }
+
+    private void SetMapLocked(int mapId)
+    {
+        if (mapId <= 0 || mapId == MapId) return;
+        MapId = mapId; _live.Clear(); Load(mapId);
     }
 
     private void OnSeen(ObjectSeenEvent o)

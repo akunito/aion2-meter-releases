@@ -55,6 +55,7 @@ public sealed class MeterService : IDisposable
         if (!settings.Transient && _names.Load() is { } cached)
         {
             Tracker.ImportCache(cached);
+            Atlas.SetMap(cached.MapId);
             Log.Info($"Restored {cached.Players.Count} cached player names, {cached.Npcs.Count} bosses");
         }
         _savedNamesVersion = Tracker.CacheVersion;
