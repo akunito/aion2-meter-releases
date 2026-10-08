@@ -55,7 +55,7 @@ public partial class AtlasWindow : Window
             ZoneText.Text = _cal is not null ? _cal.Name : string.Format(T.AtlasNoMap, map);
             MapImage.Source = _cal is not null && File.Exists(_cal.BackgroundPath) ? LoadBitmap(_cal.BackgroundPath) : null;
             if (MapImage.Source is BitmapSource bs) { MapImage.Width = bs.PixelWidth; MapImage.Height = bs.PixelHeight; }
-            _scale = 0.5; _tx = 0; _ty = 0; Apply();
+            FitWholeMap();
         }
         Overlay.Children.Clear();
         if (_cal is null) return;
@@ -93,6 +93,18 @@ public partial class AtlasWindow : Window
                 Apply();
             }
         }
+    }
+
+    /// <summary>First view of a map: the whole zone in the window, centred; Follow then takes over when the player's position is known.</summary>
+    private void FitWholeMap()
+    {
+        var w = MapImage.Width > 0 ? MapImage.Width : 1000;
+        var h = MapImage.Height > 0 ? MapImage.Height : 1000;
+        var vw = Math.Max(Viewport.ActualWidth, 100);
+        var vh = Math.Max(Viewport.ActualHeight, 100);
+        _scale = Math.Clamp(Math.Min(vw / w, vh / h), 0.08, 4);
+        _tx = (vw - w * _scale) / 2; _ty = (vh - h * _scale) / 2;
+        Apply();
     }
 
     private static string Countdown(DateTimeOffset at, long? nowMs = null)
