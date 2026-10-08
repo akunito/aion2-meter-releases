@@ -33,6 +33,10 @@ public static class Opcodes
     public const ushort Positions = 0x1A37;      // one entity's position: id, u16 flags, x y z, heading (every entity in view)
     public const ushort EntityState = 0x3C37;    // id, u8, x y z, … (the local player among others; sent on state changes)
     public const ushort ActionState = 0x2B38;    // id, …, u64 ms, id, 01 02, x y z (gathering and other actions; position = last 12 bytes)
+    // Sent only about the local player (three EU captures 2026-10-08, across a zone-load id change): the first varint is
+    // the local player's entity id. 06 38 follows every skill use, 4a 36 comes every ~15 s.
+    public const ushort SelfSkillState = 0x0638;
+    public const ushort SelfStatus = 0x4A36;
 
     public static string Name(ushort op) => op switch
     {
@@ -59,6 +63,8 @@ public static class Opcodes
         Positions => "Position",
         EntityState => "EntityState",
         ActionState => "ActionState",
+        SelfSkillState => "SelfSkill",
+        SelfStatus => "SelfStatus",
         _ => $"{op >> 8:x2} {op & 0xFF:x2}",
     };
 }

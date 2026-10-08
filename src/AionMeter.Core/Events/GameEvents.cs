@@ -128,6 +128,10 @@ public sealed record ObjectGoneEvent(long TimeMs, uint ActorId, bool Exhausted) 
 /// result (<c>3a 36</c>, <paramref name="Count"/> = units taken from the node so far, shared by all gatherers).</summary>
 public sealed record GatherEvent(long TimeMs, uint ObjectId, uint PlayerId, bool Started, int Count) : GameEvent(TimeMs);
 
+/// <summary>A record the server sends only about the local player: its entity id, without name or class (for the atlas; the
+/// combat tracker keeps using <see cref="SelfIdentifiedEvent"/>).</summary>
+public sealed record LocalPlayerHintEvent(long TimeMs, uint ActorId) : GameEvent(TimeMs);
+
 /// <summary>An entity's position (<c>1a 37</c>, sent for every entity in view, the local player included).</summary>
 public sealed record PositionEvent(long TimeMs, uint ActorId, float X, float Y, float Z) : GameEvent(TimeMs);
 

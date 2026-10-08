@@ -151,7 +151,7 @@ public partial class AtlasWindow : Window
     private static string Countdown(DateTimeOffset at, long? nowMs = null)
     {
         var left = at - (nowMs is { } n ? DateTimeOffset.FromUnixTimeMilliseconds(n) : DateTimeOffset.UtcNow);
-        return left.TotalSeconds <= 0 ? "now" : left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{left.Minutes}:{left.Seconds:00}";
+        return left.TotalSeconds <= 0 ? "soon" : left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{left.Minutes}:{left.Seconds:00}";
     }
 
     /// <summary>Draws at the screen position of a calibration pixel; shapes and text keep their size at any zoom.</summary>

@@ -68,6 +68,10 @@ public sealed class PacketParser
             case Opcodes.Positions:
                 ParsePosition(body);
                 break;
+            case Opcodes.SelfSkillState:
+            case Opcodes.SelfStatus:
+                ParseSelfHint(body);
+                break;
             case Opcodes.EntityState:
                 ParseEntityState(body);
                 break;
@@ -264,6 +268,12 @@ public sealed class PacketParser
         var n = start ? 0 : b[o];
         if (n > 9) return;
         Emit(new GatherEvent(TimeMs, node, player, start, n));
+    }
+
+    private void ParseSelfHint(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (Wire.TryVarint(b, ref o, out var id) && IsEntityId(id)) Emit(new LocalPlayerHintEvent(TimeMs, id));
     }
 
     private static bool PlausibleWorld(float x, float y, float z) =>

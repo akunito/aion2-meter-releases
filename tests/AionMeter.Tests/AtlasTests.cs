@@ -67,6 +67,16 @@ public class AtlasTests
     }
 
     [Fact]
+    public void Two_agreeing_hints_replace_a_stale_self_id()
+    {
+        var s = Store(); // self 7859 from the "cache"
+        s.OnEvent(new LocalPlayerHintEvent(T0, 13853));
+        Assert.Equal(7859u, s.SelfId);
+        s.OnEvent(new LocalPlayerHintEvent(T0 + 1, 13853));
+        Assert.Equal(13853u, s.SelfId);
+    }
+
+    [Fact]
     public void Self_position_follows_only_the_local_player()
     {
         var s = Store();

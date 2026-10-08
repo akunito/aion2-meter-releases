@@ -127,6 +127,16 @@ public class ProtocolTests
         Assert.Equal(21245f, p.Z, 0.6);
     }
 
+    // Records the server only ever sends about the local player (three EU captures): their first varint is the local id.
+    [Theory]
+    [InlineData(Opcodes.SelfSkillState, "b33d651bb7000100")]
+    [InlineData(Opcodes.SelfStatus, "b33d000000000000000000")]
+    public void Self_only_records_hint_the_local_player_id(ushort op, string hex)
+    {
+        var h = Assert.IsType<LocalPlayerHintEvent>(Assert.Single(Parse(op, hex)));
+        Assert.Equal(7859u, h.ActorId);
+    }
+
     // Altgard's field boss list (map 1110) as the in-game map showed it at 00:30:07 on 2026-10-06 (UTC+3): 24 slots,
     // 3 alive with a position, a few with an extra byte before the time. Checked against the in-game list.
     private const string AltgardList =

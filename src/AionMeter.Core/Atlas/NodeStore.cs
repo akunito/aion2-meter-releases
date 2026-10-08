@@ -81,6 +81,7 @@ public sealed class NodeStore
         }
     }
     private int _savedMap;
+    private uint _hintId;
 
     /// <summary>The local player started gathering a spot (raised on the capture thread).</summary>
     public event Action<NodeSpot>? SelfGathering;
@@ -104,7 +105,13 @@ public sealed class NodeStore
                     SetMapLocked(z.MapId);
                     break;
                 case SelfIdentifiedEvent s:
-                    SelfId = s.ActorId;
+                    SelfId = s.ActorId; _hintId = 0;
+                    break;
+                case LocalPlayerHintEvent h:
+                    // Two agreeing hints replace whatever the cache said (ids change on every zone load).
+                    if (h.ActorId == SelfId) break;
+                    if (_hintId == h.ActorId) { SelfId = h.ActorId; _hintId = 0; }
+                    else _hintId = h.ActorId;
                     break;
                 case PositionEvent p:
                     if (p.ActorId == SelfId && SelfId != 0) { SelfX = p.X; SelfY = p.Y; SelfZ = p.Z; SelfAtMs = p.TimeMs; }
