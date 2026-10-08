@@ -81,7 +81,7 @@ public partial class AtlasWindow : Window
         Overlay.Children.Clear();
         if (_cal is null) return;
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        if (++_ticks % 60 == 1) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} image {_imgW}x{_imgH} self {atlas.SelfId} at ({atlas.SelfX:0},{atlas.SelfY:0}) age {(atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : -1)}s estimate {atlas.Estimate(now)} spots {atlas.Count(map)}");
+        if (++_ticks % 60 == 1) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} image {_imgW}x{_imgH} self {atlas.SelfId} at ({atlas.SelfX:0},{atlas.SelfY:0}) age {(atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : -1)}s estimate {atlas.Estimate(now)} positions {atlas.PositionsSeen}/{atlas.SelfPositions} self spots {atlas.Count(map)}");
 
         foreach (var (code, name, px, py) in _cal.Bosses)
         {

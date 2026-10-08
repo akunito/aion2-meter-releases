@@ -77,6 +77,7 @@ public sealed class PacketParser
                 ParseEntityState(body);
                 break;
             case Opcodes.ActionState:
+            case Opcodes.ActionState2:
                 ParseActionState(body);
                 break;
             case Opcodes.Dot:

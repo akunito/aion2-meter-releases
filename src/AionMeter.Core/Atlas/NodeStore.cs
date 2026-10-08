@@ -98,6 +98,9 @@ public sealed class NodeStore
     public float SelfY { get; private set; }
     public float SelfZ { get; private set; }
     public long SelfAtMs { get; private set; }
+    /// <summary>Diagnostics: position events received, and those that were the local player's.</summary>
+    public long PositionsSeen { get; private set; }
+    public long SelfPositions { get; private set; }
 
     public static (int Code, int Gx, int Gy) KeyOf(int code, float x, float y) => (code, (int)MathF.Round(x / 100f), (int)MathF.Round(y / 100f));
 
@@ -120,7 +123,8 @@ public sealed class NodeStore
                     else _hintId = h.ActorId;
                     break;
                 case PositionEvent p:
-                    if (p.ActorId == SelfId && SelfId != 0) { SelfX = p.X; SelfY = p.Y; SelfZ = p.Z; SelfAtMs = p.TimeMs; }
+                    PositionsSeen++;
+                    if (p.ActorId == SelfId && SelfId != 0) { SelfX = p.X; SelfY = p.Y; SelfZ = p.Z; SelfAtMs = p.TimeMs; SelfPositions++; }
                     // Everything in view reports positions (~5/s): their recent centroid stands in for the player while
                     // the server says nothing about the player's own walking.
                     _recent[_recentAt] = (p.TimeMs, p.X, p.Y); _recentAt = (_recentAt + 1) % _recent.Length;

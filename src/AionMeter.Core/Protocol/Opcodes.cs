@@ -33,6 +33,7 @@ public static class Opcodes
     public const ushort Positions = 0x1A37;      // one entity's position: id, u16 flags, x y z, heading (every entity in view)
     public const ushort EntityState = 0x3C37;    // id, u8, x y z, … (the local player among others; sent on state changes)
     public const ushort ActionState = 0x2B38;    // id, …, u64 ms, id, 01 02, x y z (gathering and other actions; position = last 12 bytes)
+    public const ushort ActionState2 = 0x2A38;   // same tail (x y z last 12 bytes); ~1 per 6 s for the local player while acting
     // Sent only about the local player (three EU captures + a live check 2026-10-08, across a zone-load id change): the
     // first varint is the local player's entity id. The own-HP record (00 8d with header 01 01, ~3/s) is the main one;
     // 4a 36, 46 37 and 44 37 agree. 06 38 is NOT self-only (it also carries nearby mobs' skills) — measured live.
@@ -64,7 +65,7 @@ public static class Opcodes
         GatherResult => "GatherResult",
         Positions => "Position",
         EntityState => "EntityState",
-        ActionState => "ActionState",
+        ActionState or ActionState2 => "ActionState",
         SelfStatus => "SelfStatus",
         SelfState46 => "SelfState",
         SelfState44 => "SelfState",

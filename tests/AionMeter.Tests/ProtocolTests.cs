@@ -106,10 +106,11 @@ public class ProtocolTests
     [Theory]
     [InlineData(Opcodes.EntityState, "b33d035aeb0dc779fc0dc70078b84528449d42000001702cb800cb5bf1472d", -36331f, -36348f, 5903f)]
     [InlineData(Opcodes.ActionState, "b33d1138e7000000c80000000000000056d7331ba1010000b33d0102d39100c70c1f07c70000bb45", -32914f, -34591f, 5984f)]
+    [InlineData(Opcodes.ActionState2, "b36f0111be04c80000002c010000000000006662601ca1010000b36f0100b94f1ac79e42274700c01246", -39504f, 42819f, 9392f)]
     public void Self_position_from_state_records(ushort op, string hex, float x, float y, float z)
     {
         var p = Assert.IsType<PositionEvent>(Assert.Single(Parse(op, hex)));
-        Assert.Equal(7859u, p.ActorId);
+        Assert.Equal(op == Opcodes.ActionState2 ? 14259u : 7859u, p.ActorId);
         Assert.Equal(x, p.X, 0.6);
         Assert.Equal(y, p.Y, 0.6);
         Assert.Equal(z, p.Z, 0.6);
