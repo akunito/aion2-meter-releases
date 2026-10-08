@@ -64,6 +64,20 @@ public sealed class NodeStore
     private readonly Dictionary<uint, NodeSpot> _live = new();   // entity id → spot, current map only
     private readonly object _gate = new();
     private readonly HashSet<int> _dirty = new();
+    private readonly (long At, float X, float Y)[] _recent = new (long, float, float)[64];
+    private int _recentAt;
+
+    /// <summary>Centroid of the positions seen in the last <paramref name="windowMs"/>: a rough (view-radius) stand-in for the player.</summary>
+    public (float X, float Y, int Samples) Estimate(long nowMs, long windowMs = 15_000)
+    {
+        lock (_gate)
+        {
+            double sx = 0, sy = 0; var n = 0;
+            foreach (var (at, x, y) in _recent)
+                if (at > 0 && nowMs - at <= windowMs) { sx += x; sy += y; n++; }
+            return n == 0 ? (0, 0, 0) : ((float)(sx / n), (float)(sy / n), n);
+        }
+    }
     private int _savedMap;
 
     public int MapId { get; private set; }
@@ -87,8 +101,11 @@ public sealed class NodeStore
                 case SelfIdentifiedEvent s:
                     SelfId = s.ActorId;
                     break;
-                case PositionEvent p when p.ActorId == SelfId && SelfId != 0:
-                    SelfX = p.X; SelfY = p.Y; SelfZ = p.Z; SelfAtMs = p.TimeMs;
+                case PositionEvent p:
+                    if (p.ActorId == SelfId && SelfId != 0) { SelfX = p.X; SelfY = p.Y; SelfZ = p.Z; SelfAtMs = p.TimeMs; }
+                    // Everything in view reports positions (~5/s): their recent centroid stands in for the player while
+                    // the server says nothing about the player's own walking.
+                    _recent[_recentAt] = (p.TimeMs, p.X, p.Y); _recentAt = (_recentAt + 1) % _recent.Length;
                     break;
                 case ObjectSeenEvent o when MapId != 0:
                     OnSeen(o);

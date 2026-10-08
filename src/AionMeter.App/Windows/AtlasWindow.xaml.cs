@@ -38,7 +38,7 @@ public partial class AtlasWindow : Window
     {
         _meter = meter;
         InitializeComponent();
-        Controls.DragAnywhere.Attach(this);
+        Controls.DragAnywhere.Attach(this, canDrag: () => !Viewport.IsMouseOver); // the map pans itself
         FollowBox.IsChecked = true;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _clock.Tick += (_, _) => Refresh();
@@ -70,7 +70,7 @@ public partial class AtlasWindow : Window
         Overlay.Children.Clear();
         if (_cal is null) return;
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        if (++_ticks % 60 == 1) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} image {_imgW}x{_imgH} self {atlas.SelfId} at ({atlas.SelfX:0},{atlas.SelfY:0}) age {(now - atlas.SelfAtMs) / 1000}s spots {atlas.Count(map)}");
+        if (++_ticks % 60 == 1) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} image {_imgW}x{_imgH} self {atlas.SelfId} at ({atlas.SelfX:0},{atlas.SelfY:0}) age {(atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : -1)}s estimate {atlas.Estimate(now)} spots {atlas.Count(map)}");
 
         foreach (var (code, name, px, py) in _cal.Bosses)
         {
@@ -93,18 +93,35 @@ public partial class AtlasWindow : Window
             }
         }
 
-        if (atlas.SelfId != 0 && atlas.SelfAtMs > 0 && now - atlas.SelfAtMs < 30 * 60_000) // the last position is kept half an hour
+        // The player: the last reported position (casts, gathers, state records) when fresh, else the centroid of
+        // what is in view (hollow dot), else the last report however old.
+        var age = atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : long.MaxValue;
+        var (ex, ey, en) = atlas.Estimate(now);
+        float wx, wy; bool exact;
+        if (age <= 20) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
+        else if (en >= 3) { wx = ex; wy = ey; exact = false; }
+        else if (age < 30 * 60) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
+        else { wx = wy = 0; exact = false; }
+        if (wx != 0 || wy != 0)
         {
-            var (sx, sy) = _cal.ToPixel(atlas.SelfX, atlas.SelfY);
+            var (sx, sy) = _cal.ToPixel(wx, wy);
             if (FollowBox.IsChecked == true && sx >= 0 && sy >= 0 && sx <= _cal.Width && sy <= _cal.Height && Viewport.ActualWidth > 0)
             {
+                if (_scale < 1.0) _scale = 1.5; // following: close enough to read the nodes (~63 px per 100 m)
                 _tx = Viewport.ActualWidth / 2 - sx * _f * _scale;
                 _ty = Viewport.ActualHeight / 2 - sy * _f * _scale;
                 Apply();
             }
-            var age = (now - atlas.SelfAtMs) / 1000;
-            Dot(sx, sy, 8, Self, age > 10 ? $"{age}s" : "", Self);
-
+            var label = exact ? (age > 10 ? $"{age}s" : "") : $"~{en}";
+            if (exact) Dot(sx, sy, 8, Self, label, Self);
+            else
+            {
+                var x = sx * _f * _scale + _tx; var y = sy * _f * _scale + _ty;
+                var ring = new Ellipse { Width = 18, Height = 18, Stroke = Self, StrokeThickness = 2.5, Fill = Brushes.Transparent };
+                Canvas.SetLeft(ring, x - 9); Canvas.SetTop(ring, y - 9); Overlay.Children.Add(ring);
+                var t = new TextBlock { Text = label, FontSize = 11, Foreground = Self, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
+                Canvas.SetLeft(t, x + 12); Canvas.SetTop(t, y - 7); Overlay.Children.Add(t);
+            }
         }
     }
 
