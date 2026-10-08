@@ -147,3 +147,34 @@ public class EventScheduleTests
         Assert.Equal(21, start.Hour);
     }
 }
+
+public class NodeZonesTests
+{
+    private static NodeSpot Spot(float x, float y) => new() { Code = 1500012, X = x, Y = y, Alive = true };
+
+    [Fact]
+    public void Densest_cluster_first_then_the_rest_with_padded_hulls()
+    {
+        var spots = new List<NodeSpot>();
+        for (var i = 0; i < 6; i++) spots.Add(Spot(1000 * i, 500 * (i % 2)));   // 6 spots within 60 m: zone 1
+        spots.Add(Spot(100_000, 100_000)); spots.Add(Spot(102_000, 100_000));    // a pair 20 m apart: zone 2
+        spots.Add(Spot(-200_000, 0));                                            // a loner: zone 3
+        var zones = NodeZones.Compute(spots, radiusCm: 15_000, top: 5);
+        Assert.Equal(3, zones.Count);
+        Assert.Equal([6, 2, 1], zones.Select(z => z.Count).ToArray());
+        Assert.True(zones[0].Hull.Count >= 4);
+        Assert.Equal(8, zones[1].Hull.Count); // the pair becomes a ring
+        Assert.InRange(zones[1].CenterX, 100_999, 101_001);
+        Assert.Equal(8, zones[2].Hull.Count);
+        var top1 = NodeZones.Compute(spots, top: 1);
+        Assert.Single(top1);
+    }
+
+    [Fact]
+    public void Hull_of_a_square_with_an_inner_point_has_four_corners()
+    {
+        var h = NodeZones.Hull([(0, 0), (10, 0), (10, 10), (0, 10), (5, 5)]);
+        Assert.Equal(4, h.Count);
+        Assert.DoesNotContain((5f, 5f), h);
+    }
+}

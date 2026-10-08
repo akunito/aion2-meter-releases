@@ -108,6 +108,8 @@ public sealed class AppSettings
     public double? AtlasLeft { get; set; }
     public double? AtlasTop { get; set; }
     public double AtlasWidth { get; set; } = 900;
+    /// <summary>Node kinds whose best areas are outlined on the atlas (up to two, English names lower-cased).</summary>
+    public List<string> AtlasZoneKinds { get; set; } = new();
     public double AtlasHeight { get; set; } = 760;
 
     /// <summary>Bumped when the overlay layout changes enough that saved sizes no longer fit.</summary>

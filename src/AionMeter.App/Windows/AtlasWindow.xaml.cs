@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -34,6 +35,21 @@ public partial class AtlasWindow : Window
     private static readonly Brush BossUp = new SolidColorBrush(Color.FromRgb(0xE0, 0x4A, 0x4A));
     private static readonly Brush Self = new SolidColorBrush(Color.FromRgb(0xF2, 0xC9, 0x6B));
     private static readonly Brush Ink = new SolidColorBrush(Color.FromArgb(0xC0, 0, 0, 0));
+
+    /// <summary>One kind toggle: icon, its dominant colour (zone outline), on/off.</summary>
+    public sealed class ZoneToggle(string key, string name, ImageSource? icon, Brush brush, bool on, string tip)
+    {
+        public string Key { get; } = key;
+        public string Name { get; } = name;
+        public ImageSource? Icon { get; } = icon;
+        public Brush Brush { get; } = brush;
+        public bool On { get; set; } = on;
+        public string Tip { get; } = tip;
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<ZoneToggle> _zoneToggles = new();
+    private readonly Dictionary<string, Brush> _iconBrush = new();
+    private int _toggleSpots = -1;
 
     public AtlasWindow(MeterService meter)
     {
@@ -92,7 +108,10 @@ public partial class AtlasWindow : Window
             Dot(px, py, 7, up ? BossUp : Gone, label, up ? BossUp : Gone, skull: true);
         }
 
-        foreach (var s in atlas.Spots(map))
+        var spots = atlas.Spots(map);
+        RefreshToggles(spots);
+        DrawZones(spots);
+        foreach (var s in spots)
         {
             var (px, py) = _cal.ToPixel(s.X, s.Y);
             // Known kinds draw their icon at the spot (name kept for the tooltip-less reader: none); unknown kinds a plain dot.
@@ -139,6 +158,115 @@ public partial class AtlasWindow : Window
                 Canvas.SetLeft(t, x + 12); Canvas.SetTop(t, y - 7); Overlay.Children.Add(t);
             }
         }
+    }
+
+    // ------------------------------------------------------------------ best areas per kind (A2M-3)
+
+    /// <summary>The kinds known on this map, one toggle each; rebuilt when the spot count changes.</summary>
+    private void RefreshToggles(List<NodeSpot> spots)
+    {
+        if (spots.Count == _toggleSpots) return;
+        _toggleSpots = spots.Count;
+        var kinds = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in spots) if (_meter.Data.Objects.TryGetValue(s.Code, out var n)) kinds.Add(n);
+        var on = _meter.Settings.AtlasZoneKinds;
+        _zoneToggles.Clear();
+        foreach (var name in kinds)
+        {
+            var key = name.Trim().ToLowerInvariant();
+            _zoneToggles.Add(new ZoneToggle(key, name, Icon(name), IconBrush(name), on.Contains(key), string.Format(T.AtlasZonesTip, name)));
+        }
+        ZoneToggles.ItemsSource ??= _zoneToggles;
+    }
+
+    private void ZoneToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton { Tag: string key }) return;
+        var on = _meter.Settings.AtlasZoneKinds;
+        if (on.Remove(key)) { }
+        else
+        {
+            on.Add(key);
+            while (on.Count > 2) on.RemoveAt(0); // at most two kinds: the oldest drops
+        }
+        foreach (var t in _zoneToggles) t.On = on.Contains(t.Key);
+        _toggleSpots = -1; // rebuild so the bindings (OneWay) reflect the new state
+        _meter.Settings.Save();
+        Refresh();
+    }
+
+    /// <summary>
+    /// The 5 densest areas of each toggled kind as padded hull outlines in the kind's icon colour. Drawn on the screen-space
+    /// overlay every refresh, so the stroke keeps its width and the shape stays anchored at any zoom or pan.
+    /// </summary>
+    private void DrawZones(List<NodeSpot> spots)
+    {
+        if (_cal is null || _meter.Settings.AtlasZoneKinds.Count == 0) return;
+        foreach (var key in _meter.Settings.AtlasZoneKinds)
+        {
+            var mine = new List<NodeSpot>();
+            foreach (var s in spots)
+                if (_meter.Data.Objects.TryGetValue(s.Code, out var n) && string.Equals(n.Trim(), key, StringComparison.OrdinalIgnoreCase)) mine.Add(s);
+            if (mine.Count == 0) continue;
+            var brush = IconBrush(key);
+            var fill = brush is SolidColorBrush sc ? new SolidColorBrush(Color.FromArgb(0x2A, sc.Color.R, sc.Color.G, sc.Color.B)) : Brushes.Transparent;
+            var rank = 0;
+            foreach (var z in NodeZones.Compute(mine))
+            {
+                rank++;
+                var poly = new Polygon { Stroke = brush, StrokeThickness = 2.5, Fill = fill, StrokeLineJoin = PenLineJoin.Round, StrokeDashArray = rank == 1 ? null : new DoubleCollection { 6, 3 } };
+                var visible = false;
+                foreach (var (wx, wy) in z.Hull)
+                {
+                    var (px, py) = _cal.ToPixel(wx, wy);
+                    var x = px * _f * _scale + _tx; var y = py * _f * _scale + _ty;
+                    poly.Points.Add(new Point(x, y));
+                    if (x > -300 && y > -300 && x < Viewport.ActualWidth + 300 && y < Viewport.ActualHeight + 300) visible = true;
+                }
+                if (!visible) continue;
+                Overlay.Children.Add(poly);
+                var (cx, cy) = _cal.ToPixel(z.CenterX, z.CenterY);
+                var text = new TextBlock { Text = $"#{rank} · {z.Count}", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = brush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
+                Canvas.SetLeft(text, cx * _f * _scale + _tx - 14); Canvas.SetTop(text, cy * _f * _scale + _ty - 8);
+                Overlay.Children.Add(text);
+            }
+        }
+    }
+
+    /// <summary>The icon's dominant colour: the saturation-weighted mean of its opaque pixels (cached per kind); gold when there is no icon.</summary>
+    private Brush IconBrush(string name)
+    {
+        var key = name.Trim().ToLowerInvariant();
+        if (_iconBrush.TryGetValue(key, out var b)) return b;
+        Brush brush = Self;
+        if (Icon(name) is BitmapSource bmp)
+        {
+            try
+            {
+                var conv = new FormatConvertedBitmap(bmp, PixelFormats.Bgra32, null, 0);
+                var w = conv.PixelWidth; var h = conv.PixelHeight; var px = new byte[w * h * 4];
+                conv.CopyPixels(px, w * 4, 0);
+                double r = 0, g = 0, bl = 0, wsum = 0;
+                for (var i = 0; i < px.Length; i += 4)
+                {
+                    if (px[i + 3] < 128) continue;
+                    int bb = px[i], gg = px[i + 1], rr = px[i + 2];
+                    var max = Math.Max(rr, Math.Max(gg, bb)); var min = Math.Min(rr, Math.Min(gg, bb));
+                    var sat = max == 0 ? 0 : (max - min) / (double)max;
+                    var wgt = 0.15 + sat * sat; // saturated pixels dominate, dark outlines barely count
+                    r += rr * wgt; g += gg * wgt; bl += bb * wgt; wsum += wgt;
+                }
+                if (wsum > 0)
+                {
+                    var c = Color.FromRgb((byte)(r / wsum), (byte)(g / wsum), (byte)(bl / wsum));
+                    // lift towards white so it stays readable on the dark map
+                    c = Color.FromRgb((byte)(c.R + (255 - c.R) * 0.25), (byte)(c.G + (255 - c.G) * 0.25), (byte)(c.B + (255 - c.B) * 0.25));
+                    var sb = new SolidColorBrush(c); sb.Freeze(); brush = sb;
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException) { }
+        }
+        return _iconBrush[key] = brush;
     }
 
     /// <summary>First view of a map: the whole zone in the window, centred; Follow then takes over when the player's position is known.</summary>

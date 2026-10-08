@@ -375,6 +375,7 @@ public sealed class UiText
     public string TopCadence { get; init; } = "CASTS PER MINUTE";
     public string TopProfile { get; init; } = "PROFILE (official character page)";
     public string EventMenuNotify { get; init; } = "Windows notification";
+    public string AtlasZonesTip { get; init; } = "{0}: outline its 5 densest areas (up to two kinds at once)";
     public string EventMenuSound { get; init; } = "Sound";
     public string EventMenuAt10 { get; init; } = "Alert 10 min before";
     public string EventMenuAt5 { get; init; } = "Alert 5 min before";

@@ -23,6 +23,35 @@
                     <TextBlock x:Name="ZoneText" Foreground="{StaticResource TextDim}" VerticalAlignment="Center" Margin="14,2,0,0" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <ItemsControl x:Name="ZoneToggles" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <ToggleButton Width="28" Height="28" Margin="0,0,3,0" Padding="0" Cursor="Hand" Focusable="False" Tag="{Binding Key}"
+                                              IsChecked="{Binding On, Mode=OneWay}" Click="ZoneToggle_Click" ToolTip="{Binding Tip}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border x:Name="Bd" CornerRadius="6" BorderThickness="2" BorderBrush="Transparent" Background="#22FFFFFF" Padding="2">
+                                                <Image Source="{Binding Icon}" Width="20" Height="20" Opacity="0.55" x:Name="Img" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Brush}" />
+                                                    <Setter TargetName="Bd" Property="Background" Value="#44FFFFFF" />
+                                                    <Setter TargetName="Img" Property="Opacity" Value="1" />
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Img" Property="Opacity" Value="1" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <CheckBox x:Name="FollowBox" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0"
                               Content="{Binding AtlasFollow, Source={x:Static s:UiText.Current}}" />
                     <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="0,0,10,0" Content="Fit" Click="Fit_Click" />
