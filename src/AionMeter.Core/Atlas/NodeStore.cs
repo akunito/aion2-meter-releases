@@ -24,6 +24,8 @@ public sealed class NodeSpot
     public int Taken { get; set; }
     public bool Alive { get; set; }
     public long ExhaustedAtMs { get; set; }
+    /// <summary>Exhausted while nobody watched: ExhaustedAtMs is when the player stood next to the empty spot, not the real time.</summary>
+    public bool GoneUnseen { get; set; }
     /// <summary>Minutes from exhausted to the next spawn at this spot, learned from two consecutive spawns; 0 = unknown.</summary>
     public int RespawnMinutes { get; set; }
     public int Spawns { get; set; }
@@ -124,7 +126,7 @@ public sealed class NodeStore
                     break;
                 case PositionEvent p:
                     PositionsSeen++;
-                    if (p.ActorId == SelfId && SelfId != 0) { SelfX = p.X; SelfY = p.Y; SelfZ = p.Z; SelfAtMs = p.TimeMs; SelfPositions++; }
+                    if (p.ActorId == SelfId && SelfId != 0) { SelfX = p.X; SelfY = p.Y; SelfZ = p.Z; SelfAtMs = p.TimeMs; SelfPositions++; SweepMissing(p.X, p.Y, p.TimeMs); }
                     // Everything in view reports positions (~5/s): their recent centroid stands in for the player while
                     // the server says nothing about the player's own walking.
                     _recent[_recentAt] = (p.TimeMs, p.X, p.Y); _recentAt = (_recentAt + 1) % _recent.Length;
@@ -141,6 +143,7 @@ public sealed class NodeStore
                     if (target is null) { _selfGatheredUnknown[g.ObjectId] = g.TimeMs; break; } // asked when it is seen again
                     // Gathering happens at the node: the node's position is the player's, to the centimetre (Diego's idea).
                     SelfX = target.X; SelfY = target.Y; SelfZ = target.Z; SelfAtMs = g.TimeMs; SelfPositions++;
+                    SweepMissing(target.X, target.Y, g.TimeMs);
                     SelfGathering?.Invoke(target);
                     break;
                 case GatherEvent g when !g.Started && _live.TryGetValue(g.ObjectId, out var spot):
@@ -150,10 +153,11 @@ public sealed class NodeStore
                     break;
                 case ObjectGoneEvent x when _live.TryGetValue(x.ActorId, out var spot):
                     spot.InView = false;
+                    spot.LiveId = 0; // a return into view is announced again (34 36 with the same id and spawn time)
+                    _live.Remove(x.ActorId);
                     if (x.Exhausted)
                     {
-                        spot.Alive = false; spot.Taken = NodeSpot.MaxUnits; spot.ExhaustedAtMs = x.TimeMs; spot.LiveId = 0;
-                        _live.Remove(x.ActorId);
+                        spot.Alive = false; spot.Taken = NodeSpot.MaxUnits; spot.ExhaustedAtMs = x.TimeMs; spot.GoneUnseen = false;
                         _dirty.Add(MapId);
                     }
                     break;
@@ -216,8 +220,8 @@ public sealed class NodeStore
         var newSpawn = spot.LiveId != o.ActorId && (o.SpawnedAtMs == 0 || o.SpawnedAtMs != spot.SpawnedAtMs);
         if (newSpawn)
         {
-            // A later spawn after a known exhaustion teaches the respawn interval (whole minutes).
-            if (spot.ExhaustedAtMs > 0 && o.SpawnedAtMs > spot.ExhaustedAtMs)
+            // A later spawn after a known exhaustion teaches the respawn interval (whole minutes); not when the exhaustion time is a guess.
+            if (spot.ExhaustedAtMs > 0 && !spot.GoneUnseen && o.SpawnedAtMs > spot.ExhaustedAtMs)
             {
                 var minutes = (int)Math.Round((o.SpawnedAtMs - spot.ExhaustedAtMs) / 60_000.0);
                 if (minutes is >= 1 and <= 24 * 60) spot.RespawnMinutes = minutes;
@@ -226,12 +230,33 @@ public sealed class NodeStore
             spot.SpawnedAtMs = o.SpawnedAtMs;
             spot.Taken = o.Taken;
             spot.ExhaustedAtMs = 0;
+            spot.GoneUnseen = false;
         }
         else if (o.Taken > spot.Taken) spot.Taken = o.Taken;
         spot.Alive = true; spot.InView = true; spot.LiveId = o.ActorId; spot.LastSeenMs = o.TimeMs;
         _live[o.ActorId] = spot;
         _dirty.Add(MapId);
         if (_selfGatheredUnknown.Remove(o.ActorId, out var at) && o.TimeMs - at < 30 * 60_000) SelfGathering?.Invoke(spot);
+    }
+
+    /// <summary>
+    /// The server announces every object within ~100 m (node spawns arrived 95–105 m from the player's own fix, 2026-10-08), so a
+    /// remembered node within 30 m of an exact fix that has not been announced for 8 s is not there: someone emptied it while it was
+    /// out of view. Marked gone with the time of the visit (GoneUnseen), which keeps the respawn learning honest.
+    /// </summary>
+    private const float SweepCm = 3000;
+
+    private void SweepMissing(float x, float y, long nowMs)
+    {
+        if (!_maps.TryGetValue(MapId, out var m)) return;
+        foreach (var s in m.Values)
+        {
+            if (!s.Alive || s.LiveId != 0 || !s.IsNode || nowMs - s.LastSeenMs < 8_000) continue;
+            var dx = s.X - x; var dy = s.Y - y;
+            if (dx * dx + dy * dy > SweepCm * SweepCm) continue;
+            s.Alive = false; s.Taken = NodeSpot.MaxUnits; s.ExhaustedAtMs = nowMs; s.GoneUnseen = true;
+            _dirty.Add(MapId);
+        }
     }
 
     /// <summary>The spot nearest to a world point within <paramref name="maxCm"/>, or null.</summary>

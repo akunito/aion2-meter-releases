@@ -16,6 +16,28 @@ public class AtlasTests
     }
 
     [Fact]
+    public void Remembered_node_is_marked_gone_when_the_player_stands_there_and_nothing_is_announced()
+    {
+        var s = Store();
+        s.OnEvent(new ObjectSeenEvent(T0, 17983, 4, 1500012, -5428, -75541, 369, 0, T0 - 60_000));
+        s.OnEvent(new ObjectGoneEvent(T0 + 10_000, 17983, false)); // walked away, node still full
+        Assert.True(s.Spots(1010)[0].Alive);
+        // Back 30 min later, an exact fix 12 m from the spot, no 34 36 for it: it was emptied meanwhile.
+        s.OnEvent(new PositionEvent(T0 + 1_800_000, 7859, -5428 + 1200, -75541, 369));
+        var spot = s.Spots(1010)[0];
+        Assert.False(spot.Alive);
+        Assert.True(spot.GoneUnseen);
+        Assert.Equal(0, spot.UnitsLeft);
+        // A fix 60 m away says nothing (the announce radius is ~100 m, only a close visit is conclusive).
+        s.OnEvent(new ObjectSeenEvent(T0 + 1_900_000, 18001, 4, 1500012, -5428, -75541, 369, 0, T0 + 1_850_000));
+        Assert.True(s.Spots(1010)[0].Alive);
+        Assert.Equal(0, s.Spots(1010)[0].RespawnMinutes); // not learned from a guessed exhaustion time
+        s.OnEvent(new ObjectGoneEvent(T0 + 1_950_000, 18001, false));
+        s.OnEvent(new PositionEvent(T0 + 1_970_000, 7859, -5428 + 6000, -75541, 369));
+        Assert.True(s.Spots(1010)[0].Alive);
+    }
+
+    [Fact]
     public void Node_keeps_its_spot_and_units_across_leaving_view()
     {
         // The Inina experiment: full node seen, one unit taken, node leaves view, comes back announcing 1 taken.
