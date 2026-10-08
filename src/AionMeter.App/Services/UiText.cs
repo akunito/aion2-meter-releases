@@ -373,6 +373,11 @@ public sealed class UiText
     public string TopOpening { get; init; } = "OPENER (first 16 casts)";
     public string TopRepeated { get; init; } = "MOST REPEATED 3-CAST SEQUENCES";
     public string TopCadence { get; init; } = "CASTS PER MINUTE";
+    public string TopProfile { get; init; } = "PROFILE (official character page)";
+    public string TopProfileFetch { get; init; } = "Load profile";
+    public string TopProfileLoading { get; init; } = "Loading…";
+    public string TopProfileMissing { get; init; } = "Not found on the official character search (renamed, deleted or another server).";
+    public string TopProfileFailed { get; init; } = "The character page did not answer: {0}";
     public string AtlasTitle { get; init; } = "Atlas";
     public string AtlasNoMap { get; init; } = "No calibrated map for zone {0}. Nodes are still being recorded.";
     public string AtlasFollow { get; init; } = "Follow me";

@@ -86,6 +86,12 @@
                                                 <TextBlock Text="{Binding RepeatedText}" TextWrapping="Wrap" FontSize="12" />
                                                 <TextBlock Text="{Binding TopCadence, Source={x:Static s:UiText.Current}}" FontSize="11" Foreground="{StaticResource Gold}" Margin="0,8,0,3" />
                                                 <TextBlock Text="{Binding CadenceText}" TextWrapping="Wrap" FontSize="12" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,3">
+                                                    <TextBlock Text="{Binding TopProfile, Source={x:Static s:UiText.Current}}" FontSize="11" Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
+                                                    <Button Style="{StaticResource Chip}" Height="22" FontSize="11" Margin="10,0,0,0" Click="Profile_Click"
+                                                            Content="{Binding TopProfileFetch, Source={x:Static s:UiText.Current}}" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding ProfileText}" TextWrapping="Wrap" FontSize="12" FontFamily="Consolas" />
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

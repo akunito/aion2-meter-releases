@@ -5,9 +5,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Net.Http;
 using AionMeter.App.Services;
 using AionMeter.App.ViewModels;
 using AionMeter.Core;
+using AionMeter.Core.Armory;
 using AionMeter.Core.Events;
 using AionMeter.Core.Ranking;
 
@@ -33,6 +35,7 @@ public partial class TopDpsWindow : Window
     public sealed class Row(TopEntry e, int rank) : ObservableObject
     {
         private bool _expanded;
+        private string _profileText = "";
         public TopEntry Entry { get; } = e;
         public string Rank { get; } = rank.ToString();
         public string Name { get; } = e.Name;
@@ -47,6 +50,7 @@ public partial class TopDpsWindow : Window
         public string OpeningText { get; set; } = "";
         public string RepeatedText { get; set; } = "";
         public string CadenceText { get; set; } = "";
+        public string ProfileText { get => _profileText; set => Set(ref _profileText, value); }
     }
 
     public TopDpsWindow(MeterService meter)
@@ -136,6 +140,27 @@ public partial class TopDpsWindow : Window
         if (who is null) return;
         AppHost.Current.ShowBreakdown(new RecordFightView(record), who.ActorId);
     }
+
+    /// <summary>Official character page for this player: stats, gear, Dp skills, Daevanion sums, skill levels of the rotation.</summary>
+    private async void Profile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: Row row }) return;
+        var cached = _meter.Armory.Cached(row.Entry.Name, ServerOf(row.Entry));
+        if (cached is not null) row.ProfileText = ProfileFormatter.Text(cached, row.Entry, _meter.Data);
+        row.ProfileText = cached is null ? T.TopProfileLoading : row.ProfileText;
+        try
+        {
+            var p = await _meter.Armory.LookupAsync(row.Entry.Name, ServerOf(row.Entry));
+            row.ProfileText = p is null ? T.TopProfileMissing : ProfileFormatter.Text(p, row.Entry, _meter.Data);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+        {
+            Log.Error("Armory lookup failed", ex);
+            if (cached is null) row.ProfileText = string.Format(T.TopProfileFailed, ex.Message);
+        }
+    }
+
+    private int ServerOf(TopEntry e) => e.ServerId != 0 ? e.ServerId : _meter.Tracker.SelfServerId;
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }
