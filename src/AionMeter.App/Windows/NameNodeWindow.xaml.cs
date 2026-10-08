@@ -16,6 +16,7 @@ public partial class NameNodeWindow : Window
         _code = code;
         InitializeComponent();
         Question.Text = string.Format(UiText.Current.NameNodeQuestion, code);
+        if (meter.Data.Objects.TryGetValue(code, out var current)) NameBox.Text = current;
         Loaded += (_, _) => { NameBox.Focus(); };
     }
 

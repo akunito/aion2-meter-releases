@@ -64,6 +64,7 @@ public sealed class NodeStore
     private readonly Dictionary<uint, NodeSpot> _live = new();   // entity id → spot, current map only
     private readonly object _gate = new();
     private readonly HashSet<int> _dirty = new();
+    private readonly Dictionary<uint, long> _selfGatheredUnknown = new();
     private readonly (long At, float X, float Y)[] _recent = new (long, float, float)[64];
     private int _recentAt;
 
@@ -113,8 +114,9 @@ public sealed class NodeStore
                 case ObjectSeenEvent o when MapId != 0:
                     OnSeen(o);
                     break;
-                case GatherEvent g when g.Started && g.PlayerId == SelfId && SelfId != 0 && _live.TryGetValue(g.ObjectId, out var mine):
-                    SelfGathering?.Invoke(mine);
+                case GatherEvent g when g.Started && g.PlayerId == SelfId && SelfId != 0:
+                    if (_live.TryGetValue(g.ObjectId, out var mine)) SelfGathering?.Invoke(mine);
+                    else _selfGatheredUnknown[g.ObjectId] = g.TimeMs; // in view before the meter started: asked when it is seen again
                     break;
                 case GatherEvent g when !g.Started && _live.TryGetValue(g.ObjectId, out var spot):
                     if (g.Count > spot.Taken) spot.Taken = g.Count;
@@ -179,6 +181,23 @@ public sealed class NodeStore
         spot.Alive = true; spot.InView = true; spot.LiveId = o.ActorId; spot.LastSeenMs = o.TimeMs;
         _live[o.ActorId] = spot;
         _dirty.Add(MapId);
+        if (_selfGatheredUnknown.Remove(o.ActorId, out var at) && o.TimeMs - at < 30 * 60_000) SelfGathering?.Invoke(spot);
+    }
+
+    /// <summary>The spot nearest to a world point within <paramref name="maxCm"/>, or null.</summary>
+    public NodeSpot? Nearest(int mapId, float x, float y, float maxCm)
+    {
+        lock (_gate)
+        {
+            if (!_maps.TryGetValue(mapId, out var m)) return null;
+            NodeSpot? best = null; var bestD = maxCm * maxCm;
+            foreach (var s in m.Values)
+            {
+                var d = (s.X - x) * (s.X - x) + (s.Y - y) * (s.Y - y);
+                if (d < bestD) { bestD = d; best = s; }
+            }
+            return best;
+        }
     }
 
     /// <summary>Every spot of a map (a copy, safe to read from the UI thread).</summary>

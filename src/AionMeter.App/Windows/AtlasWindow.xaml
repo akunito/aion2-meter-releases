@@ -30,7 +30,7 @@
                 </StackPanel>
             </Grid>
             <Border Grid.Row="1" x:Name="Viewport" ClipToBounds="True" Background="#0B0F18" Margin="1,0"
-                    MouseWheel="Viewport_MouseWheel" MouseLeftButtonDown="Viewport_MouseDown" MouseLeftButtonUp="Viewport_MouseUp" MouseMove="Viewport_MouseMove">
+                    MouseWheel="Viewport_MouseWheel" MouseLeftButtonDown="Viewport_MouseDown" MouseLeftButtonUp="Viewport_MouseUp" MouseMove="Viewport_MouseMove" MouseRightButtonDown="Viewport_RightClick">
                 <Grid>
                     <!-- The map at its decoded size under a scale + pan; the data layer is drawn in screen space on top.
                          The Image sits in a Canvas: a Grid cell would lay it out at the window size and Image clips its

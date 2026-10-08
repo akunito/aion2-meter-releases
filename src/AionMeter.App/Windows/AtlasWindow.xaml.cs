@@ -27,6 +27,7 @@ public partial class AtlasWindow : Window
     private int _imgW, _imgH;
     private Point? _dragFrom;
     private int _ticks;
+    private bool _followZoomed;
     private double _dragTx, _dragTy;
     private static readonly Brush Live = new SolidColorBrush(Color.FromRgb(0x5E, 0xE0, 0x7A));
     private static readonly Brush Gone = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0x9C));
@@ -107,7 +108,7 @@ public partial class AtlasWindow : Window
             var (sx, sy) = _cal.ToPixel(wx, wy);
             if (FollowBox.IsChecked == true && sx >= 0 && sy >= 0 && sx <= _cal.Width && sy <= _cal.Height && Viewport.ActualWidth > 0)
             {
-                if (_scale < 1.0) _scale = 1.5; // following: close enough to read the nodes (~63 px per 100 m)
+                if (!_followZoomed) { _scale = 4; _followZoomed = true; } // following starts at the closest zoom (Diego's pick); the wheel adjusts from there
                 _tx = Viewport.ActualWidth / 2 - sx * _f * _scale;
                 _ty = Viewport.ActualHeight / 2 - sy * _f * _scale;
                 Apply();
@@ -189,8 +190,7 @@ public partial class AtlasWindow : Window
         var next = Math.Clamp(_scale * k, 0.08, 4);
         k = next / _scale; _scale = next;
         _tx = p.X - (p.X - _tx) * k; _ty = p.Y - (p.Y - _ty) * k;
-        FollowBox.IsChecked = false;
-        Apply(); Refresh();
+        Apply(); Refresh(); // zooming keeps Follow: the next tick re-centres at the new zoom
     }
 
     private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
@@ -207,6 +207,21 @@ public partial class AtlasWindow : Window
         _tx = _dragTx + (p.X - from.X); _ty = _dragTy + (p.Y - from.Y);
         FollowBox.IsChecked = false;
         Apply(); Refresh();
+    }
+
+    /// <summary>Right-click on a node: name its kind (also the way to name a node that was in view before the meter started).</summary>
+    private void Viewport_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_cal is null) return;
+        var p = e.GetPosition(Viewport);
+        // screen → calibration pixel → world (the affine is scale + offset: invert through two known points)
+        var px = (p.X - _tx) / (_f * _scale); var py = (p.Y - _ty) / (_f * _scale);
+        var (ox, oy) = _cal.ToPixel(0, 0); var (ux, uy) = _cal.ToPixel(1000, 1000);
+        var wx = (float)((px - ox) / (ux - ox) * 1000); var wy = (float)((py - oy) / (uy - oy) * 1000);
+        var spot = _meter.Atlas.Nearest(_mapShown, wx, wy, maxCm: (float)(14 / (_f * _scale) / _cal.Scale));
+        if (spot is null) return;
+        new NameNodeWindow(_meter, spot.Code).Show();
+        e.Handled = true;
     }
 
     private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)

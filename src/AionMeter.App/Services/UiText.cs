@@ -372,7 +372,7 @@ public sealed class UiText
     public string NameNodeCategory { get; init; } = "Category";
     public string NameNodeSave { get; init; } = "Save";
     public string NameNodeSkip { get; init; } = "Not now";
-    public string AtlasHint { get; init; } = "Drag to pan, wheel to zoom. Green = node in view (units left), grey = remembered (back in … when learned), skull = field boss.";
+    public string AtlasHint { get; init; } = "Drag to pan, wheel to zoom, right-click a node to name its kind. Green = node in view (units left), grey = remembered (back in … when learned), skull = field boss.";
     public string SecUpdates { get; init; } = "UPDATES";
     public string CheckUpdatesAuto { get; init; } = "Check GitHub for new versions";
     public string UpdatesHint { get; init; } = "Shortly after start and every 2 hours. The meter only asks GitHub which version is the newest; nothing about you or your fights is sent.";
