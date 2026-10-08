@@ -43,6 +43,11 @@ public sealed class CombatTracker
         get { lock (_gate) return _entities.ZoneName; }
     }
 
+    public GameClass SelfClass
+    {
+        get { lock (_gate) return _entities.Self?.Class ?? GameClass.Unknown; }
+    }
+
     /// <summary>The local character's server (0 until known; restored with the name cache).</summary>
     public int SelfServerId
     {

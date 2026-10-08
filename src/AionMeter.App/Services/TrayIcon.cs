@@ -14,6 +14,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _history;
     private readonly ToolStripMenuItem _timers;
     private readonly ToolStripMenuItem _atlas;
+    private readonly ToolStripMenuItem _top;
     private readonly ToolStripMenuItem _settings;
     private readonly ToolStripMenuItem _language;
     private readonly ToolStripMenuItem _demo;
@@ -41,6 +42,7 @@ public sealed class TrayIcon : IDisposable
         _history = new ToolStripMenuItem("", null, (_, _) => actions.History());
         _timers = new ToolStripMenuItem("", null, (_, _) => actions.BossTimers());
         _atlas = new ToolStripMenuItem("", null, (_, _) => actions.Atlas());
+        _top = new ToolStripMenuItem("", null, (_, _) => actions.Top());
         _settings = new ToolStripMenuItem("", null, (_, _) => actions.Settings());
         _language = new ToolStripMenuItem("", null, (_, _) => actions.ToggleLanguage());
         _demo = new ToolStripMenuItem("", null, (_, _) => actions.Demo());
@@ -49,7 +51,7 @@ public sealed class TrayIcon : IDisposable
         menu.Items.AddRange([
             _update, _updateSeparator,
             _toggle, _clickThrough, _reset, new ToolStripSeparator(),
-            _history, _timers, _atlas, _settings, _language, _demo, _replay, _checkUpdates, new ToolStripSeparator(),
+            _history, _timers, _atlas, _top, _settings, _language, _demo, _replay, _checkUpdates, new ToolStripSeparator(),
             _exit,
         ]);
         ApplyTexts();
@@ -84,6 +86,7 @@ public sealed class TrayIcon : IDisposable
         _history.Text = t.TrayHistory;
         _timers.Text = t.TrayTimers;
         _atlas.Text = t.TrayAtlas;
+        _top.Text = t.TrayTop;
         _settings.Text = t.TraySettings;
         _language.Text = t.SwitchLanguage;
         _demo.Text = t.TrayDemo;
@@ -152,6 +155,7 @@ public sealed record TrayActions(
     Action History,
     Action BossTimers,
     Action Atlas,
+    Action Top,
     Action Settings,
     Action Demo,
     Action Replay,

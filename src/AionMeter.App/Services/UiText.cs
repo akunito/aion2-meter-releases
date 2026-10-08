@@ -363,6 +363,16 @@ public sealed class UiText
     public string TrayUpdate { get; init; } = "Update to {0}…";
     public string TrayCheckUpdates { get; init; } = "Check for updates";
     public string TrayAtlas { get; init; } = "Atlas (nodes map)";
+    public string TrayTop { get; init; } = "Top DPS per class";
+    public string TopTitle { get; init; } = "Top DPS";
+    public string TopCount { get; init; } = "{0} players kept";
+    public string TopHint { get; init; } = "The ten best DPS this meter has seen per class (one fight per player, 30 s or longer). Click a row for skill shares, opener, repeated sequences and casts per minute; Open shows the saved fight.";
+    public string TopEmpty { get; init; } = "No fight of 30 s or more with a known class yet. The ranking fills itself as fights finish.";
+    public string TopOpenFight { get; init; } = "Open";
+    public string TopSkills { get; init; } = "DAMAGE SHARE";
+    public string TopOpening { get; init; } = "OPENER (first 16 casts)";
+    public string TopRepeated { get; init; } = "MOST REPEATED 3-CAST SEQUENCES";
+    public string TopCadence { get; init; } = "CASTS PER MINUTE";
     public string AtlasTitle { get; init; } = "Atlas";
     public string AtlasNoMap { get; init; } = "No calibrated map for zone {0}. Nodes are still being recorded.";
     public string AtlasFollow { get; init; } = "Follow me";

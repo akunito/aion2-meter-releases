@@ -4,6 +4,7 @@ using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Demo;
 using AionMeter.Core.Game;
+using AionMeter.Core.Ranking;
 using AionMeter.Core.Storage;
 
 namespace AionMeter.App.Services;
@@ -29,6 +30,10 @@ public sealed class MeterService : IDisposable
         Timers = new BossTimers(Path.Combine(AppSettings.AppDataDir, "boss-timers.json"), Data, DataDirectory, persistent: !settings.Transient);
         Updates = new Updater(settings);
         Atlas = new NodeStore(Path.Combine(AppSettings.AppDataDir, "atlas"));
+        Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
+        // First run with the ranking: fill it from the fights already on disk, off the UI thread.
+        if (!settings.Transient && Top.Count == 0 && History.List(1).Count > 0)
+            ThreadPool.QueueUserWorkItem(_ => { try { Top.Rebuild(History, Data); Top.Save(); } catch (Exception ex) { Log.Error("Top DPS rebuild failed", ex); } });
         _objectNames = new ObjectNames(Path.Combine(AppSettings.AppDataDir, "atlas", "objects.json"));
         _userNames = _objectNames.Load();
         foreach (var (code, (name, _)) in _userNames) if (name.Length > 0) Data.Objects[code] = name;
@@ -97,6 +102,8 @@ public sealed class MeterService : IDisposable
     public Updater Updates { get; }
     /// <summary>Gathering nodes and the player's position, per map (private atlas branch).</summary>
     public NodeStore Atlas { get; }
+    /// <summary>Ten best DPS per class with their rotations (private branch).</summary>
+    public TopDpsStore Top { get; }
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
     /// <summary>Recurring server events (Shugo, Rift, siege, reset) from data/atlas/events.json.</summary>
     public IReadOnlyList<ScheduledEvent> Events { get; } = ScheduledEvent.Load(Path.Combine(DataDirectory, "atlas", "events.json"));
@@ -312,6 +319,7 @@ public sealed class MeterService : IDisposable
             {
                 var path = History.Save(record);
                 FightSaved?.Invoke(path);
+                if (Top.Consider(record, Path.GetFileName(path), Data) > 0) Top.Save();
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

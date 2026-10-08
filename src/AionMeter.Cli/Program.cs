@@ -28,6 +28,7 @@ return args.FirstOrDefault() switch
     "fieldbosses" when args.Length > 1 => FieldBosses(args[1]),
     "nodes" when args.Length > 1 => Nodes(args[1]),
     "atlas" when args.Length > 1 => Atlas(args[1], args.Length > 2 ? args[2] : null),
+    "top" when args.Length > 1 => Top(args[1], args.Length > 2 ? args[2] : null),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
     _ => Usage(),
@@ -177,6 +178,29 @@ int Atlas(string path, string? dir)
 }
 
 // Gathering nodes of a capture: every object seen, who gathered it, units taken, exhausted or just out of view.
+// Ten best DPS per class from a fights directory (%AppData%\AionMeter\fights), with each player's rotation summary.
+int Top(string fightsDir, string? onlyClass)
+{
+    var store = new AionMeter.Core.Ranking.TopDpsStore(null);
+    var n = store.Rebuild(new AionMeter.Core.Storage.HistoryStore(fightsDir), data);
+    Console.WriteLine($"{n} ranking updates from {fightsDir}");
+    foreach (var c in store.Classes)
+    {
+        if (onlyClass is not null && !string.Equals(c.ToString(), onlyClass, StringComparison.OrdinalIgnoreCase)) continue;
+        Console.WriteLine($"== {c}");
+        var rank = 0;
+        foreach (var e in store.For(c))
+        {
+            Console.WriteLine($"  {++rank,2}. {e.Name,-16} {e.Dps,9:0}/s  {e.CombatMs / 1000,4}s  {e.Title}  {e.StartedAt.ToLocalTime():MM-dd HH:mm}  casts {e.Casts.Count}");
+            Console.WriteLine("      share : " + string.Join("  ", e.Skills.OrderByDescending(s => s.Share).Take(8).Select(s => $"{s.Name} {s.Share * 100:0}%")));
+            Console.WriteLine("      opener: " + string.Join(" > ", AionMeter.Core.Ranking.TopDpsStore.Opening(e, 12).Select(data.SkillName)));
+            foreach (var (skills, count) in AionMeter.Core.Ranking.TopDpsStore.Frequent(e, 3, 3))
+                Console.WriteLine($"      loop  : {string.Join(" > ", skills.Select(data.SkillName))}  x{count}");
+        }
+    }
+    return 0;
+}
+
 int Nodes(string path)
 {
     var replay = new PcapReplaySource(data, path, realtime: false);

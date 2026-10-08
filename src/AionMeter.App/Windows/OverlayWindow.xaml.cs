@@ -621,6 +621,11 @@ public partial class OverlayWindow : Window
         while (labels.Count > i) labels.RemoveAt(labels.Count - 1);
     }
 
+    private void Top_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_drag.JustDragged) AppHost.Current.ShowTop();
+    }
+
     private void Atlas_Click(object sender, RoutedEventArgs e)
     {
         if (!_drag.JustDragged) AppHost.Current.ShowAtlas();

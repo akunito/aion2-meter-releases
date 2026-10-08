@@ -128,6 +128,7 @@ public partial class App : Application
             History: ShowHistory,
             BossTimers: ShowBossTimers,
             Atlas: ShowAtlas,
+            Top: ShowTop,
             Settings: ShowSettings,
             Demo: () => _meter.StartDemo(),
             Replay: PickReplay,
@@ -402,6 +403,20 @@ public partial class App : Application
     }
 
     private AtlasWindow? _atlasWindow;
+
+    private TopDpsWindow? _topWindow;
+
+    public void ShowTop()
+    {
+        if (_topWindow is { IsLoaded: true })
+        {
+            Activate(_topWindow);
+            return;
+        }
+        _topWindow = new TopDpsWindow(_meter);
+        _topWindow.Closed += (_, _) => _topWindow = null;
+        _topWindow.Show();
+    }
 
     private NameNodeWindow? _nameWindow;
 
