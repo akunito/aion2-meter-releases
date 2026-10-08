@@ -77,6 +77,17 @@ public class AtlasTests
     }
 
     [Fact]
+    public void Starting_to_gather_puts_the_player_at_the_node()
+    {
+        var s = Store();
+        s.OnEvent(new ObjectSeenEvent(T0, 17983, 4, 1500042, -37458, -37143, 5962, 0, T0));
+        s.OnEvent(new GatherEvent(T0 + 5_000, 17983, 7859, true, 0));
+        Assert.Equal(-37458f, s.SelfX);
+        Assert.Equal(-37143f, s.SelfY);
+        Assert.Equal(T0 + 5_000, s.SelfAtMs);
+    }
+
+    [Fact]
     public void Self_position_follows_only_the_local_player()
     {
         var s = Store();

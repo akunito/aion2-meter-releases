@@ -137,9 +137,11 @@ public sealed class NodeStore
                     OnSeen(o);
                     break;
                 case GatherEvent g when g.Started && g.PlayerId == SelfId && SelfId != 0:
-                    if (_live.TryGetValue(g.ObjectId, out var mine)) SelfGathering?.Invoke(mine);
-                    else if (BindByPosition(g.ObjectId, g.TimeMs) is { } bound) SelfGathering?.Invoke(bound);
-                    else _selfGatheredUnknown[g.ObjectId] = g.TimeMs; // asked when it is seen again
+                    var target = _live.TryGetValue(g.ObjectId, out var mine) ? mine : BindByPosition(g.ObjectId, g.TimeMs);
+                    if (target is null) { _selfGatheredUnknown[g.ObjectId] = g.TimeMs; break; } // asked when it is seen again
+                    // Gathering happens at the node: the node's position is the player's, to the centimetre (Diego's idea).
+                    SelfX = target.X; SelfY = target.Y; SelfZ = target.Z; SelfAtMs = g.TimeMs; SelfPositions++;
+                    SelfGathering?.Invoke(target);
                     break;
                 case GatherEvent g when !g.Started && _live.TryGetValue(g.ObjectId, out var spot):
                     if (g.Count > spot.Taken) spot.Taken = g.Count;
