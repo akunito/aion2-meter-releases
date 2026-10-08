@@ -118,6 +118,12 @@ public sealed class NodeStore
         lock (_gate) SetMapLocked(mapId);
     }
 
+    /// <summary>The local player's entity id when already known at start (name cache): positions are keyed by it.</summary>
+    public void SetSelf(uint id)
+    {
+        lock (_gate) if (id != 0 && SelfId == 0) SelfId = id;
+    }
+
     private void SetMapLocked(int mapId)
     {
         if (mapId <= 0 || mapId == MapId) return;
