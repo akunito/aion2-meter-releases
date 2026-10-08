@@ -52,6 +52,9 @@ public sealed class PacketParser
             case Opcodes.Cast:
                 ParseCast(body);
                 break;
+            case Opcodes.SkillHit:
+                ParseSkillHit(body);
+                break;
             case Opcodes.FieldBossList:
                 ParseFieldBossList(body);
                 break;
@@ -336,14 +339,35 @@ public sealed class PacketParser
         o += 2;
         if (!Wire.TryVarint(b, ref o, out var target) || !IsEntityId(target)) return;
         Emit(new CastEvent(TimeMs, actor, target, (int)skill));
-        // Most casts carry the caster's position after one float (self-buffs carry a small direction vector instead).
-        if (o + 16 <= b.Length)
-        {
-            var x = BitConverter.ToSingle(b.Slice(o + 4, 4));
-            var y = BitConverter.ToSingle(b.Slice(o + 8, 4));
-            var z = BitConverter.ToSingle(b.Slice(o + 12, 4));
-            if (PlausibleWorld(x, y, z)) Emit(new PositionEvent(TimeMs, actor, x, y, z));
-        }
+        EmitTargetPosition(b, o, target);
+    }
+
+    /// <summary>
+    /// After the target id most casts carry one float and x y z: the position of the TARGET, not of the caster (self-buffs carry
+    /// a small direction vector instead). Measured 2026-10-08 (Verteron, 7 min): 53 of 56 casts aimed at the local player were
+    /// bit-identical to the player's own ActionState position; the player's own melee casts landed ~160 units away (the mob).
+    /// So every mob attack on the local player is an exact self-position fix.
+    /// </summary>
+    private void EmitTargetPosition(ReadOnlySpan<byte> b, int o, uint target)
+    {
+        if (o + 16 > b.Length) return;
+        var x = BitConverter.ToSingle(b.Slice(o + 4, 4));
+        var y = BitConverter.ToSingle(b.Slice(o + 8, 4));
+        var z = BitConverter.ToSingle(b.Slice(o + 12, 4));
+        if (PlausibleWorld(x, y, z)) Emit(new PositionEvent(TimeMs, target, x, y, z));
+    }
+
+    /// <summary><c>09 38</c>: same layout as a cast (caster, 00, skill u32, 01 02, target, f32, target x y z) sent when a skill lands;
+    /// 13 of 14 aimed at the local player matched its own position bit-exactly. No CastEvent (the meter would double count).</summary>
+    private void ParseSkillHit(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var actor) || !IsEntityId(actor)) return;
+        if (!Wire.TryVarint(b, ref o, out _) || !Wire.TryU32(b, ref o, out var skill)) return;
+        if (skill is < 1 or > 299_999_999 || o + 2 > b.Length) return;
+        o += 2;
+        if (!Wire.TryVarint(b, ref o, out var target) || !IsEntityId(target)) return;
+        EmitTargetPosition(b, o, target);
     }
 
     // ------------------------------------------------------------------ damage (04 38)

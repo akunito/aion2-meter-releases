@@ -117,15 +117,30 @@ public class ProtocolTests
     }
 
     [Fact]
-    public void Cast_also_gives_the_caster_position_when_it_carries_one()
+    public void Cast_gives_the_target_position_when_it_carries_one()
     {
         var events = Parse(Opcodes.Cast, "c74300 0c28e900 9202 d1e802 b0f930c38dbae8470b71d3c700faa546ea5d01dc6f".Replace(" ", ""));
         Assert.Equal(2, events.Count);
         var p = Assert.IsType<PositionEvent>(events[1]);
-        Assert.Equal(8647u, p.ActorId);
+        Assert.Equal(46161u, p.ActorId); // the target (d1e802), not the caster (c743)
         Assert.Equal(119157f, p.X, 0.6);
         Assert.Equal(-108258f, p.Y, 0.6);
         Assert.Equal(21245f, p.Z, 0.6);
+    }
+
+    // A mob casting at the local player (7307 = 8b 39): the x y z are the player's own position (Verteron, 2026-10-08).
+    [Theory]
+    [InlineData(Opcodes.Cast, "b7f60100829312000102 8b39 04c1bb42 9a3c9ac7 732c8047 00f42046 904e01e807")]
+    [InlineData(Opcodes.SkillHit, "b7f60100a09312000102 8b39 04c1bb42 9a3c9ac7 732c8047 00f42046 dc0b01")]
+    public void Mob_cast_and_skill_hit_on_the_local_player_give_its_position(ushort op, string hex)
+    {
+        var events = Parse(op, hex.Replace(" ", ""));
+        var p = Assert.IsType<PositionEvent>(events[^1]);
+        Assert.Equal(op == Opcodes.Cast ? 2 : 1, events.Count);
+        Assert.Equal(7307u, p.ActorId);
+        Assert.Equal(-78969.2f, p.X, 0.6);
+        Assert.Equal(65624.9f, p.Y, 0.6);
+        Assert.Equal(10301f, p.Z, 0.6);
     }
 
     // Records the server only ever sends about the local player (three EU captures): their first varint is the local id.
