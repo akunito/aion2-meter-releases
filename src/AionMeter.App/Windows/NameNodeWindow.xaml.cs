@@ -31,8 +31,10 @@ public partial class NameNodeWindow : Window
         _code = code;
         _autoClose = autoClose;
         InitializeComponent();
+        Question.Text = string.Format(UiText.Current.NameNodeQuestion, code);
         if (meter.Data.Objects.TryGetValue(code, out var current)) NameBox.Text = current;
         BuildCatalog();
+        TimerChip.Visibility = autoClose ? Visibility.Visible : Visibility.Collapsed;
         Tick();
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clock.Tick += (_, _) => Tick();
@@ -45,8 +47,9 @@ public partial class NameNodeWindow : Window
     private void Tick()
     {
         var age = (int)(DateTimeOffset.UtcNow - _askedAt).TotalSeconds;
-        Question.Text = string.Format(UiText.Current.NameNodeQuestion, _code) + (_autoClose ? $"  ·  gathered {age}s ago, closes in {Math.Max(0, AutoCloseSeconds - age)}s" : "");
-        if (_autoClose && age >= AutoCloseSeconds) Close();
+        if (!_autoClose) return;
+        TimerText.Text = $"gathered {age}s ago  ·  closes in {Math.Max(0, AutoCloseSeconds - age)}s";
+        if (age >= AutoCloseSeconds) Close();
     }
 
     private void BuildCatalog()

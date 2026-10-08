@@ -15,7 +15,12 @@
             <TextBlock x:Name="Question" TextWrapping="Wrap" Foreground="{StaticResource TextDim}" Margin="0,0,0,10" />
             <!-- One row per category: header + icon buttons; a click saves the kind for this object code -->
             <StackPanel x:Name="Catalog" WindowChrome.IsHitTestVisibleInChrome="True" />
-            <DockPanel Margin="0,10,0,0" WindowChrome.IsHitTestVisibleInChrome="True">
+            <!-- The gather this prompt is about, as a countdown chip in the theme's gold, above the Not-now button -->
+            <Border x:Name="TimerChip" HorizontalAlignment="Right" Margin="0,10,0,0" Padding="10,3" CornerRadius="4"
+                    BorderBrush="{StaticResource Gold}" BorderThickness="1" Background="#26C9A45C" Visibility="Collapsed">
+                <TextBlock x:Name="TimerText" Foreground="{StaticResource Gold}" FontWeight="SemiBold" FontSize="13" />
+            </Border>
+            <DockPanel Margin="0,8,0,0" WindowChrome.IsHitTestVisibleInChrome="True">
                 <Button DockPanel.Dock="Right" Style="{StaticResource Chip}" Height="28" MinWidth="80" Content="{Binding NameNodeSkip, Source={x:Static s:UiText.Current}}" Click="Skip_Click" />
                 <TextBox x:Name="NameBox" Margin="0,0,10,0" VerticalContentAlignment="Center" ToolTip="Other (type a name and press Enter)" KeyDown="NameBox_KeyDown" />
             </DockPanel>
