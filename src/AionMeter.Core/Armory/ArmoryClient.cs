@@ -39,17 +39,25 @@ public sealed class ArmoryClient : IDisposable
 
     public int Requests { get; private set; }
 
-    public async Task<List<CharacterRef>> SearchAsync(string name, CancellationToken ct = default)
+    public async Task<List<CharacterRef>> SearchAsync(string name, int page = 1, int size = 50, CancellationToken ct = default)
     {
-        var url = $"{SearchUrl}?keyword={Uri.EscapeDataString(name)}&region={_region}&localeInfo={_lang}&page=1&size=20";
+        var url = $"{SearchUrl}?keyword={Uri.EscapeDataString(name)}&region={_region}&localeInfo={_lang}&page={page}&size={size}";
         return ArmoryParser.ParseSearch(await GetAsync(url, ct).ConfigureAwait(false));
     }
 
-    /// <summary>The character with exactly this name on this server (search is a prefix/substring match).</summary>
+    /// <summary>
+    /// The character with exactly this name on this server. The search is a substring match over every server ("Baby" has
+    /// thousands of hits), so up to 4 pages of 50 are read until the exact name on the wanted server shows up.
+    /// </summary>
     public async Task<CharacterRef?> FindAsync(string name, int serverId, CancellationToken ct = default)
     {
-        foreach (var r in await SearchAsync(name, ct).ConfigureAwait(false))
-            if (r.ServerId == serverId && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) return r;
+        for (var page = 1; page <= 4; page++)
+        {
+            var list = await SearchAsync(name, page, 50, ct).ConfigureAwait(false);
+            foreach (var r in list)
+                if (r.ServerId == serverId && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) return r;
+            if (list.Count < 50) break;
+        }
         return null;
     }
 
