@@ -20,10 +20,8 @@
                     BorderBrush="{StaticResource Gold}" BorderThickness="1" Background="#26C9A45C" Visibility="Collapsed">
                 <TextBlock x:Name="TimerText" Foreground="{StaticResource Gold}" FontWeight="SemiBold" FontSize="13" />
             </Border>
-            <DockPanel Margin="0,8,0,0" WindowChrome.IsHitTestVisibleInChrome="True">
-                <Button DockPanel.Dock="Right" Style="{StaticResource Chip}" Height="28" MinWidth="80" Content="{Binding NameNodeSkip, Source={x:Static s:UiText.Current}}" Click="Skip_Click" />
-                <TextBox x:Name="NameBox" Margin="0,0,10,0" VerticalContentAlignment="Center" ToolTip="Other (type a name and press Enter)" KeyDown="NameBox_KeyDown" />
-            </DockPanel>
+            <Button HorizontalAlignment="Right" Margin="0,8,0,0" Style="{StaticResource Chip}" Height="28" MinWidth="80" WindowChrome.IsHitTestVisibleInChrome="True"
+                    Content="{Binding NameNodeSkip, Source={x:Static s:UiText.Current}}" Click="Skip_Click" />
         </StackPanel>
     </Border>
 </Window>

@@ -371,7 +371,7 @@ public sealed class UiText
     public string NameNodeName { get; init; } = "Name";
     public string NameNodeCategory { get; init; } = "Category";
     public string NameNodeSave { get; init; } = "Save";
-    public string NameNodeSkip { get; init; } = "Not now";
+    public string NameNodeSkip { get; init; } = "Close";
     public string AtlasHint { get; init; } = "Drag to pan, wheel to zoom, right-click a node to name its kind. Green = node in view (units left), grey = remembered (back in … when learned), skull = field boss.";
     public string SecUpdates { get; init; } = "UPDATES";
     public string CheckUpdatesAuto { get; init; } = "Check GitHub for new versions";
@@ -707,7 +707,7 @@ public sealed class UiText
         NameNodeName = "Название",
         NameNodeCategory = "Категория",
         NameNodeSave = "Сохранить",
-        NameNodeSkip = "Не сейчас",
+        NameNodeSkip = "Закрыть",
         AtlasHint = "Перетаскивание — сдвиг, колесо — масштаб. Зелёный = ресурс в поле зрения (осталось единиц), серый = запомненный, череп = полевой босс.",
         SecUpdates = "ОБНОВЛЕНИЯ",
         CheckUpdatesAuto = "Проверять новые версии на GitHub",

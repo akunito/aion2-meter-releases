@@ -110,7 +110,10 @@ public partial class AtlasWindow : Window
         var age = atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : long.MaxValue;
         var (ex, ey, en) = atlas.Estimate(now);
         float wx, wy; bool exact;
-        if (age <= 60) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; } // an action's position holds a minute
+        // An action's position holds while the surroundings agree with it; once the smoothed centroid has drifted more
+        // than 20 m from it (the player walked without acting), the centroid leads after 10 s.
+        var drifted = en >= 3 && (Math.Abs(ex - atlas.SelfX) > 2_000 || Math.Abs(ey - atlas.SelfY) > 2_000);
+        if (age <= 10 || (age <= 60 && !drifted)) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
         else if (en >= 3) { wx = ex; wy = ey; exact = false; }
         else if (age < 30 * 60) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
         else { wx = wy = 0; exact = false; }

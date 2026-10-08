@@ -36,7 +36,7 @@ public partial class NameNodeWindow : Window
         Question.Text = string.Format(UiText.Current.NameNodeQuestion, code);
         meter.Data.Objects.TryGetValue(code, out _current); // the kind already chosen for this code: its button is highlighted
         BuildCatalog();
-        if (_current is not null && !_currentShown) NameBox.Text = _current; // a typed name that is not in the catalogue
+
         TimerChip.Visibility = autoClose ? Visibility.Visible : Visibility.Collapsed;
         if (autoClose) System.Media.SystemSounds.Asterisk.Play(); // the prompt lives 15 s on the other monitor: say so
         Tick();
@@ -111,13 +111,6 @@ public partial class NameNodeWindow : Window
             _meter.NameObject(_code, name, category);
             Close();
         }
-    }
-
-    private void NameBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter || NameBox.Text.Trim().Length == 0) return;
-        _meter.NameObject(_code, NameBox.Text, "");
-        Close();
     }
 
     private void Skip_Click(object sender, RoutedEventArgs e) => Close();
