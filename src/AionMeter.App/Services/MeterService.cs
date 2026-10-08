@@ -34,7 +34,11 @@ public sealed class MeterService : IDisposable
         foreach (var (code, (name, _)) in _userNames) if (name.Length > 0) Data.Objects[code] = name;
         Atlas.SelfGathering += spot =>
         {
-            if (Data.Objects.ContainsKey(spot.Code) || !_askedCodes.Add(spot.Code)) return;
+            if (Data.Objects.ContainsKey(spot.Code)) return;
+            var now = Environment.TickCount64;
+            if (_askedCodes.TryGetValue(spot.Code, out var asked) && now - asked < 10 * 60_000) { Log.Info($"Atlas: object {spot.Code} gathered again, asked {(now - asked) / 1000}s ago"); return; }
+            _askedCodes[spot.Code] = now;
+            Log.Info($"Atlas: asking the name of object {spot.Code} (spot {spot.X:0},{spot.Y:0})");
             NodeNameWanted?.Invoke(spot.Code);
         };
         Tracker.EncounterFinished += OnEncounterFinished;
@@ -94,7 +98,7 @@ public sealed class MeterService : IDisposable
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
     private readonly ObjectNames _objectNames;
     private readonly Dictionary<int, (string Name, string Category)> _userNames;
-    private readonly HashSet<int> _askedCodes = new();
+    private readonly Dictionary<int, long> _askedCodes = new(); // code → when the prompt was last shown (asked again after 10 min)
     /// <summary>The player just started gathering an object code nobody has named yet (capture thread).</summary>
     public event Action<int>? NodeNameWanted;
 

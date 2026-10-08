@@ -94,13 +94,14 @@ public partial class AtlasWindow : Window
         foreach (var s in atlas.Spots(map))
         {
             var (px, py) = _cal.ToPixel(s.X, s.Y);
-            var name = _meter.Data.Objects.TryGetValue(s.Code, out var known) ? known + " " : ""; // unknown kinds show no id
-            if (s.Alive && s.InView) Dot(px, py, 5, Live, $"{name}{s.UnitsLeft}", Live);
-            else if (s.Alive) Dot(px, py, 4, Live, $"{name}{s.UnitsLeft}?", Gone);
+            // Known kinds draw their icon at the spot (name kept for the tooltip-less reader: none); unknown kinds a plain dot.
+            var icon = _meter.Data.Objects.TryGetValue(s.Code, out var known) ? Icon(known) : null;
+            if (s.Alive && s.InView) Mark(px, py, 5, Live, icon, $"{s.UnitsLeft}", Live);
+            else if (s.Alive) Mark(px, py, 4, Live, icon, $"{s.UnitsLeft}?", Gone);
             else
             {
                 var eta = s.NextSpawnMs > 0 ? Countdown(DateTimeOffset.FromUnixTimeMilliseconds(s.NextSpawnMs), now) : "";
-                Dot(px, py, 4, Gone, (name + eta).Trim(), Gone);
+                Mark(px, py, 4, Gone, icon, eta, Gone, dim: true);
             }
         }
 
@@ -152,6 +153,45 @@ public partial class AtlasWindow : Window
     {
         var left = at - (nowMs is { } n ? DateTimeOffset.FromUnixTimeMilliseconds(n) : DateTimeOffset.UtcNow);
         return left.TotalSeconds <= 0 ? "soon" : left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{left.Minutes}:{left.Seconds:00}";
+    }
+
+    private readonly Dictionary<string, ImageSource?> _icons = new();
+
+    /// <summary>The catalogue icon of a kind (data/atlas/icons/&lt;name&gt;.png, English name lower-cased), cached; null when there is none.</summary>
+    private ImageSource? Icon(string name)
+    {
+        var key = name.Trim().ToLowerInvariant();
+        if (_icons.TryGetValue(key, out var cached)) return cached;
+        var path = System.IO.Path.Combine(MeterService.DataDirectory, "atlas", "icons", key + ".png");
+        ImageSource? img = null;
+        if (File.Exists(path))
+        {
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.UriSource = new Uri(path); bmp.DecodePixelWidth = 48; bmp.EndInit(); bmp.Freeze();
+                img = bmp;
+            }
+            catch (Exception ex) when (ex is IOException or NotSupportedException) { }
+        }
+        return _icons[key] = img;
+    }
+
+    /// <summary>A node: its icon (when known) over the dot, the units left beside it.</summary>
+    private void Mark(double px, double py, double r, Brush fill, ImageSource? icon, string label, Brush textBrush, bool dim = false)
+    {
+        if (icon is null) { Dot(px, py, r, fill, label, textBrush); return; }
+        var x = px * _f * _scale + _tx;
+        var y = py * _f * _scale + _ty;
+        if (x < -200 || y < -200 || x > Viewport.ActualWidth + 200 || y > Viewport.ActualHeight + 200) return;
+        var size = 22.0;
+        var image = new Image { Source = icon, Width = size, Height = size, Opacity = dim ? 0.45 : 1 };
+        Canvas.SetLeft(image, x - size / 2); Canvas.SetTop(image, y - size / 2);
+        Overlay.Children.Add(image);
+        if (label.Length == 0 || _scale * _f < 0.12) return;
+        var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
+        Canvas.SetLeft(text, x + size / 2 + 1); Canvas.SetTop(text, y - 7);
+        Overlay.Children.Add(text);
     }
 
     /// <summary>Draws at the screen position of a calibration pixel; shapes and text keep their size at any zoom.</summary>

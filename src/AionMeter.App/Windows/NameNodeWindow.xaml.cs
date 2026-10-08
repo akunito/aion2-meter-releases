@@ -33,14 +33,14 @@ public partial class NameNodeWindow : Window
         var dir = Path.Combine(MeterService.DataDirectory, "atlas");
         var path = Path.Combine(dir, "gather-catalog.json");
         if (!File.Exists(path)) return;
-        var lang = UiText.Current.Code == "ru" ? "en" : _meter.Settings.Language is "es" ? "es" : "en";
+        const string lang = "en"; // Diego: English names only, in the atlas and in the picker
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             foreach (var cat in doc.RootElement.GetProperty("categories").EnumerateArray())
             {
                 var catKey = cat.GetProperty("key").GetString() ?? "";
-                var header = new TextBlock { Text = (cat.TryGetProperty("es", out var ces) ? ces.GetString() : null) ?? catKey, Foreground = (Brush)FindResource("TextMute"), FontSize = 11, Margin = new Thickness(0, 6, 0, 2) };
+                var header = new TextBlock { Text = (cat.TryGetProperty("en", out var cen) ? cen.GetString() : null) ?? catKey, Foreground = (Brush)FindResource("TextMute"), FontSize = 11, Margin = new Thickness(0, 6, 0, 2) };
                 Catalog.Children.Add(header);
                 var row = new WrapPanel();
                 foreach (var node in cat.GetProperty("nodes").EnumerateArray())
