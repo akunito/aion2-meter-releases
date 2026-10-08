@@ -76,7 +76,8 @@ public partial class AtlasWindow : Window
                 Log.Info($"Atlas map {map}: {_cal.BackgroundPath} decoded {bs.PixelWidth}x{bs.PixelHeight}, calibration {_cal.Width}x{_cal.Height}, factor {_f:0.000}");
             }
             else { _imgW = _imgH = 0; _f = 1; Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})"); }
-            FitWholeMap();
+            // Following: a map change (instance in and out) must not zoom out to the whole map; the next tick re-centres at the follow zoom.
+            if (FollowBox.IsChecked == true && _mapShown > 0) _followZoomed = false; else FitWholeMap();
         }
         Overlay.Children.Clear();
         if (_cal is null) return;

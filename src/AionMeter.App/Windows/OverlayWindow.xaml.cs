@@ -602,6 +602,25 @@ public partial class OverlayWindow : Window
         if (!_drag.JustDragged) AppHost.Current.ShowBossTimers();
     }
 
+    /// <summary>"Shugo 39m" until the start, "Shugo ● 7m" while it runs; the same list every second, items replaced in place.</summary>
+    private void UpdateEventLabels()
+    {
+        var now = DateTimeOffset.Now;
+        var labels = _vm.EventLabels;
+        var i = 0;
+        foreach (var ev in _meter.Events)
+        {
+            var (start, end, running) = ev.Next(now);
+            var left = running ? end - now : start - now;
+            var span = left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{Math.Max(0, (int)Math.Ceiling(left.TotalMinutes))}m";
+            var text = running ? $"{ev.Name} ● {span}" : $"{ev.Name} {span}";
+            if (i < labels.Count) { if (labels[i] != text) labels[i] = text; }
+            else labels.Add(text);
+            i++;
+        }
+        while (labels.Count > i) labels.RemoveAt(labels.Count - 1);
+    }
+
     private void Atlas_Click(object sender, RoutedEventArgs e)
     {
         if (!_drag.JustDragged) AppHost.Current.ShowAtlas();
@@ -612,6 +631,7 @@ public partial class OverlayWindow : Window
     /// <summary>The next respawn among watched bosses (or all, when none is watched): "Gartua 12:34".</summary>
     private void UpdateTimersLabel()
     {
+        UpdateEventLabels();
         _timersLabelAt = Environment.TickCount64;
         var now = DateTimeOffset.Now;
         var timers = _meter.Timers.ForServer(_meter.Timers.CurrentServer).Where(t => t.NpcCode > 0).ToList();

@@ -97,3 +97,31 @@ public class AtlasTests
         Assert.Equal(T0 + 1, s.SelfAtMs);
     }
 }
+
+public class EventScheduleTests
+{
+    [Fact]
+    public void Hourly_event_next_start_and_running_window()
+    {
+        var zone = TimeZoneInfo.Utc;
+        var shugo = new AionMeter.Core.Atlas.ScheduledEvent("shugo", "Shugo", zone, Enumerable.Range(0, 24).Select(h => new TimeOnly(h, 0)).ToList(), 10, 5);
+        var now = new DateTimeOffset(2026, 10, 8, 18, 21, 0, TimeSpan.Zero);
+        var (start, end, running) = shugo.Next(now);
+        Assert.False(running);
+        Assert.Equal(new DateTimeOffset(2026, 10, 8, 19, 0, 0, TimeSpan.Zero), start);
+        var (s2, e2, r2) = shugo.Next(new DateTimeOffset(2026, 10, 8, 19, 4, 0, TimeSpan.Zero));
+        Assert.True(r2);
+        Assert.Equal(new DateTimeOffset(2026, 10, 8, 19, 10, 0, TimeSpan.Zero), e2);
+    }
+
+    [Fact]
+    public void Weekday_event_skips_to_the_next_listed_day()
+    {
+        var siege = new AionMeter.Core.Atlas.ScheduledEvent("siege", "Siege", TimeZoneInfo.Utc, [new TimeOnly(21, 0)], 90, 15, new HashSet<DayOfWeek> { DayOfWeek.Monday, DayOfWeek.Thursday, DayOfWeek.Saturday });
+        var now = new DateTimeOffset(2026, 10, 8, 22, 40, 0, TimeSpan.Zero); // Thursday 22:40 UTC: tonight's siege ends 22:30
+        var (start, _, running) = siege.Next(now);
+        Assert.False(running);
+        Assert.Equal(DayOfWeek.Saturday, start.DayOfWeek);
+        Assert.Equal(21, start.Hour);
+    }
+}

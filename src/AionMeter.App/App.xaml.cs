@@ -210,6 +210,7 @@ public partial class App : Application
         {
             _tray?.Update(_overlay.IsVisible, _meter.Settings.ClickThrough, _meter.DemoRunning ? "demo" : _meter.CaptureStatus.Message);
             CheckBossAlerts();
+            CheckEventAlerts();
             CheckGameStart();
             CheckPendingUpdate();
         }
@@ -433,6 +434,21 @@ public partial class App : Application
         _atlasWindow = new AtlasWindow(_meter);
         _atlasWindow.Closed += (_, _) => _atlasWindow = null;
         _atlasWindow.Show();
+    }
+
+    private readonly HashSet<(string, DateTimeOffset)> _eventAlerted = new();
+
+    /// <summary>Tray notification (and a chime) alert_minutes before each recurring server event (Shugo, Rift, …).</summary>
+    private void CheckEventAlerts()
+    {
+        var now = DateTimeOffset.Now;
+        foreach (var ev in _meter.Events)
+        {
+            var (start, _, running) = ev.Next(now);
+            if (running || start - now > TimeSpan.FromMinutes(ev.AlertMinutes) || !_eventAlerted.Add((ev.Key, start))) continue;
+            _tray?.ShowBalloon(ev.Name, $"{ev.Name} starts at {start:HH:mm} ({(int)Math.Ceiling((start - now).TotalMinutes)} min)");
+            System.Media.SystemSounds.Asterisk.Play();
+        }
     }
 
     /// <summary>Tray notification (and a chime) shortly before a tracked boss respawns.</summary>

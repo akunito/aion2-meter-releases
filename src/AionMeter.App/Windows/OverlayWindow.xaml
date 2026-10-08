@@ -470,6 +470,17 @@
                                 <TextBlock Text="{Binding TimersLabel}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
+                        <!-- Recurring server events (private branch): Shugo, Rift, siege, reset -->
+                        <ItemsControl ItemsSource="{Binding EventLabels}" VerticalAlignment="Center" Margin="6,0,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource TimersPill}" IsHitTestVisible="False" Margin="0,0,6,0" Content="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <!-- Atlas (private branch): the nodes map -->
                         <Button Style="{StaticResource TimersPill}" Click="Atlas_Click" ToolTip="{Binding T.TrayAtlas}" Margin="6,0,0,0">
                             <StackPanel Orientation="Horizontal">
