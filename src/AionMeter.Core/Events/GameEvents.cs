@@ -114,5 +114,22 @@ public sealed record CastEvent(long TimeMs, uint ActorId, uint TargetId, int Ski
 /// <summary>Server-side combat state toggle for an NPC (boss engaged / disengaged). KR only so far.</summary>
 public sealed record BattleStateEvent(long TimeMs, uint ActorId, bool InCombat) : GameEvent(TimeMs);
 
+/// <summary>
+/// A world object came into view (<c>34 36</c>): gathering nodes (object codes 15xxxxx: Inina 1500042, Orichalcum
+/// 1500004) and interactables. <paramref name="Taken"/> = units already gathered from the node (0–3, the same counter
+/// <see cref="GatherEvent"/> carries), <paramref name="SpawnedAtMs"/> = when the node itself appeared (server Unix ms).
+/// </summary>
+public sealed record ObjectSeenEvent(long TimeMs, uint ActorId, byte Kind, int ObjectCode, float X, float Y, float Z, int Taken, long SpawnedAtMs) : GameEvent(TimeMs);
+
+/// <summary>An object left (<c>35 36</c>): <paramref name="Exhausted"/> after its last unit, otherwise it only left the client's view.</summary>
+public sealed record ObjectGoneEvent(long TimeMs, uint ActorId, bool Exhausted) : GameEvent(TimeMs);
+
+/// <summary>Gathering on a node by any player in view: a start (<c>38 36</c>, <paramref name="Count"/> = 0) or a
+/// result (<c>3a 36</c>, <paramref name="Count"/> = units taken from the node so far, shared by all gatherers).</summary>
+public sealed record GatherEvent(long TimeMs, uint ObjectId, uint PlayerId, bool Started, int Count) : GameEvent(TimeMs);
+
+/// <summary>An entity's position (<c>1a 37</c>, sent for every entity in view, the local player included).</summary>
+public sealed record PositionEvent(long TimeMs, uint ActorId, float X, float Y, float Z) : GameEvent(TimeMs);
+
 /// <summary>A map load. <paramref name="IsTeleport"/> is true for a re-load inside the same map.</summary>
 public sealed record ZoneChangedEvent(long TimeMs, int MapId, string ZoneName, bool IsDungeon, bool IsTeleport = false) : GameEvent(TimeMs);

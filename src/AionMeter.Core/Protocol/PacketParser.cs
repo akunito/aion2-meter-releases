@@ -55,6 +55,19 @@ public sealed class PacketParser
             case Opcodes.FieldBossList:
                 ParseFieldBossList(body);
                 break;
+            case Opcodes.ObjectSpawn:
+                ParseObjectSpawn(body);
+                break;
+            case Opcodes.ObjectGone:
+                ParseObjectGone(body);
+                break;
+            case Opcodes.GatherStart:
+            case Opcodes.GatherResult:
+                ParseGather(body, opcode == Opcodes.GatherStart);
+                break;
+            case Opcodes.Positions:
+                ParsePosition(body);
+                break;
             case Opcodes.Dot:
                 ParseDot(body);
                 break;
@@ -204,6 +217,59 @@ public sealed class PacketParser
         slot = (int)v;
         next = o + 1 + len;
         return true;
+    }
+
+    // ------------------------------------------------------------------ world objects (34 36, 35 36, 38 36, 3a 36) and positions (1a 37)
+
+    /// <summary><c>entity varint, kind u8, 00, code u32, x y z f32, u32, u32, 01 01 xx, spawned u64 ms, taken u8, …</c> — Verteron capture 2026-10-08:
+    /// the same node re-sent after one unit was taken differed in the taken byte only.</summary>
+    private void ParseObjectSpawn(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var id) || id == 0 || o + 38 > b.Length) return;
+        var kind = b[o];
+        var code = (int)Wire.U32(b, o + 2);
+        if (code is < 1_000_000 or > 9_999_999) return;
+        var x = BitConverter.ToSingle(b.Slice(o + 6, 4));
+        var y = BitConverter.ToSingle(b.Slice(o + 10, 4));
+        var z = BitConverter.ToSingle(b.Slice(o + 14, 4));
+        if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(z) || Math.Abs(x) > 5e6 || Math.Abs(y) > 5e6) return;
+        var at = BitConverter.ToInt64(b.Slice(o + 29, 8)); // after xyz: u32, u32, 01 01 xx
+        if (at is < 1_600_000_000_000 or > 2_600_000_000_000) at = 0;
+        int taken = b[o + 37];
+        if (taken > 9) return;
+        Emit(new ObjectSeenEvent(TimeMs, id, kind, code, x, y, z, taken, at));
+    }
+
+    /// <summary><c>entity varint, 04 03 00</c> (exhausted) or <c>01 01 00</c> (left view).</summary>
+    private void ParseObjectGone(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var id) || id == 0 || o + 2 > b.Length) return;
+        Emit(new ObjectGoneEvent(TimeMs, id, Exhausted: b[o] == 4));
+    }
+
+    /// <summary><c>node varint, player varint, 01</c> (start) / <c>node varint, player varint, n u8, 7×00</c> (result).</summary>
+    private void ParseGather(ReadOnlySpan<byte> b, bool start)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var node) || node == 0) return;
+        if (!Wire.TryVarint(b, ref o, out var player) || player == 0 || o >= b.Length) return;
+        var n = start ? 0 : b[o];
+        if (n > 9) return;
+        Emit(new GatherEvent(TimeMs, node, player, start, n));
+    }
+
+    /// <summary><c>entity varint, u16 flags, x y z f32, heading u16, [extra]</c>.</summary>
+    private void ParsePosition(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var id) || id == 0 || o + 14 > b.Length) return;
+        var x = BitConverter.ToSingle(b.Slice(o + 2, 4));
+        var y = BitConverter.ToSingle(b.Slice(o + 6, 4));
+        var z = BitConverter.ToSingle(b.Slice(o + 10, 4));
+        if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(z) || Math.Abs(x) > 5e6 || Math.Abs(y) > 5e6) return;
+        Emit(new PositionEvent(TimeMs, id, x, y, z));
     }
 
     // ------------------------------------------------------------------ casts (02 38)

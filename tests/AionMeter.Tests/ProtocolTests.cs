@@ -49,6 +49,59 @@ public class ProtocolTests
         Assert.Equal(skill, c.SkillCode);
     }
 
+    // Verteron, 2026-10-08 13:12–13:14 CEST: an Inina node (object 1500042) came into view full, one unit was taken,
+    // the player walked out of range and came back: the second spawn record differs from the first in one byte.
+    [Theory]
+    [InlineData("bf8c0104008ae3160000521 2c7001711c70050ba45000000000000000001010116be351ba1010000000000000000000029f0ca5c070000", 0)]
+    [InlineData("bf8c0104008ae3160000521 2c7001711c70050ba45000000000000000001010116be351ba1010000010000000000000029f0ca5c070000", 1)]
+    public void Object_spawn_decodes_with_units_taken(string hex, int taken)
+    {
+        var e = Assert.IsType<ObjectSeenEvent>(Assert.Single(Parse(Opcodes.ObjectSpawn, hex.Replace(" ", ""))));
+        Assert.Equal(17983u, e.ActorId);
+        Assert.Equal(4, e.Kind);
+        Assert.Equal(1500042, e.ObjectCode);
+        Assert.Equal(-37458, e.X, 0.5);
+        Assert.Equal(-37143, e.Y, 0.5);
+        Assert.Equal(5962, e.Z, 0.5);
+        Assert.Equal(taken, e.Taken);
+        Assert.Equal(1791457869334, e.SpawnedAtMs); // 2026-10-08 11:11:09 UTC: the node brotó a minute before it was first seen
+    }
+
+    [Theory]
+    [InlineData("b28703040300", 50098u, true)]   // Inina 50098 after Akunita took the third unit
+    [InlineData("bf8c01010100", 17983u, false)]  // Inina 17983 leaving the client's view
+    public void Object_gone_tells_exhausted_from_left_view(string hex, uint id, bool exhausted)
+    {
+        var e = Assert.IsType<ObjectGoneEvent>(Assert.Single(Parse(Opcodes.ObjectGone, hex)));
+        Assert.Equal(id, e.ActorId);
+        Assert.Equal(exhausted, e.Exhausted);
+    }
+
+    [Theory]
+    [InlineData(Opcodes.GatherStart, "b28703b33d01", true, 0)]
+    [InlineData(Opcodes.GatherResult, "b28703b33d0100000000000000", false, 1)]
+    [InlineData(Opcodes.GatherResult, "b28703b33d0300000000000000", false, 3)]
+    public void Gather_start_and_results_decode(ushort op, string hex, bool started, int count)
+    {
+        var e = Assert.IsType<GatherEvent>(Assert.Single(Parse(op, hex)));
+        Assert.Equal(50098u, e.ObjectId);
+        Assert.Equal(7859u, e.PlayerId); // Akunita
+        Assert.Equal(started, e.Started);
+        Assert.Equal(count, e.Count);
+    }
+
+    [Theory]
+    [InlineData("b33d0000506201c7cef607c70eceba45df7c", 7859u, -33122.3f, -34806.8f, 5977.8f)]                   // 18-byte form
+    [InlineData("b33d0c003f3901c7b40208c70000bb45df7c01e803000000000000", 7859u, -33081.2f, -34818.7f, 5984f)]  // 27-byte form
+    public void Position_records_decode(string hex, uint id, float x, float y, float z)
+    {
+        var e = Assert.IsType<PositionEvent>(Assert.Single(Parse(Opcodes.Positions, hex)));
+        Assert.Equal(id, e.ActorId);
+        Assert.Equal(x, e.X, 0.5);
+        Assert.Equal(y, e.Y, 0.5);
+        Assert.Equal(z, e.Z, 0.5);
+    }
+
     // Altgard's field boss list (map 1110) as the in-game map showed it at 00:30:07 on 2026-10-06 (UTC+3): 24 slots,
     // 3 alive with a position, a few with an extra byte before the time. Checked against the in-game list.
     private const string AltgardList =

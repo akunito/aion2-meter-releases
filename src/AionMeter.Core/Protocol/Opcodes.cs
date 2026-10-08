@@ -25,6 +25,12 @@ public static class Opcodes
     public const ushort HpMp = 0x1B92;
     public const ushort PartyRoster = 0x0297;
     public const ushort FieldBossList = 0x0191;  // a map's field bosses: alive since / back at (in-game map list)
+    // World objects (gathering nodes, interactables) and positions — EU captures 2026-10-08 (atlas branch).
+    public const ushort ObjectSpawn = 0x3436;    // object in view: kind, object code, position, spawn time, units taken
+    public const ushort ObjectGone = 0x3536;     // 04 03 00 = exhausted; 01 01 00 = left view
+    public const ushort GatherStart = 0x3836;    // node, player, 01
+    public const ushort GatherResult = 0x3A36;   // node, player, units taken so far (1..3), 7×00
+    public const ushort Positions = 0x1A37;      // one entity's position: id, u16 flags, x y z, heading (every entity in view)
 
     public static string Name(ushort op) => op switch
     {
@@ -44,6 +50,11 @@ public static class Opcodes
         HpMp => "HpMp",
         PartyRoster => "PartyRoster",
         FieldBossList => "FieldBosses",
+        ObjectSpawn => "ObjectSpawn",
+        ObjectGone => "ObjectGone",
+        GatherStart => "GatherStart",
+        GatherResult => "GatherResult",
+        Positions => "Position",
         _ => $"{op >> 8:x2} {op & 0xFF:x2}",
     };
 }

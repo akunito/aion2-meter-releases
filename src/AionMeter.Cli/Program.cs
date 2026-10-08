@@ -26,6 +26,7 @@ return args.FirstOrDefault() switch
     "bosslist" when args.Length > 1 => BossList(args[1]),
     "times" when args.Length > 1 => Times(args[1]),
     "fieldbosses" when args.Length > 1 => FieldBosses(args[1]),
+    "nodes" when args.Length > 1 => Nodes(args[1]),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
     _ => Usage(),
@@ -156,6 +157,40 @@ int Dump(string path, string? opcodeHex)
     };
     replay.EventDecoded += e => Console.WriteLine($"    -> {e}");
     replay.RunToEnd();
+    return 0;
+}
+
+// Gathering nodes of a capture: every object seen, who gathered it, units taken, exhausted or just out of view.
+int Nodes(string path)
+{
+    var replay = new PcapReplaySource(data, path, realtime: false);
+    var nodes = new Dictionary<uint, (ObjectSeenEvent First, int Taken, string Log, bool Exhausted, int Seen)>();
+    var self = 0u;
+    replay.EventDecoded += e =>
+    {
+        switch (e)
+        {
+            case SelfIdentifiedEvent s: self = s.ActorId; break;
+            case ObjectSeenEvent o:
+                if (nodes.TryGetValue(o.ActorId, out var n)) nodes[o.ActorId] = (n.First, Math.Max(n.Taken, o.Taken), n.Log, n.Exhausted, n.Seen + 1);
+                else nodes[o.ActorId] = (o, o.Taken, "", false, 1);
+                break;
+            case GatherEvent g when nodes.TryGetValue(g.ObjectId, out var ng):
+                var who = g.PlayerId == self ? "self" : g.PlayerId.ToString();
+                nodes[g.ObjectId] = (ng.First, g.Started ? ng.Taken : Math.Max(ng.Taken, g.Count), ng.Log + (g.Started ? $" {who}:start" : $" {who}:{g.Count}"), ng.Exhausted, ng.Seen);
+                break;
+            case ObjectGoneEvent x when x.Exhausted && nodes.TryGetValue(x.ActorId, out var nx):
+                nodes[x.ActorId] = (nx.First, nx.Taken, nx.Log, true, nx.Seen);
+                break;
+        }
+    };
+    replay.RunToEnd();
+    Console.WriteLine($"{nodes.Count} objects (self id {self})");
+    foreach (var (id, n) in nodes.OrderBy(kv => kv.Value.First.ObjectCode).ThenBy(kv => kv.Value.First.TimeMs))
+    {
+        var f = n.First;
+        Console.WriteLine($"  {f.ObjectCode} kind {f.Kind:x2} id {id,6} at ({f.X,8:0},{f.Y,8:0},{f.Z,6:0}) spawned {DateTimeOffset.FromUnixTimeMilliseconds(f.SpawnedAtMs).ToLocalTime():HH:mm:ss} seen {n.Seen}x taken {n.Taken}{(n.Exhausted ? " EXHAUSTED" : "")}{n.Log}");
+    }
     return 0;
 }
 
