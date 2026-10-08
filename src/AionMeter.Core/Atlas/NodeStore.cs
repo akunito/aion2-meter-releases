@@ -41,13 +41,30 @@ public sealed class NodeSpot
 /// <see cref="ObjectGoneEvent"/>, <see cref="ZoneChangedEvent"/> and the local player's <see cref="PositionEvent"/>.
 /// Saved as one JSON file per map in <c>directory</c> (atomic write like the other stores).
 /// </summary>
-public sealed class NodeStore(string directory)
+public sealed class NodeStore
 {
+    private readonly string directory;
+
+    public NodeStore(string directory)
+    {
+        this.directory = directory;
+        // The map the player was in when the meter last ran: no zone-load packet comes until the next loading screen.
+        try
+        {
+            var last = Path.Combine(directory, "last-map.txt");
+            if (File.Exists(last) && int.TryParse(File.ReadAllText(last).Trim(), out var map)) SetMapLocked(map);
+        }
+        catch (IOException)
+        {
+        }
+    }
+
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
     private readonly Dictionary<int, Dictionary<(int Code, int Gx, int Gy), NodeSpot>> _maps = new();
     private readonly Dictionary<uint, NodeSpot> _live = new();   // entity id → spot, current map only
     private readonly object _gate = new();
     private readonly HashSet<int> _dirty = new();
+    private int _savedMap;
 
     public int MapId { get; private set; }
     public uint SelfId { get; private set; }
@@ -166,15 +183,18 @@ public sealed class NodeStore(string directory)
     public void Save()
     {
         List<(int Map, string Text)> work;
+        int current;
         lock (_gate)
         {
             work = _dirty.Select(m => (m, JsonSerializer.Serialize(_maps[m].Values, Json))).ToList();
             _dirty.Clear();
+            current = MapId;
         }
-        if (work.Count == 0) return;
         try
         {
             Directory.CreateDirectory(directory);
+            if (current > 0 && (_savedMap != current)) { File.WriteAllText(Path.Combine(directory, "last-map.txt"), current.ToString()); _savedMap = current; }
+            if (work.Count == 0) return;
             foreach (var (map, text) in work)
             {
                 var path = PathOf(map); var tmp = path + ".tmp";
