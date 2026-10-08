@@ -105,7 +105,7 @@ public partial class App : Application
 
         _meter = new MeterService(settings, factory);
         // The naming prompt opens over the atlas (or the overlay): on the monitor the player keeps the meter, not on the game's.
-        _meter.NodeNameWanted += code => Dispatcher.BeginInvoke(() => ShowNameNode(code));
+        _meter.NodeNameWanted += code => Dispatcher.BeginInvoke(() => ShowNameNode(code, fromGather: true));
         Log.Info($"Started. Data: {_meter.Data.Skills.Count} skills, {_meter.Data.Npcs.Count} npcs.");
         _meter.StartCapture();
 
@@ -402,10 +402,16 @@ public partial class App : Application
 
     private AtlasWindow? _atlasWindow;
 
-    public void ShowNameNode(int code)
+    private NameNodeWindow? _nameWindow;
+
+    public void ShowNameNode(int code, bool fromGather = false)
     {
+        // One prompt at a time: a newer gather replaces an older unanswered prompt.
+        if (_nameWindow is { IsLoaded: true } open) { if (open.Code == code) { open.Activate(); return; } open.Close(); }
         Window owner = _atlasWindow is { IsLoaded: true } a ? a : _overlay;
-        var w = new NameNodeWindow(_meter, code);
+        var w = new NameNodeWindow(_meter, code, fromGather);
+        _nameWindow = w;
+        w.Closed += (_, _) => { if (_nameWindow == w) _nameWindow = null; };
         if (owner.IsVisible) { w.Owner = owner; w.WindowStartupLocation = WindowStartupLocation.CenterOwner; }
         w.Show();
         w.Activate();

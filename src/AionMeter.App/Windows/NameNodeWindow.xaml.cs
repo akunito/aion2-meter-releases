@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using AionMeter.App.Services;
 
 namespace AionMeter.App.Windows;
@@ -17,15 +18,35 @@ public partial class NameNodeWindow : Window
 {
     private readonly MeterService _meter;
     private readonly int _code;
+    private readonly DateTimeOffset _askedAt = DateTimeOffset.UtcNow;
+    private readonly bool _autoClose;
+    private readonly DispatcherTimer _clock;
+    private const int AutoCloseSeconds = 15;
 
-    public NameNodeWindow(MeterService meter, int code)
+    /// <param name="autoClose">True for the prompt raised by a gather: it shows how long ago that gather was and closes itself
+    /// after 15 s, so several gathers in a row cannot be confused (Diego). False from the atlas right-click.</param>
+    public NameNodeWindow(MeterService meter, int code, bool autoClose = false)
     {
         _meter = meter;
         _code = code;
+        _autoClose = autoClose;
         InitializeComponent();
-        Question.Text = string.Format(UiText.Current.NameNodeQuestion, code);
         if (meter.Data.Objects.TryGetValue(code, out var current)) NameBox.Text = current;
         BuildCatalog();
+        Tick();
+        _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _clock.Tick += (_, _) => Tick();
+        _clock.Start();
+        Closed += (_, _) => _clock.Stop();
+    }
+
+    public int Code => _code;
+
+    private void Tick()
+    {
+        var age = (int)(DateTimeOffset.UtcNow - _askedAt).TotalSeconds;
+        Question.Text = string.Format(UiText.Current.NameNodeQuestion, _code) + (_autoClose ? $"  ·  gathered {age}s ago, closes in {Math.Max(0, AutoCloseSeconds - age)}s" : "");
+        if (_autoClose && age >= AutoCloseSeconds) Close();
     }
 
     private void BuildCatalog()
