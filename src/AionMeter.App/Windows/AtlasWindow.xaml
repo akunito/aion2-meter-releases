@@ -31,14 +31,16 @@
             </Grid>
             <Border Grid.Row="1" x:Name="Viewport" ClipToBounds="True" Background="#0B0F18" Margin="1,0"
                     MouseWheel="Viewport_MouseWheel" MouseLeftButtonDown="Viewport_MouseDown" MouseLeftButtonUp="Viewport_MouseUp" MouseMove="Viewport_MouseMove">
-                <Grid x:Name="World" HorizontalAlignment="Left" VerticalAlignment="Top">
-                    <Grid.RenderTransform>
-                        <TransformGroup>
-                            <ScaleTransform x:Name="Zoom" />
-                            <TranslateTransform x:Name="Pan" />
-                        </TransformGroup>
-                    </Grid.RenderTransform>
-                    <Image x:Name="MapImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="LowQuality" />
+                <Grid>
+                    <!-- The map at its decoded size under a scale + pan; the data layer is drawn in screen space on top. -->
+                    <Image x:Name="MapImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="LowQuality">
+                        <Image.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform x:Name="Zoom" />
+                                <TranslateTransform x:Name="Pan" />
+                            </TransformGroup>
+                        </Image.RenderTransform>
+                    </Image>
                     <Canvas x:Name="Overlay" IsHitTestVisible="False" />
                 </Grid>
             </Border>

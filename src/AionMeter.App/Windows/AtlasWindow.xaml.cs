@@ -23,7 +23,8 @@ public partial class AtlasWindow : Window
     private readonly DispatcherTimer _clock;
     private MapCalibration? _cal;
     private int _mapShown = -1;
-    private double _scale = 0.5, _tx, _ty;
+    private double _scale = 0.5, _tx, _ty, _f = 1;
+    private int _imgW, _imgH;
     private Point? _dragFrom;
     private int _ticks;
     private double _dragTx, _dragTy;
@@ -59,11 +60,11 @@ public partial class AtlasWindow : Window
             // calibration's logical size, so pixel coordinates stay those of calibration.json.
             if (_cal is not null && MapImage.Source is BitmapSource bs)
             {
-                MapImage.Width = _cal.Width > 0 ? _cal.Width : bs.PixelWidth;
-                MapImage.Height = _cal.Height > 0 ? _cal.Height : bs.PixelHeight;
-                Log.Info($"Atlas map {map}: {_cal.BackgroundPath} decoded {bs.PixelWidth}x{bs.PixelHeight}, logical {MapImage.Width}x{MapImage.Height}, dpi {bs.DpiX:0}");
+                _imgW = bs.PixelWidth; _imgH = bs.PixelHeight;
+                _f = _cal.Width > 0 ? (double)bs.PixelWidth / _cal.Width : 1;  // calibration pixels → decoded image pixels
+                Log.Info($"Atlas map {map}: {_cal.BackgroundPath} decoded {bs.PixelWidth}x{bs.PixelHeight}, calibration {_cal.Width}x{_cal.Height}, factor {_f:0.000}");
             }
-            else Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})");
+            else { _imgW = _imgH = 0; _f = 1; Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})"); }
             FitWholeMap();
         }
         Overlay.Children.Clear();
@@ -94,13 +95,13 @@ public partial class AtlasWindow : Window
         if (atlas.SelfId != 0 && now - atlas.SelfAtMs < 120_000)
         {
             var (sx, sy) = _cal.ToPixel(atlas.SelfX, atlas.SelfY);
-            Dot(sx, sy, 8, Self, "", Self);
-            if (FollowBox.IsChecked == true && sx >= 0 && sy >= 0 && sx <= MapImage.Width && sy <= MapImage.Height && Viewport.ActualWidth > 0)
+            if (FollowBox.IsChecked == true && sx >= 0 && sy >= 0 && sx <= _cal.Width && sy <= _cal.Height && Viewport.ActualWidth > 0)
             {
-                _tx = Viewport.ActualWidth / 2 - sx * _scale;
-                _ty = Viewport.ActualHeight / 2 - sy * _scale;
+                _tx = Viewport.ActualWidth / 2 - sx * _f * _scale;
+                _ty = Viewport.ActualHeight / 2 - sy * _f * _scale;
                 Apply();
             }
+            Dot(sx, sy, 8, Self, "", Self);
             if (++_ticks % 60 == 0) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} self px ({sx:0},{sy:0}) spots {atlas.Count(map)}");
         }
     }
@@ -108,8 +109,8 @@ public partial class AtlasWindow : Window
     /// <summary>First view of a map: the whole zone in the window, centred; Follow then takes over when the player's position is known.</summary>
     private void FitWholeMap()
     {
-        var w = MapImage.Width > 0 ? MapImage.Width : 1000;
-        var h = MapImage.Height > 0 ? MapImage.Height : 1000;
+        var w = _imgW > 0 ? _imgW : 1000;
+        var h = _imgH > 0 ? _imgH : 1000;
         var vw = Math.Max(Viewport.ActualWidth, 100);
         var vh = Math.Max(Viewport.ActualHeight, 100);
         _scale = Math.Clamp(Math.Min(vw / w, vh / h), 0.08, 4);
@@ -123,22 +124,24 @@ public partial class AtlasWindow : Window
         return left.TotalSeconds <= 0 ? "now" : left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{left.Minutes}:{left.Seconds:00}";
     }
 
+    /// <summary>Draws at the screen position of a calibration pixel; shapes and text keep their size at any zoom.</summary>
     private void Dot(double px, double py, double r, Brush fill, string label, Brush textBrush, bool skull = false)
     {
-        // Shapes are drawn in map pixels but kept readable at any zoom: size divided by the current scale.
-        var k = 1 / Math.Max(_scale, 0.05);
-        var shape = new Ellipse { Width = 2 * r * k, Height = 2 * r * k, Fill = fill, Stroke = Ink, StrokeThickness = 1.5 * k };
-        Canvas.SetLeft(shape, px - r * k); Canvas.SetTop(shape, py - r * k);
+        var x = px * _f * _scale + _tx;
+        var y = py * _f * _scale + _ty;
+        if (x < -200 || y < -200 || x > Viewport.ActualWidth + 200 || y > Viewport.ActualHeight + 200) return;
+        var shape = new Ellipse { Width = 2 * r, Height = 2 * r, Fill = fill, Stroke = Ink, StrokeThickness = 1.5 };
+        Canvas.SetLeft(shape, x - r); Canvas.SetTop(shape, y - r);
         Overlay.Children.Add(shape);
         if (skull)
         {
-            var mark = new TextBlock { Text = "", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 9 * k, Foreground = Brushes.White };
-            Canvas.SetLeft(mark, px - 4.5 * k); Canvas.SetTop(mark, py - 5.5 * k);
+            var mark = new TextBlock { Text = "\uE91E", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 9, Foreground = Brushes.White };
+            Canvas.SetLeft(mark, x - 4.5); Canvas.SetTop(mark, y - 5.5);
             Overlay.Children.Add(mark);
         }
-        if (label.Length == 0) return;
-        var text = new TextBlock { Text = label, FontSize = 11 * k, Foreground = textBrush, Background = Ink, Padding = new Thickness(3 * k, 0, 3 * k, 0) };
-        Canvas.SetLeft(text, px + (r + 2) * k); Canvas.SetTop(text, py - 7 * k);
+        if (label.Length == 0 || _scale * _f < 0.12) return; // labels only once zoomed in enough to read the map
+        var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
+        Canvas.SetLeft(text, x + r + 2); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);
     }
 
@@ -184,7 +187,7 @@ public partial class AtlasWindow : Window
         var p = e.GetPosition(Viewport);
         _tx = _dragTx + (p.X - from.X); _ty = _dragTy + (p.Y - from.Y);
         FollowBox.IsChecked = false;
-        Apply();
+        Apply(); Refresh();
     }
 
     private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)
