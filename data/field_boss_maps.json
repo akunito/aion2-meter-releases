@@ -1,6 +1,7 @@
 {
-  "_note": "Field boss lists (opcode 01 91) by map id: 'block' = NPC code / 1000 shared by the map's field bosses (slot = map x 100 + place in code order). Verified against the in-game list. Maps not listed are learned at runtime from the first boss seen there.",
+  "_note": "Field boss lists (opcode 01 91) by map id: 'block' = NPC code / 1000 shared by the map's field bosses (slot = map x 100 + place in code order), or 'bosses' = the list's NPC codes in slot order when they span more than one block or the block holds bosses the list leaves out. Verified against the in-game list. Maps not listed are learned at runtime from the first boss seen there.",
   "maps": {
-    "1110": { "block": 2400, "en": "Altgard", "ru": "Альтгард" }
+    "1110": { "block": 2400, "en": "Altgard", "ru": "Альтгард" },
+    "1010": { "bosses": [2100003, 2100040, 2100050, 2100076, 2100077, 2100079, 2100141, 2100177, 2100178, 2100582, 2100617, 2100661, 2100708, 2100718, 2100876, 2100877, 2100988, 2100989, 2100991, 2101016, 2101074, 2101120, 2101122, 2101131], "en": "Verteron", "ru": "Вертерон" }
   }
 }

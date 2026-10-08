@@ -96,7 +96,8 @@ public sealed class BossTimers
     private Learned _learned = new(new(), new(), new());
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
-    public sealed record MapInfo(int Block, string? En, string? Ru);
+    /// <param name="Bosses">The list's bosses in slot order, when the map's bosses do not fit one code block.</param>
+    public sealed record MapInfo(int Block, string? En, string? Ru, int[]? Bosses = null);
 
     /// <summary>Where a boss was last seen alive.</summary>
     public sealed record Sighting(int MapId, float X, float Y, float Z, DateTimeOffset At);
@@ -338,8 +339,13 @@ public sealed class BossTimers
 
     private int CodeOf(int slotId, int block, FieldBossListEvent list) =>
         _learned.Slots.TryGetValue(slotId, out var learned) ? learned
+        : ShippedSlots(list.MapId, list.Count) is { } bosses ? GameData.FieldBossInSlot(bosses, list.MapId, slotId, list.Count)
         : block != 0 ? _data.FieldBossInSlot(block, list.MapId, slotId, list.Count)
         : 0;
+
+    /// <summary>The shipped slot list of a map, when it has one that matches the list's length.</summary>
+    private int[]? ShippedSlots(int mapId, int slotCount) =>
+        _knownMaps.TryGetValue(mapId, out var known) && known.Bosses is { } b && b.Length == slotCount ? b : null;
 
     /// <summary>
     /// A boss that just went down shows its comeback time: with a fresh death (a kill the meter saw, or alive in the
@@ -375,7 +381,7 @@ public sealed class BossTimers
     private bool LearnSlots(FieldBossListEvent list, int server)
     {
         var map = list.MapId;
-        if (BlockOf(map, list.Count) != 0) return false; // the whole list resolves from its block
+        if (BlockOf(map, list.Count) != 0 || ShippedSlots(map, list.Count) is not null) return false; // the whole list resolves already
         var taken = list.Slots.Select(s => _learned.Slots.GetValueOrDefault(s.SlotId)).Where(c => c != 0).ToHashSet();
         var unknown = list.Slots.Where(s => !_learned.Slots.ContainsKey(s.SlotId)).ToList();
         var changed = false;
@@ -569,10 +575,15 @@ public sealed class BossTimers
             if (!doc.RootElement.TryGetProperty("maps", out var maps)) return;
             foreach (var m in maps.EnumerateObject())
             {
-                if (!int.TryParse(m.Name, out var id) || !m.Value.TryGetProperty("block", out var block)) continue;
-                _knownMaps[id] = new MapInfo(block.GetInt32(),
+                if (!int.TryParse(m.Name, out var id)) continue;
+                var hasBlock = m.Value.TryGetProperty("block", out var block);
+                int[]? bosses = m.Value.TryGetProperty("bosses", out var list) && list.ValueKind == JsonValueKind.Array
+                    ? list.EnumerateArray().Select(e => e.GetInt32()).ToArray()
+                    : null;
+                if (!hasBlock && bosses is null) continue;
+                _knownMaps[id] = new MapInfo(hasBlock ? block.GetInt32() : 0,
                     m.Value.TryGetProperty("en", out var en) ? en.GetString() : null,
-                    m.Value.TryGetProperty("ru", out var ru) ? ru.GetString() : null);
+                    m.Value.TryGetProperty("ru", out var ru) ? ru.GetString() : null, bosses);
             }
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException)

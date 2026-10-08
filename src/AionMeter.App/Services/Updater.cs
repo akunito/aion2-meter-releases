@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
@@ -56,7 +56,9 @@ public sealed class Updater : IDisposable
     public static bool IsInstalled { get; } = DetectInstalled();
 
     /// <summary>This copy fetches and installs new versions by itself (installed copies, unless turned off).</summary>
-    public bool AutoInstall => IsInstalled && _settings.AutoInstallUpdates;
+    // akunito build: never fetch or run an installer; a new release means re-audit + rebuild from source.
+    public const bool DownloadsDisabled = true;
+    public bool AutoInstall => !DownloadsDisabled && IsInstalled && _settings.AutoInstallUpdates;
 
     /// <summary>The update whose installer is downloaded and checked, waiting for a quiet moment to be installed.</summary>
     public ReleaseInfo? Downloaded { get; private set; }
@@ -130,6 +132,7 @@ public sealed class Updater : IDisposable
 
     /// <summary>Downloads the release's installer to the temp folder, checked against GitHub's size and SHA-256.</summary>
     public Task<string> DownloadInstallerAsync(ReleaseInfo release, IProgress<double>? progress, CancellationToken ct) =>
+        DownloadsDisabled ? throw new InvalidOperationException("Updates are disabled in this build: re-audit and rebuild from source") :
         release.Installer is { } installer
             ? _feed.DownloadAsync(installer, DownloadFolder, progress, ct)
             : throw new InvalidOperationException($"Release {release.Tag} has no installer");
@@ -174,6 +177,7 @@ public sealed class Updater : IDisposable
     /// </summary>
     public static void LaunchInstaller(string path, bool quiet = false)
     {
+        if (DownloadsDisabled) throw new InvalidOperationException("Updates are disabled in this build: re-audit and rebuild from source");
         if (!UpdateFeed.IsProductName(FileVersionInfo.GetVersionInfo(path).ProductName, AppInfo.Name))
             throw new InvalidDataException($"{Path.GetFileName(path)} is not the {AppInfo.Name} installer");
         Process.Start(new ProcessStartInfo(path, (quiet ? "/VERYSILENT" : "/SILENT") + " /SUPPRESSMSGBOXES /NORESTART /RELAUNCH=1")

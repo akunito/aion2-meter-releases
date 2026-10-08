@@ -355,6 +355,24 @@ public class EngineTests
     }
 
     [Fact]
+    public void Field_boss_slot_from_shipped_list()
+    {
+        // Verteron's 24 field bosses span two code blocks (2100003 … 2101131) and block 2100 holds bosses the list
+        // leaves out, so the block rule cannot name them: data/field_boss_maps.json lists them in slot order instead.
+        // Checked on the 2026-10-08 EU capture against the in-game list: alive flags and all 20 respawn times agreed.
+        int[] verteron =
+        [
+            2100003, 2100040, 2100050, 2100076, 2100077, 2100079, 2100141, 2100177, 2100178, 2100582, 2100617, 2100661,
+            2100708, 2100718, 2100876, 2100877, 2100988, 2100989, 2100991, 2101016, 2101074, 2101120, 2101122, 2101131,
+        ];
+        Assert.Equal(2100003, GameData.FieldBossInSlot(verteron, 1010, 101001, 24)); // Neikel of the East
+        Assert.Equal(2100141, GameData.FieldBossInSlot(verteron, 1010, 101007, 24)); // Blooming Korin
+        Assert.Equal(2101131, GameData.FieldBossInSlot(verteron, 1010, 101024, 24)); // High Commander Lagta
+        Assert.Equal(0, GameData.FieldBossInSlot(verteron, 1010, 101025, 24));       // past the list
+        Assert.Equal(0, GameData.FieldBossInSlot(verteron, 1010, 101001, 23));       // count mismatch
+    }
+
+    [Fact]
     public void Npc_skill_marks_unknown_source_as_mob()
     {
         var t = Tracker(TargetMode.All);

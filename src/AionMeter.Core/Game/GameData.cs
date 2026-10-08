@@ -250,10 +250,16 @@ public sealed class GameData
         Npcs.Values.Where(n => n.IsBoss && !n.IsDummy && n.Code / 1000 == block).Select(n => n.Code).Order().ToList();
 
     /// <summary>The boss in a list slot (map × 100 + place), when the block holds exactly as many bosses as the list.</summary>
-    public int FieldBossInSlot(int block, int mapId, int slotId, int slotCount)
+    public int FieldBossInSlot(int block, int mapId, int slotId, int slotCount) =>
+        FieldBossInSlot(FieldBossesInBlock(block), mapId, slotId, slotCount);
+
+    /// <summary>
+    /// The boss in a list slot from an explicit slot-ordered list (data/field_boss_maps.json "bosses"): for maps whose
+    /// field bosses span more than one code block, or whose block holds bosses the list leaves out.
+    /// </summary>
+    public static int FieldBossInSlot(IReadOnlyList<int> bosses, int mapId, int slotId, int slotCount)
     {
-        var codes = FieldBossesInBlock(block);
         var place = slotId - mapId * 100;
-        return codes.Count == slotCount && place >= 1 && place <= codes.Count ? codes[place - 1] : 0;
+        return bosses.Count == slotCount && place >= 1 && place <= bosses.Count ? bosses[place - 1] : 0;
     }
 }
