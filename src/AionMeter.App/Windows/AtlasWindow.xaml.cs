@@ -44,10 +44,10 @@ public partial class AtlasWindow : Window
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _clock.Tick += (_, _) => Refresh();
         var s = meter.Settings;
-        if (!double.IsNaN(s.AtlasLeft) && !double.IsNaN(s.AtlasTop))
+        if (s.AtlasLeft is { } left && s.AtlasTop is { } top)
         {
             WindowStartupLocation = WindowStartupLocation.Manual;
-            Left = s.AtlasLeft; Top = s.AtlasTop; Width = Math.Max(500, s.AtlasWidth); Height = Math.Max(400, s.AtlasHeight);
+            Left = left; Top = top; Width = Math.Max(500, s.AtlasWidth); Height = Math.Max(400, s.AtlasHeight);
         }
         Loaded += (_, _) => { Refresh(); _clock.Start(); };
         Closed += (_, _) =>

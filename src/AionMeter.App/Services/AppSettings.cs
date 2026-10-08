@@ -87,9 +87,9 @@ public sealed class AppSettings
     public string HotkeyClickThrough { get; set; } = "Ctrl+Shift+L";
     public string HotkeyTimers { get; set; } = "Ctrl+Shift+T";
     public string HotkeyAtlas { get; set; } = "Ctrl+Shift+A";
-    // Atlas window placement (DIP); NaN = not saved yet. Opens where it was closed, e.g. on the second monitor.
-    public double AtlasLeft { get; set; } = double.NaN;
-    public double AtlasTop { get; set; } = double.NaN;
+    // Atlas window placement (DIP); null = not saved yet (NaN is not JSON: it killed the app on its first Save, 2026-10-08).
+    public double? AtlasLeft { get; set; }
+    public double? AtlasTop { get; set; }
     public double AtlasWidth { get; set; } = 900;
     public double AtlasHeight { get; set; } = 760;
 
