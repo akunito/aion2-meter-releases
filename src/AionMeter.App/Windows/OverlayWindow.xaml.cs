@@ -88,6 +88,7 @@ public partial class OverlayWindow : Window
     public void Refresh()
     {
         _vm.ShowGear = _settings.ShowGear;
+        PricesPill.Foreground = _meter.Prices.AnyHit ? PriceHitBrush : PricePillBrush;   // green pill = something is at or under its maximum
         // Looking at an old fight when a new pull starts: jump back to live so the fight is never missed.
         if ((_saved is not null || _segment is not null) &&
             _meter.Tracker.Segments() is [{ IsActive: true } running, ..] && running.StartedAt > _selectedAt)
@@ -660,6 +661,14 @@ public partial class OverlayWindow : Window
     {
         if (!_drag.JustDragged) AppHost.Current.ShowAtlas();
     }
+
+    private void Prices_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_drag.JustDragged) AppHost.Current.ShowPrices();
+    }
+
+    private static readonly System.Windows.Media.Brush PricePillBrush = Frozen(0xF3, 0xD5, 0x8F), PriceHitBrush = Frozen(0x8E, 0xE0, 0x8A);
+    private static System.Windows.Media.Brush Frozen(byte r, byte g, byte b) { var br = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b)); br.Freeze(); return br; }
 
     private long _timersLabelAt;
 

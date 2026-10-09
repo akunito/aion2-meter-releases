@@ -212,6 +212,7 @@ public partial class App : Application
             _tray?.Update(_overlay.IsVisible, _meter.Settings.ClickThrough, _meter.DemoRunning ? "demo" : _meter.CaptureStatus.Message);
             CheckBossAlerts();
             CheckEventAlerts();
+            CheckPriceAlerts();
             CheckGameStart();
             CheckPendingUpdate();
         }
@@ -416,6 +417,30 @@ public partial class App : Application
         _topWindow = new TopDpsWindow(_meter);
         _topWindow.Closed += (_, _) => _topWindow = null;
         _topWindow.Show();
+    }
+
+    private PriceWatchWindow? _pricesWindow;
+
+    public void ShowPrices()
+    {
+        if (_pricesWindow is { IsLoaded: true })
+        {
+            Activate(_pricesWindow);
+            return;
+        }
+        _pricesWindow = new PriceWatchWindow(_meter);
+        _pricesWindow.Closed += (_, _) => _pricesWindow = null;
+        _pricesWindow.Show();
+    }
+
+    /// <summary>Notification and chime for every watched item at or under its maximum, once per hourly poll.</summary>
+    private void CheckPriceAlerts()
+    {
+        foreach (var w in _meter.TakePriceHits())
+        {
+            _tray?.ShowBalloon(UiText.Current.PricesTitle, string.Format(UiText.Current.PriceHit, w.Name, w.LastPrice ?? 0, w.MaxPrice, w.LastListings ?? 0), ShowPrices);
+            System.Media.SystemSounds.Asterisk.Play();
+        }
     }
 
     private NameNodeWindow? _nameWindow;

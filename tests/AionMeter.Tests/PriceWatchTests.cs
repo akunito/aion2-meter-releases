@@ -1,0 +1,53 @@
+using AionMeter.Core.Market;
+
+namespace AionMeter.Tests;
+
+public class PriceWatchTests
+{
+    private static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "market", name));
+
+    [Fact]
+    public void ParsesExchangePriceBuckets()
+    {
+        var pts = PriceWatchStore.ParsePrices(Fixture("exchange-prices-610511013.json"));
+        Assert.Equal(43, pts.Count);
+        Assert.Equal(new DateTimeOffset(2026, 10, 6, 0, 0, 0, TimeSpan.Zero), pts[0].Ts);
+        Assert.Equal(765_000, pts[0].Low);
+        Assert.Equal(1_799_990, pts[^1].Close);
+        Assert.Equal(31, pts[^1].Listings);
+    }
+
+    [Fact]
+    public void HitAtOrBelowMaximumWithTrend()
+    {
+        var pts = PriceWatchStore.ParsePrices(Fixture("exchange-prices-610511013.json"));
+        var w = new PriceWatch { Item = 610511013, MaxPrice = 1_800_000 };
+        PriceWatchStore.Apply(w, pts, DateTimeOffset.Now);
+        Assert.Equal(1_799_990, w.LastPrice);
+        Assert.True(w.Hit);
+        Assert.NotNull(w.DayAgoPrice);
+        Assert.True(w.DayAgoPrice < w.LastPrice);   // the 3-day climb 600k → 1.8M
+        w.MaxPrice = 1_000_000;
+        Assert.False(w.Hit);
+        PriceWatchStore.Apply(w, new List<PricePoint>(), DateTimeOffset.Now);
+        Assert.Equal("no data", w.LastError);
+    }
+
+    [Fact]
+    public void StoreSeedsRoundTripsAndPaces()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "pw-" + Guid.NewGuid().ToString("N"), "price-watch.json");
+        using var s = new PriceWatchStore(path);
+        Assert.Single(s.All());
+        Assert.True(s.Due(10_000));
+        s.Add(110130002, "Wisdom Greatsword", 900_000);
+        s.SetMax(110130002, 800_000);
+        s.Save();
+        using var again = new PriceWatchStore(path);
+        Assert.Equal(2, again.Count);
+        Assert.Equal(800_000, again.All().Single(w => w.Item == 110130002).MaxPrice);
+        again.Remove(610511013);
+        Assert.Single(again.All());
+        Directory.Delete(Path.GetDirectoryName(path)!, true);
+    }
+}

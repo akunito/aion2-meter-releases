@@ -121,6 +121,24 @@ public sealed class MeterService : IDisposable
     public CharacterState Character { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
     /// <summary>Every broker page the player browses, as a growing price history (private branch).</summary>
     public BrokerStore Broker { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "market.json"));
+    /// <summary>Items to buy below a price: aion2.exchange read once an hour per item (private branch).</summary>
+    public PriceWatchStore Prices { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "price-watch.json"));
+    private readonly System.Collections.Concurrent.ConcurrentQueue<PriceWatch> _priceHits = new();
+    private int _pricePolling;
+
+    /// <summary>Watches that were at or under their maximum on the last poll, each once per poll.</summary>
+    public List<PriceWatch> TakePriceHits() { var l = new List<PriceWatch>(); while (_priceHits.TryDequeue(out var h)) l.Add(h); return l; }
+
+    public void PollPricesNow() => _ = PollPricesAsync(Environment.TickCount64);
+
+    private async Task PollPricesAsync(long now)
+    {
+        if (Interlocked.Exchange(ref _pricePolling, 1) == 1) return;
+        try { foreach (var h in await Prices.PollAsync(now).ConfigureAwait(false)) _priceHits.Enqueue(h); }
+        catch (Exception e) { Log.Error("Price watch", e); }
+        finally { _pricePolling = 0; }
+    }
+
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
@@ -262,6 +280,8 @@ public sealed class MeterService : IDisposable
         // Persist the name map a few seconds after it changes (not on every packet).
         if (Settings.Transient || _replaying || DemoRunning) return;
         var now = Environment.TickCount64;
+        if (Tracker.SelfServerId > 0) Prices.ExchangeServerId = 10000 + Tracker.SelfServerId;
+        if (Prices.Due(now)) _ = PollPricesAsync(now);
         if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); Inventory.Save(); Character.Save(); Broker.Save(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
