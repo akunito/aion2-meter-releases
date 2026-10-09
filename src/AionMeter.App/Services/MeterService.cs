@@ -285,6 +285,7 @@ public sealed class MeterService : IDisposable
         if (Settings.Transient || _replaying || DemoRunning) return;
         var now = Environment.TickCount64;
         if (Tracker.SelfServerId > 0) Prices.ExchangeServerId = 10000 + Tracker.SelfServerId;
+        if (_characterKey.Length == 0) BindCharacterStores();   // identity restored from the names cache at start-up raises no SelfIdentified
         if (Prices.Due(now)) _ = PollPricesAsync(now);
         if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
         // The player state on disk is what the AI side reads: a few seconds behind the packets at most, plus a summary with the ages.
