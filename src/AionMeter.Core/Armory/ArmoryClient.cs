@@ -88,8 +88,27 @@ public sealed class ArmoryClient : IDisposable
         List<string>? boards = null;
         if (withDaevanion)
         {
-            boards = new List<string>(Boards.Length);
-            foreach (var b in Boards)
+            // Board ids are per class (Templar 21–26, Ranger 31–36, …): take them from the info page's board list, not from a fixed set
+            // (the fixed set returned empty templates for Irin, every node "open": 0, 2026-10-09).
+            var ids = new List<int>();
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(info);
+                void Walk(System.Text.Json.JsonElement e)
+                {
+                    if (e.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        if (e.TryGetProperty("openNodeCount", out _) && e.TryGetProperty("id", out var id) && id.TryGetInt32(out var v)) ids.Add(v);
+                        foreach (var pr in e.EnumerateObject()) Walk(pr.Value);
+                    }
+                    else if (e.ValueKind == System.Text.Json.JsonValueKind.Array) foreach (var x in e.EnumerateArray()) Walk(x);
+                }
+                Walk(doc.RootElement);
+            }
+            catch (System.Text.Json.JsonException) { }
+            var boardIds = ids.Count > 0 ? ids.Select(i => i.ToString()).ToArray() : Boards;
+            boards = new List<string>(boardIds.Length);
+            foreach (var b in boardIds)
             {
                 try { boards.Add(await GetAsync(ApiUrl + "daevanion/detail?" + q + "&boardId=" + b, ct).ConfigureAwait(false)); }
                 catch (HttpRequestException) { } // a board the character has not unlocked answers 4xx on some accounts
