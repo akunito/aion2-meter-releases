@@ -70,6 +70,8 @@ public sealed class InventoryStore
             }
             foreach (var s in inv.Stacks)
             {
+                // Shape-scan false positives read misaligned words as ids (855638016 = 0x33000000, 899461376 = 0x359C0000, container 0): real item ids are 9 digits with a non-zero low half.
+                if (s.Item < 100_000_000 || (s.Item & 0xFFFF) == 0) continue;
                 // A uid lives in exactly one slot: a move, a split or a partial refresh must not leave the old copy behind.
                 foreach (var (cid, cont) in _containers)
                     foreach (var (slot, st) in cont)

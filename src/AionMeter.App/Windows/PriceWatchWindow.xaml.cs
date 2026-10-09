@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -155,6 +156,24 @@ public partial class PriceWatchWindow : Window
     }
 
     private void Check_Click(object sender, RoutedEventArgs e) => _meter.PollPricesNow();
+
+    /// <summary>The browser-console export scripts ride along in data/gamedb; the watched-items one gets the current ids spliced in.</summary>
+    private void CopyMarket_Click(object sender, RoutedEventArgs e) => CopyScript("aion2exchange-export.js", null);
+    private void CopyItems_Click(object sender, RoutedEventArgs e)
+    {
+        var ids = string.Join(", ", _meter.Prices.All().Select(w => w.Item));
+        CopyScript("aion2exchange-item-servers.js", src => System.Text.RegularExpressions.Regex.Replace(src, @"const ITEMS = \[[^\]]*\];", $"const ITEMS = [{ids}];"));
+    }
+    private void CopyScript(string file, Func<string, string>? edit)
+    {
+        try
+        {
+            var src = File.ReadAllText(Path.Combine(_meter.DataDirectory, "gamedb", file));
+            Clipboard.SetText(edit is null ? src : edit(src));
+            StatusText.Text = T.PricesCopyHint;
+        }
+        catch (Exception ex) { StatusText.Text = ex.Message; Log.Error("Copy script", ex); }
+    }
 
     private string Lang => _meter.Settings.PriceSearchLanguage;
 

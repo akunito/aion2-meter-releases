@@ -373,6 +373,10 @@ public sealed class UiText
     public string PricesSell { get; init; } = "sell above";
     public string PricesQty { get; init; } = "units held";
     public string PricesPaid { get; init; } = "paid each";
+    public string PricesCopyMarket { get; init; } = "Copy market script";
+    public string PricesCopyItems { get; init; } = "Copy watched-items script";
+    public string PricesCopyHint { get; init; } = "Script copied. In Brave: open aion2.exchange, F12 → Console, paste, Enter. The JSON lands in Downloads.";
+    public string PricesCopyTip { get; init; } = "Browser-console script that exports the whole market of your server (one request per 400 ms) from your own session; the watched-items one reads just these items on every server.";
     public string PricesAdd { get; init; } = "Add";
     public string PricesCheckNow { get; init; } = "Check now";
     public string PricesItemId { get; init; } = "item id";
@@ -753,6 +757,10 @@ public sealed class UiText
         PricesSell = "продать выше",
         PricesQty = "штук в наличии",
         PricesPaid = "цена покупки",
+        PricesCopyMarket = "Скопировать скрипт рынка",
+        PricesCopyItems = "Скопировать скрипт по предметам",
+        PricesCopyHint = "Скрипт скопирован. В браузере: открыть aion2.exchange, F12 → Console, вставить, Enter. JSON сохранится в «Загрузки».",
+        PricesCopyTip = "Скрипт для консоли браузера: выгружает весь рынок вашего сервера (один запрос в 400 мс) из вашей сессии; второй читает только отслеживаемые предметы на всех серверах.",
         PricesAdd = "Добавить",
         PricesCheckNow = "Проверить сейчас",
         PricesItemId = "id предмета",
