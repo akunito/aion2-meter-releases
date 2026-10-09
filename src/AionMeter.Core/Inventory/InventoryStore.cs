@@ -23,7 +23,7 @@ public static class Containers
 public sealed class InventoryStore
 {
     /// <summary>Currencies are ordinary bag stacks with item ids 9301xxxxx: Kina 930100031 (confirmed 2026-10-09: +9,733 then +72,900 on a broker settlement arrived as two 1B56 updates of this stack), Enhance Stone 930100023, Abyss Points 930100003, Kina (Bound) 930100001, Legion Coin 930100002.</summary>
-    public const int Kinah = 930100031, CurrencyMin = 930_100_000, CurrencyMax = 930_200_000;
+    public const int Kinah = 930100031, KinahBound = 930100001, CurrencyMin = 930_100_000, CurrencyMax = 930_200_000;
 
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
     private readonly object _gate = new();

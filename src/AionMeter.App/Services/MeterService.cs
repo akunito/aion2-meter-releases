@@ -368,6 +368,7 @@ public sealed class MeterService : IDisposable
             characterKey = _characterKey.Length > 0 ? _characterKey : null,
             characterName = Tracker.SelfName,
             kinah = Inventory.CountOf(InventoryStore.Kinah),
+            kinahBound = Inventory.CountOf(InventoryStore.KinahBound),
             characters = CharacterFolders(),
             currencies = Currencies(),
             inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
