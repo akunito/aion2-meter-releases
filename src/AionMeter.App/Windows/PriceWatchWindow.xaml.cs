@@ -149,7 +149,9 @@ public partial class PriceWatchWindow : Window
     private void Open_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: PriceWatch w }) return;
-        try { Process.Start(new ProcessStartInfo(_meter.Prices.ItemUrl(w.Item)) { UseShellExecute = true }); } catch (Exception ex) { Log.Error("Open item page", ex); }
+        var url = _meter.Settings.PriceItemUrl.Replace("{id}", w.Item.ToString()).Replace("{server}", _meter.Prices.ExchangeServerId.ToString());
+        if (!url.Contains(w.Item.ToString())) { try { Clipboard.SetText(_meter.Names.Name(w.Item) ?? w.Name); } catch (Exception) { } }   // no item route known: the name goes to the clipboard for the site's search box
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception ex) { Log.Error("Open item page", ex); }
     }
 
     private void Check_Click(object sender, RoutedEventArgs e) => _meter.PollPricesNow();
