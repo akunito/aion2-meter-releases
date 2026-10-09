@@ -39,9 +39,10 @@ public sealed class NodeSpot
 
     /// <summary>
     /// Gathering nodes are object codes 15xxxxx; 11/12/14xxxxx objects (scenery, quest pickups) also arrive as 34 36 but
-    /// nobody ever gathers them (471 spots, 2026-10-08: every gathered code was 15xxxxx). Gather evidence overrides.
+    /// nobody ever gathers them (471 spots, 2026-10-08: every gathered code was 15xxxxx). Gather evidence overrides. A
+    /// repeat spawn alone does not (camp objects 1100001 re-announced after leaving view showed up as "3" nodes, 2026-10-09).
     /// </summary>
-    public bool IsNode => Seeded || Code / 100_000 == 15 || Taken > 0 || ExhaustedAtMs > 0 || Spawns > 1;
+    public bool IsNode => Seeded || Code / 100_000 == 15 || Taken > 0 || ExhaustedAtMs > 0;
     public int UnitsLeft => Alive ? Math.Max(0, MaxUnits - Taken) : 0;
     public long NextSpawnMs => !Alive && ExhaustedAtMs > 0 && RespawnMinutes > 0 ? ExhaustedAtMs + RespawnMinutes * 60_000L : 0;
 }
