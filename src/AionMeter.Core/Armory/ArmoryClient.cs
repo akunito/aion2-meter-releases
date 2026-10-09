@@ -106,7 +106,7 @@ public sealed class ArmoryClient : IDisposable
                 Walk(doc.RootElement);
             }
             catch (System.Text.Json.JsonException) { }
-            var boardIds = ids.Count > 0 ? ids.Select(i => i.ToString()).ToArray() : Boards;
+            var boardIds = ids.Count > 0 ? ids.Select(i => i.ToString()).ToArray() : Boards.Select(i => i.ToString()).ToArray();
             boards = new List<string>(boardIds.Length);
             foreach (var b in boardIds)
             {
