@@ -301,6 +301,16 @@ public sealed class MeterService : IDisposable
     private long _lastStateSave;
     private string _lastSummary = "";
 
+    /// <summary>The wallet is a family of bag stacks (item 9301xxxxx: Kina 930100031, Enhance Stone 930100023, Abyss Points 930100003…), so it is always as fresh as the inventory.</summary>
+    private List<object> Currencies()
+    {
+        var list = new List<object>();
+        foreach (var st in Inventory.All())
+            if (st.Item >= InventoryStore.CurrencyMin && st.Item < InventoryStore.CurrencyMax)
+                list.Add(new { id = st.Item, name = Names.Name(st.Item) ?? Items.NameOf(st.Item), count = st.Count });
+        return list;
+    }
+
     /// <summary>state/summary.json: when each store last changed, where the player is, what is loaded — rewritten only when something moved.</summary>
     private void WriteSummary()
     {
@@ -308,7 +318,7 @@ public sealed class MeterService : IDisposable
         var invAge = Inventory.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Inventory.UpdatedMs).ToLocalTime().ToString("O")
                    : File.Exists(invPath) ? new DateTimeOffset(File.GetLastWriteTime(invPath)).ToString("O") : null;
         var chrAge = Character.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.UpdatedMs).ToLocalTime().ToString("O") : null;
-        var key = $"{Inventory.UpdatedMs}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
+        var key = $"{Inventory.UpdatedMs}|{Inventory.CountOf(Inventory.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
         if (key == _lastSummary) return;
         _lastSummary = key;
         var o = new
@@ -316,6 +326,8 @@ public sealed class MeterService : IDisposable
             savedAt = DateTimeOffset.Now.ToString("O"),
             serverId = Tracker.SelfServerId,
             mapId = Atlas.MapId, x = Atlas.SelfX, y = Atlas.SelfY,
+            kinah = Inventory.CountOf(Inventory.Kinah),
+            currencies = Currencies(),
             inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
             character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count },
             broker = new { listings = Broker.Count },

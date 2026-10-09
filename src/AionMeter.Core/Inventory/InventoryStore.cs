@@ -20,6 +20,9 @@ public static class Containers
 /// </summary>
 public sealed class InventoryStore
 {
+    /// <summary>Currencies are ordinary bag stacks with item ids 9301xxxxx: Kina 930100031 (confirmed 2026-10-09: +9,733 then +72,900 on a broker settlement arrived as two 1B56 updates of this stack), Enhance Stone 930100023, Abyss Points 930100003, Kina (Bound) 930100001, Legion Coin 930100002.</summary>
+    public const int Kinah = 930100031, CurrencyMin = 930_100_000, CurrencyMax = 930_200_000;
+
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
     private readonly object _gate = new();
     private readonly Dictionary<byte, Dictionary<byte, ItemStack>> _containers = new();
@@ -71,7 +74,7 @@ public sealed class InventoryStore
             foreach (var s in inv.Stacks)
             {
                 // Shape-scan false positives read misaligned words as ids (855638016 = 0x33000000, 899461376 = 0x359C0000, container 0): real item ids are 9 digits with a non-zero low half.
-                if (s.Item < 100_000_000 || (s.Item & 0xFFFF) == 0) continue;
+                if (!Plausible(s)) continue;
                 // A uid lives in exactly one slot: a move, a split or a partial refresh must not leave the old copy behind.
                 foreach (var (cid, cont) in _containers)
                     foreach (var (slot, st) in cont)
@@ -87,6 +90,9 @@ public sealed class InventoryStore
         Changed?.Invoke();
     }
 
+    /// <summary>Shape-scan false positives: uid 0, container 0, ids below 100M or with a zero low half (855638016 = 0x33000000, 899461376 = 0x359C0000, 812236803 in container 0).</summary>
+    private static bool Plausible(ItemStack s) => s.Uid != 0 && s.Container != 0 && s.Item >= 100_000_000 && (s.Item & 0xFFFF) != 0;
+
     private void Load()
     {
         if (_path is null || !File.Exists(_path)) return;
@@ -96,6 +102,7 @@ public sealed class InventoryStore
             if (all is null) return;
             foreach (var s in all)
             {
+                if (!Plausible(s)) { _dirty = true; continue; }
                 if (!_containers.TryGetValue(s.Container, out var c)) _containers[s.Container] = c = new();
                 c[s.Slot] = s;
             }

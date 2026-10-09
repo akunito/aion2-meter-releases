@@ -70,4 +70,20 @@ public class InventoryTests
         Assert.Equal(0, store.CountOf(110130002));
         Assert.Empty(store.Items(Containers.Bag));
     }
+
+    [Fact]
+    public void KinahIsABagStackAndJunkIsDropped()
+    {
+        var store = new InventoryStore(null);
+        store.OnEvent(new InventoryEvent(1, true, new[]
+        {
+            new ItemStack(1241087, InventoryStore.Kinah, 2_087_175, Containers.Bag, 0, 0),
+            new ItemStack(0, 812236803, 1, 0, 0, 0),                       // uid 0, container 0
+            new ItemStack(239427328, 899461376, 542, 0, 15, 0),             // 0x359C0000
+        }));
+        Assert.Equal(2_087_175, store.CountOf(InventoryStore.Kinah));
+        Assert.Single(store.All());
+        store.OnEvent(new InventoryEvent(2, false, new[] { new ItemStack(1241087, InventoryStore.Kinah, 2_169_808, Containers.Bag, 0, 0) }));
+        Assert.Equal(2_169_808, store.CountOf(InventoryStore.Kinah));
+    }
 }
