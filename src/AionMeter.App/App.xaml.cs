@@ -97,6 +97,7 @@ public partial class App : Application
         var settings = AppSettings.Load();
         settings.Save(); // persist any migration done while loading
         UiText.Use(settings.Language);
+        Core.Net.CloudflareHttp.SolverUrl = settings.CloudflareSolverUrl; // scrapers fall back to the solver when set
         Func<Core.Game.GameData, IEventSource> factory = data => new LiveCapture(data, new LiveCaptureOptions
         {
             DeviceName = settings.CaptureDevice,

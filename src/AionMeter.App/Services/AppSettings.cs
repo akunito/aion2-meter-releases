@@ -84,6 +84,14 @@ public sealed class AppSettings
     /// <summary>Fetch skill icons from the official AION 2 game-data CDN (cached locally).</summary>
     public bool DownloadIcons { get; set; } = true;
 
+    /// <summary>
+    /// Base url of a FlareSolverr / solvearr proxy (e.g. "http://127.0.0.1:8191"), reached over the private network,
+    /// that the price and leaderboard scrapers use to get past a Cloudflare challenge — the same bypass the NAS media
+    /// stack uses. Empty = direct requests only (default). Never point at a publicly reachable solver: its /v1 fetches
+    /// any url for the caller.
+    /// </summary>
+    public string CloudflareSolverUrl { get; set; } = "";
+
     // Updates
     /// <summary>Ask GitHub for a newer version shortly after start and every few hours.</summary>
     public bool CheckUpdates { get; set; } = true;

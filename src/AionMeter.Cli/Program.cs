@@ -8,6 +8,7 @@ using AionMeter.Core.Protocol;
 
 // AionMeter developer tool: inspect devices / connections, capture live, replay and dump recorded captures.
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+AionMeter.Core.Net.CloudflareHttp.SolverUrl = Environment.GetEnvironmentVariable("AION2_SOLVER_URL"); // optional CF bypass for scrapers
 var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
 var langAt = Array.IndexOf(args, "--lang");
 var data = GameData.Load(dataDir, langAt >= 0 && langAt + 1 < args.Length ? args[langAt + 1] : "en");

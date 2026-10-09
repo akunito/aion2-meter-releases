@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using AionMeter.Core.Events;
+using AionMeter.Core.Net;
 
 namespace AionMeter.Core.Leaderboard;
 
@@ -155,9 +156,8 @@ public sealed class Aion2IndexClient : IDisposable
             if (wait > 0) await Task.Delay((int)wait, ct).ConfigureAwait(false);
             _lastRequestMs = Environment.TickCount64;
             Requests++;
-            using var resp = await _http.GetAsync(url, ct).ConfigureAwait(false);
-            resp.EnsureSuccessStatusCode();
-            return await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            // Ranking pages are HTML (the rows are parsed out of the embedded data), so no JSON unwrap here.
+            return await CloudflareHttp.GetStringAsync(_http, url, ct).ConfigureAwait(false);
         }
         finally { _gate.Release(); }
     }

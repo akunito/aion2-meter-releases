@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AionMeter.Core.Net;
 
 namespace AionMeter.Core.Market;
 
@@ -90,9 +91,8 @@ public sealed class PriceWatchStore : IDisposable
             first = false;
             try
             {
-                using var resp = await _http.GetAsync($"{SiteUrl}/api/items/{w.Item}/prices?server={ExchangeServerId}&window=7d", ct).ConfigureAwait(false);
-                resp.EnsureSuccessStatusCode();
-                var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                // Through the Cloudflare solver when the site walls off a plain client; expectJson peels its <pre> wrapper.
+                var json = await CloudflareHttp.GetStringAsync(_http, $"{SiteUrl}/api/items/{w.Item}/prices?server={ExchangeServerId}&window=7d", ct, expectJson: true).ConfigureAwait(false);
                 Apply(w, ParsePrices(json), DateTimeOffset.Now);
                 AppendHistory(w);
             }
