@@ -95,6 +95,9 @@ public class InventoryTests
         var store = new InventoryStore(a);
         store.OnEvent(new InventoryEvent(1, true, new[] { new ItemStack(7, InventoryStore.Kinah, 100, Containers.Bag, 0, 0) }));
         store.Save();
+        Assert.False(File.Exists(a));           // a login list waits for its character
+        store.Bind(a);                          // identity of the same character: released and written
+        Assert.Contains("\"Count\":100", File.ReadAllText(a));
         // identity arrives right after the login list: the list moves with it, file a keeps what it had — even if a periodic Save ran in between
         store.OnEvent(new InventoryEvent(2, true, new[] { new ItemStack(8, InventoryStore.Kinah, 555, Containers.Bag, 0, 0) }));
         store.Save();
