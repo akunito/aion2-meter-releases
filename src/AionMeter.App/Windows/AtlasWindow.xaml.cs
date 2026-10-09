@@ -131,10 +131,13 @@ public partial class AtlasWindow : Window
         var age = atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : long.MaxValue;
         var (ex, ey, en) = atlas.Estimate(now);
         float wx, wy; bool exact;
-        // An action's position holds while the surroundings agree with it; once the smoothed centroid has drifted more
-        // than 20 m from it (the player walked without acting), the centroid leads after 10 s.
-        var drifted = en >= 3 && (Math.Abs(ex - atlas.SelfX) > 2_000 || Math.Abs(ey - atlas.SelfY) > 2_000);
-        if (age <= 10 || (age <= 60 && !drifted)) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
+        // An action's position holds while the surroundings agree with it. Standing still, the centroid of what is in view
+        // wanders as mobs and players move (Diego saw the dot drift while idle, 2026-10-09), so the centroid only takes
+        // over when it has stayed more than 40 m away from the last fix for 15 s running: that is walking, not noise.
+        var farNow = en >= 3 && (Math.Abs(ex - atlas.SelfX) > 4_000 || Math.Abs(ey - atlas.SelfY) > 4_000);
+        if (!farNow) _driftSinceMs = 0; else if (_driftSinceMs == 0) _driftSinceMs = now;
+        var drifted = farNow && now - _driftSinceMs >= 15_000;
+        if (age <= 20 || !drifted) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
         else if (en >= 3) { wx = ex; wy = ey; exact = false; }
         else if (age < 30 * 60) { wx = atlas.SelfX; wy = atlas.SelfY; exact = true; }
         else { wx = wy = 0; exact = false; }
@@ -148,6 +151,7 @@ public partial class AtlasWindow : Window
                 _ty = Viewport.ActualHeight / 2 - sy * _f * _scale;
                 Apply();
             }
+            DrawTrail(now, wx, wy);
             var label = exact ? (age > 10 ? $"{age}s" : "") : $"~{en}";
             if (exact) Dot(sx, sy, 8, Self, label, Self);
             else
@@ -287,6 +291,30 @@ public partial class AtlasWindow : Window
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException) { }
         }
         return _iconBrush[key] = brush;
+    }
+
+    private long _driftSinceMs;
+    private readonly List<(long Ms, float X, float Y)> _trail = new();
+
+    /// <summary>The last 10 s of the player's drawn position as a fading line (new point only when it moved ≥ 0.5 m).</summary>
+    private void DrawTrail(long now, float wx, float wy)
+    {
+        if (_cal is null) return;
+        if (_trail.Count == 0 || Math.Abs(_trail[^1].X - wx) > 50 || Math.Abs(_trail[^1].Y - wy) > 50) _trail.Add((now, wx, wy));
+        _trail.RemoveAll(p => now - p.Ms > 10_000);
+        if (_trail.Count < 2) return;
+        for (var i = 1; i < _trail.Count; i++)
+        {
+            var (ax, ay) = _cal.ToPixel(_trail[i - 1].X, _trail[i - 1].Y);
+            var (bx, by) = _cal.ToPixel(_trail[i].X, _trail[i].Y);
+            var age = (now - _trail[i].Ms) / 10_000.0; // 0 = fresh, 1 = ten seconds old
+            Overlay.Children.Add(new Line
+            {
+                X1 = ax * _f * _scale + _tx, Y1 = ay * _f * _scale + _ty, X2 = bx * _f * _scale + _tx, Y2 = by * _f * _scale + _ty,
+                Stroke = Self, StrokeThickness = 2.5, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+                Opacity = 0.65 * (1 - age) + 0.1,
+            });
+        }
     }
 
     /// <summary>First view of a map: the whole zone in the window, centred; Follow then takes over when the player's position is known.</summary>
