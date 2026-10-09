@@ -168,7 +168,7 @@ public partial class PriceWatchWindow : Window
     {
         try
         {
-            var src = File.ReadAllText(Path.Combine(_meter.DataDirectory, "gamedb", file));
+            var src = File.ReadAllText(Path.Combine(MeterService.DataDirectory, "gamedb", file));
             Clipboard.SetText(edit is null ? src : edit(src));
             StatusText.Text = T.PricesCopyHint;
         }
