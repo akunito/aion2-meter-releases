@@ -63,9 +63,9 @@ public sealed class CharacterState
     /// <summary>Switch to another character's file; login lists seen in the last 60 s belong to the new character and are carried over (see InventoryStore.Bind).</summary>
     public void Bind(string? path, string? mirror = null)
     {
-        if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) { _mirror = mirror; return; }
+        if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) { lock (_gate) { _mirror = mirror; _lastListMs = 0; } Save(); return; }
         bool keep;
-        lock (_gate) keep = _lastListMs > 0 && Environment.TickCount64 - _lastListMs < 60_000;
+        lock (_gate) { keep = ListsPending; _lastListMs = 0; }
         if (!keep) Save();
         lock (_gate)
         {
@@ -73,6 +73,7 @@ public sealed class CharacterState
             if (keep) _dirty = true;
             else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); UpdatedMs = 0; Load(); _dirty = true; }
         }
+        Save();
         Changed?.Invoke();
     }
 
@@ -90,9 +91,12 @@ public sealed class CharacterState
         catch (Exception ex) when (ex is IOException or JsonException) { }
     }
 
+    private bool ListsPending => _lastListMs > 0 && Environment.TickCount64 - _lastListMs < 60_000;
+
     public void Save()
     {
         if (_path is null) return;
+        lock (_gate) if (ListsPending) return;   // login lists not yet attributed to a character (see InventoryStore.LoginListPending)
         string text;
         lock (_gate)
         {

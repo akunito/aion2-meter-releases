@@ -47,9 +47,9 @@ public sealed class InventoryStore
     /// </summary>
     public void Bind(string? path, string? mirror = null)
     {
-        if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) { _mirror = mirror; return; }
+        if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) { lock (_gate) { _mirror = mirror; _lastFullMs = 0; } Save(); return; }   // same character again: release the hold
         bool keep;
-        lock (_gate) keep = _lastFullMs > 0 && Environment.TickCount64 - _lastFullMs < 60_000;
+        lock (_gate) { keep = LoginListPending; _lastFullMs = 0; }
         if (!keep) Save();
         lock (_gate)
         {
@@ -57,6 +57,7 @@ public sealed class InventoryStore
             if (keep) _dirty = true;
             else { _containers.Clear(); UpdatedMs = 0; Load(); _dirty = true; }
         }
+        Save();
         Changed?.Invoke();
     }
 
@@ -135,13 +136,16 @@ public sealed class InventoryStore
         catch (Exception ex) when (ex is IOException or JsonException) { }
     }
 
+    /// <summary>A full list that arrived in the last 60 s may belong to a character whose identity has not been seen yet (Bind): do not write it over the previous character's file.</summary>
+    private bool LoginListPending => _lastFullMs > 0 && Environment.TickCount64 - _lastFullMs < 60_000;
+
     public void Save()
     {
         if (_path is null) return;
         string text;
         lock (_gate)
         {
-            if (!_dirty) return;
+            if (!_dirty || LoginListPending) return;
             text = JsonSerializer.Serialize(_containers.Values.SelectMany(c => c.Values), Json);
             _dirty = false;
         }
