@@ -284,7 +284,7 @@ async Task<int> Market(string path)
 int Lag(string path)
 {
     using var dev = new SharpPcap.LibPcap.CaptureFileReaderDevice(path);
-    dev.Open();
+    dev.Open(new SharpPcap.DeviceConfiguration());
     long lastServer = 0; var silences = new List<(long, int)>();
     var pending = new List<(uint End, long T)>();
     var rtt = new SortedDictionary<string, List<double>>();
