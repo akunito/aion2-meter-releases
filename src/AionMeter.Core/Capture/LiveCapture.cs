@@ -248,7 +248,10 @@ public sealed class LiveCapture : IEventSource
         {
             _writer?.Write(raw);
             if (SegmentReader.TryRead(raw, out var seg))
+            {
+                if (seg.Key.SrcPort == 13328 && seg.Payload.Length > 0) NoteServerPacket(seg.TimeMs);
                 _pipeline.OnSegment(seg.TimeMs, seg.Key, seg.Seq, seg.Syn, seg.FinOrRst, seg.Payload);
+            }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -261,6 +264,29 @@ public sealed class LiveCapture : IEventSource
 
     /// <summary>Packets whose handling threw (their records were lost); the status line shows it when non-zero.</summary>
     public int Faults { get; private set; }
+
+    // ---- lag probe: the server streams ~30 packets/s while anything is in view; a silence ≥ SilenceMs is a stall somewhere
+    // between the server and this NIC (the RTT measured on the same captures was 4–20 ms with no loss, 2026-10-09, so the
+    // stalls are not the route). Each one is kept with its start and length; the service logs them.
+    public const int SilenceMs = 400;
+    private long _lastServerMs;
+    private readonly Queue<(long StartMs, int Ms)> _silences = new();
+
+    private void NoteServerPacket(long timeMs)
+    {
+        if (_lastServerMs > 0 && timeMs - _lastServerMs >= SilenceMs)
+            lock (_silences) { _silences.Enqueue((_lastServerMs, (int)(timeMs - _lastServerMs))); if (_silences.Count > 200) _silences.Dequeue(); }
+        _lastServerMs = timeMs;
+    }
+
+    /// <summary>Server silences recorded since the last call (start Unix ms, length ms).</summary>
+    public List<(long StartMs, int Ms)> TakeSilences()
+    {
+        lock (_silences) { var l = _silences.ToList(); _silences.Clear(); return l; }
+    }
+
+    /// <summary>Milliseconds since the last server packet (0 before the first).</summary>
+    public long ServerSilenceNowMs => _lastServerMs == 0 ? 0 : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - _lastServerMs;
     public Exception? LastFault { get; private set; }
 
     private void OnEvent(GameEvent e)
@@ -287,7 +313,7 @@ public sealed class LiveCapture : IEventSource
 /// <summary>Link layer → TCP segment, shared by live capture and pcap replay.</summary>
 public static class SegmentReader
 {
-    public readonly record struct Segment(long TimeMs, FlowKey Key, uint Seq, bool Syn, bool FinOrRst, byte[] Payload);
+    public readonly record struct Segment(long TimeMs, FlowKey Key, uint Seq, bool Syn, bool FinOrRst, byte[] Payload, uint? Ack = null);
 
     public static bool TryRead(RawCapture raw, out Segment segment)
     {
@@ -308,7 +334,7 @@ public static class SegmentReader
         var t = raw.Timeval;
         var ms = (long)t.Seconds * 1000 + (long)t.MicroSeconds / 1000;
         var key = new FlowKey(ip.SourceAddress, tcp.SourcePort, ip.DestinationAddress, tcp.DestinationPort);
-        segment = new Segment(ms, key, tcp.SequenceNumber, tcp.Synchronize, tcp.Finished || tcp.Reset, tcp.PayloadData ?? []);
+        segment = new Segment(ms, key, tcp.SequenceNumber, tcp.Synchronize, tcp.Finished || tcp.Reset, tcp.PayloadData ?? [], tcp.Acknowledgment ? tcp.AcknowledgmentNumber : null);
         return true;
     }
 }

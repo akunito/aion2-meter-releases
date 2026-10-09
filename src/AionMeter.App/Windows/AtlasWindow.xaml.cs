@@ -218,24 +218,40 @@ public partial class AtlasWindow : Window
             foreach (var z in NodeZones.Compute(mine))
             {
                 rank++;
-                var poly = new Polygon { Stroke = brush, StrokeThickness = 2.5, Fill = fill, StrokeLineJoin = PenLineJoin.Round, StrokeDashArray = rank == 1 ? null : new DoubleCollection { 6, 3 } };
-                var visible = false;
+                var pts = new PointCollection();
+                double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
                 foreach (var (wx, wy) in z.Hull)
                 {
                     var (px, py) = _cal.ToPixel(wx, wy);
                     var x = px * _f * _scale + _tx; var y = py * _f * _scale + _ty;
-                    poly.Points.Add(new Point(x, y));
-                    if (x > -300 && y > -300 && x < Viewport.ActualWidth + 300 && y < Viewport.ActualHeight + 300) visible = true;
+                    pts.Add(new Point(x, y));
+                    if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
                 }
-                if (!visible) continue;
-                Overlay.Children.Add(poly);
+                if (maxX < -300 || maxY < -300 || minX > Viewport.ActualWidth + 300 || minY > Viewport.ActualHeight + 300) continue;
                 var (cx, cy) = _cal.ToPixel(z.CenterX, z.CenterY);
-                var text = new TextBlock { Text = $"#{rank} · {z.Count}", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = brush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
-                Canvas.SetLeft(text, cx * _f * _scale + _tx - 14); Canvas.SetTop(text, cy * _f * _scale + _ty - 8);
+                var sx = cx * _f * _scale + _tx; var sy = cy * _f * _scale + _ty;
+                var dash = rank == 1 ? null : new DoubleCollection { 6, 3 };
+                // Zoomed out, a 150 m area is a few pixels: keep a readable ring (min 48 px) so the best spots stay findable at any zoom.
+                // A dark halo under the coloured stroke keeps it visible over light and dark terrain alike.
+                if (Math.Max(maxX - minX, maxY - minY) < 48)
+                {
+                    const double r = 24;
+                    Overlay.Children.Add(Place(new Ellipse { Width = 2 * r + 6, Height = 2 * r + 6, Stroke = Ink, StrokeThickness = 6, Fill = Brushes.Transparent }, sx - r - 3, sy - r - 3));
+                    Overlay.Children.Add(Place(new Ellipse { Width = 2 * r, Height = 2 * r, Stroke = brush, StrokeThickness = 3, Fill = fill, StrokeDashArray = dash }, sx - r, sy - r));
+                }
+                else
+                {
+                    Overlay.Children.Add(new Polygon { Points = pts, Stroke = Ink, StrokeThickness = 7, Fill = Brushes.Transparent, StrokeLineJoin = PenLineJoin.Round });
+                    Overlay.Children.Add(new Polygon { Points = pts, Stroke = brush, StrokeThickness = 3, Fill = fill, StrokeLineJoin = PenLineJoin.Round, StrokeDashArray = dash });
+                }
+                var text = new TextBlock { Text = $"#{rank} · {z.Count}", FontSize = 12, FontWeight = FontWeights.Bold, Foreground = brush, Background = Ink, Padding = new Thickness(4, 1, 4, 1) };
+                Canvas.SetLeft(text, sx - 16); Canvas.SetTop(text, sy - 9);
                 Overlay.Children.Add(text);
             }
         }
     }
+
+    private static UIElement Place(UIElement e, double x, double y) { Canvas.SetLeft(e, x); Canvas.SetTop(e, y); return e; }
 
     /// <summary>The icon's dominant colour: the saturation-weighted mean of its opaque pixels (cached per kind); gold when there is no icon.</summary>
     private Brush IconBrush(string name)

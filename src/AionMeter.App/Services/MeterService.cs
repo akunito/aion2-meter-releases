@@ -248,10 +248,15 @@ public sealed class MeterService : IDisposable
     {
         // The wall clock means nothing to a recording's timestamps: idle checks wait until the replay is done.
         if (!_replaying) Tracker.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-        if (_capture is Core.Capture.LiveCapture live && live.Faults != _loggedFaults)
+        if (_capture is Core.Capture.LiveCapture live)
         {
-            _loggedFaults = live.Faults;
-            Log.Error($"Capture: {live.Faults} packets lost to handler faults", live.LastFault);
+            if (live.Faults != _loggedFaults)
+            {
+                _loggedFaults = live.Faults;
+                Log.Error($"Capture: {live.Faults} packets lost to handler faults", live.LastFault);
+            }
+            foreach (var (start, ms) in live.TakeSilences())
+                Log.Info($"Lag probe: server silent {ms} ms from {DateTimeOffset.FromUnixTimeMilliseconds(start).ToLocalTime():HH:mm:ss.fff}");
         }
 
         // Persist the name map a few seconds after it changes (not on every packet).

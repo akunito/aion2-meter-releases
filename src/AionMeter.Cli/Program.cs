@@ -32,6 +32,7 @@ return args.FirstOrDefault() switch
     "armory" when args.Length > 1 => Armory(args[1], args.Length > 2 ? int.Parse(args[2]) : 1303).GetAwaiter().GetResult(),
     "inventory" when args.Length > 1 => Inventory(args[1]).GetAwaiter().GetResult(),
     "market" when args.Length > 1 => Market(args[1]).GetAwaiter().GetResult(),
+    "lag" when args.Length > 1 => Lag(args[1]),
     "leaderboard" => Leaderboard(args.Length > 1 ? args[1] : "eu", args.Length > 2 ? args[2] : null, args.Length > 3 ? args[3] : null).GetAwaiter().GetResult(),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
@@ -272,6 +273,54 @@ async Task<int> Market(string path)
     Console.WriteLine($"{all.Count} listings");
     foreach (var l in all.OrderBy(l => l.Item).ThenBy(l => l.Price))
         Console.WriteLine($"  {DateTimeOffset.FromUnixTimeMilliseconds(l.SeenMs).ToLocalTime():HH:mm:ss} page {l.Page,5}  {l.Item} {catalog.NameOf(l.Item),-44} x{l.Quantity,-4} {l.Price,12:N0}  now {l.Current,12:N0}  lvl {l.Level}");
+    return 0;
+}
+
+// Lag analysis of a recording: server silences ≥ 400 ms (with the time) and the round-trip time per minute measured from the
+// client's own segments and the server's ACKs. Measured 2026-10-09: RTT 4–20 ms median, p99 45 ms (delayed-ACK bound), no loss;
+// ~30 % of server segments reappear with the same seq and a larger length ~28 ms later with no duplicate ACKs — a stack artifact
+// seen in every capture, good or bad, not loss.
+int Lag(string path)
+{
+    using var dev = new SharpPcap.LibPcap.CaptureFileReaderDevice(path);
+    dev.Open();
+    long lastServer = 0; var silences = new List<(long, int)>();
+    var pending = new List<(uint End, long T)>();
+    var rtt = new SortedDictionary<string, List<double>>();
+    while (dev.GetNextPacket(out var pc) == SharpPcap.GetPacketStatus.PacketRead)
+    {
+        if (!SegmentReader.TryRead(pc.GetPacket(), out var seg)) continue;
+        if (seg.Key.SrcPort != 13328 && seg.Key.DstPort != 13328) continue;
+        if (seg.Key.SrcPort == 13328)
+        {
+            if (seg.Payload.Length > 0)
+            {
+                if (lastServer > 0 && seg.TimeMs - lastServer >= 400) silences.Add((lastServer, (int)(seg.TimeMs - lastServer)));
+                lastServer = seg.TimeMs;
+            }
+            if (pending.Count > 0 && seg.Ack is { } ack)
+            {
+                for (var i = pending.Count - 1; i >= 0; i--)
+                    if ((int)(ack - pending[i].End) >= 0)
+                    {
+                        var minute = DateTimeOffset.FromUnixTimeMilliseconds(pending[i].T).ToLocalTime().ToString("HH:mm");
+                        if (!rtt.TryGetValue(minute, out var l)) rtt[minute] = l = new();
+                        l.Add(seg.TimeMs - pending[i].T);
+                        pending.RemoveAt(i);
+                    }
+            }
+        }
+        else if (seg.Payload.Length > 0) pending.Add(((uint)(seg.Seq + seg.Payload.Length), seg.TimeMs));
+    }
+    Console.WriteLine($"server silences ≥ 400 ms: {silences.Count}");
+    foreach (var (start, ms) in silences.OrderByDescending(x => x.Item2).Take(20))
+        Console.WriteLine($"   {DateTimeOffset.FromUnixTimeMilliseconds(start).ToLocalTime():HH:mm:ss.fff}  {ms,6} ms");
+    Console.WriteLine("RTT per minute (ms): median / p90 / max");
+    foreach (var (minute, l) in rtt)
+    {
+        l.Sort();
+        Console.WriteLine($"   {minute}  n={l.Count,5}  {l[l.Count / 2],6:0.0}  {l[(int)(l.Count * 0.9)],6:0.0}  {l[^1],7:0.0}");
+    }
     return 0;
 }
 
