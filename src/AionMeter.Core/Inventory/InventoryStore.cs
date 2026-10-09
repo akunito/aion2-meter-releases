@@ -9,8 +9,10 @@ public sealed record ItemStack(uint Uid, int Item, int Count, byte Container, by
 /// <summary>Containers as the game numbers them (measured 2026-10-08, Akunita): 1 bag, 2 second bag (materials), 11 equipped, 15 personal warehouse.</summary>
 public static class Containers
 {
-    public const byte Bag = 1, Bag2 = 2, Equipped = 11, Warehouse = 15;
-    public static string Name(byte c) => c switch { Bag => "Bag", Bag2 => "Bag 2", Equipped => "Equipped", Warehouse => "Warehouse", _ => $"Container {c}" };
+    // Verified against the game's windows 2026-10-09 (Akunita): 1 = Cubo (bag), 2 = Almacén del servidor (account warehouse, 43/70),
+    // 15 = Almacén del personaje (character warehouse, 39/75), 11 = equipped, 4 = equipped pet soul.
+    public const byte Bag = 1, Bag2 = 2, ServerWarehouse = 2, PetSoul = 4, Equipped = 11, Warehouse = 15;
+    public static string Name(byte c) => c switch { Bag => "Bag", ServerWarehouse => "Server warehouse", PetSoul => "Pet soul", Equipped => "Equipped", Warehouse => "Character warehouse", _ => $"Container {c}" };
 }
 
 /// <summary>
