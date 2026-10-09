@@ -70,6 +70,12 @@ public sealed class InventoryStore
             }
             foreach (var s in inv.Stacks)
             {
+                // A uid lives in exactly one slot: a move, a split or a partial refresh must not leave the old copy behind.
+                foreach (var (cid, cont) in _containers)
+                    foreach (var (slot, st) in cont)
+                        if (st.Uid == s.Uid && (cid != s.Container || slot != s.Slot)) { cont.Remove(slot); goto next; }
+                next:
+                if (s.Count <= 0) { if (_containers.TryGetValue(s.Container, out var gone)) gone.Remove(s.Slot); continue; }   // emptied slot
                 if (!_containers.TryGetValue(s.Container, out var c)) _containers[s.Container] = c = new();
                 c[s.Slot] = s;
             }

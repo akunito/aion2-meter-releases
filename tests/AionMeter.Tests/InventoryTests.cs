@@ -56,4 +56,18 @@ public class InventoryTests
         Assert.Equal(before - 54 + 110, store.CountOf(610680047));
         Assert.Equal(20, store.Items(Containers.Equipped).Count);
     }
+
+    [Fact]
+    public void MovedAndEmptiedStacksLeaveNoCopies()
+    {
+        var store = new InventoryStore(null);
+        store.OnEvent(new InventoryEvent(1, true, new[] { new ItemStack(7, 610511013, 3, Containers.Bag, 4, 0), new ItemStack(8, 110130002, 1, Containers.Bag, 5, 0) }));
+        store.OnEvent(new InventoryEvent(2, false, new[] { new ItemStack(7, 610511013, 3, Containers.Warehouse, 1, 0) }));   // moved to the warehouse
+        Assert.Equal(3, store.CountOf(610511013));
+        Assert.DoesNotContain(store.Items(Containers.Bag), st => st.Uid == 7);
+        Assert.Single(store.Items(Containers.Warehouse));
+        store.OnEvent(new InventoryEvent(3, false, new[] { new ItemStack(8, 110130002, 0, Containers.Bag, 5, 0) }));          // sold: count 0
+        Assert.Equal(0, store.CountOf(110130002));
+        Assert.Empty(store.Items(Containers.Bag));
+    }
 }

@@ -37,6 +37,8 @@ public sealed class MeterService : IDisposable
         Updates = new Updater(settings);
         Atlas = new NodeStore(Path.Combine(AppSettings.AppDataDir, "atlas"));
         Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
+        Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
+        Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
         // First run with the ranking: fill it from the fights already on disk, off the UI thread.
         if (!settings.Transient && Top.Count == 0 && History.List(1).Count > 0)
@@ -139,6 +141,8 @@ public sealed class MeterService : IDisposable
         finally { _pricePolling = 0; }
     }
 
+    /// <summary>Offline item names (en/es) for the search boxes; data/gamedb/item-names.json, built from aion2hub + the official es-ES endpoint.</summary>
+    public ItemNames Names { get; private set; } = ItemNames.Empty;
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
@@ -282,7 +286,9 @@ public sealed class MeterService : IDisposable
         var now = Environment.TickCount64;
         if (Tracker.SelfServerId > 0) Prices.ExchangeServerId = 10000 + Tracker.SelfServerId;
         if (Prices.Due(now)) _ = PollPricesAsync(now);
-        if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); Inventory.Save(); Character.Save(); Broker.Save(); }
+        if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
+        // The player state on disk is what the AI side reads: a few seconds behind the packets at most, plus a summary with the ages.
+        if (now - _lastStateSave > 5_000) { _lastStateSave = now; Inventory.Save(); Character.Save(); Broker.Save(); WriteSummary(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
         SaveNames();
@@ -292,6 +298,36 @@ public sealed class MeterService : IDisposable
     private int _savedNamesVersion;
     private long _lastNamesCheck;
     private long _lastAtlasSave;
+    private long _lastStateSave;
+    private string _lastSummary = "";
+
+    /// <summary>state/summary.json: when each store last changed, where the player is, what is loaded — rewritten only when something moved.</summary>
+    private void WriteSummary()
+    {
+        var invAge = Inventory.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Inventory.UpdatedMs).ToLocalTime().ToString("O") : null;
+        var chrAge = Character.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.UpdatedMs).ToLocalTime().ToString("O") : null;
+        var key = $"{Inventory.UpdatedMs}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
+        if (key == _lastSummary) return;
+        _lastSummary = key;
+        var o = new
+        {
+            savedAt = DateTimeOffset.Now.ToString("O"),
+            serverId = Tracker.SelfServerId,
+            mapId = Atlas.MapId, x = Atlas.SelfX, y = Atlas.SelfY,
+            inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
+            character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count },
+            broker = new { listings = Broker.Count },
+            prices = new { lastPollAt = Prices.LastPollAt?.ToString("O"), watches = Prices.Count },
+            files = new[] { "inventory.json", "state/character.json", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
+        };
+        try
+        {
+            var path = Path.Combine(AppSettings.AppDataDir, "state", "summary.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(o, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (IOException) { }
+    }
 
     private void SaveNames()
     {

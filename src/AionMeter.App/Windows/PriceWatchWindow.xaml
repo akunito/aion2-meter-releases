@@ -48,6 +48,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Margin="18,0,8,0">
@@ -86,6 +87,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Alt}" FontSize="11.5" Foreground="{StaticResource TextMute}" />
                                         <TextBlock Text="{Binding Sub}" FontSize="11" Foreground="{StaticResource TextMute}" />
                                     </StackPanel>
                                     <TextBox Grid.Column="1" Style="{StaticResource Field}" Text="{Binding MaxText, Mode=OneWay}" Tag="{Binding Watch}"
@@ -103,7 +105,33 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="18,4,18,14">
+            <StackPanel Grid.Row="3" Margin="18,4,18,0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Width="300" TextChanged="Search_TextChanged" KeyDown="Search_KeyDown"
+                             ToolTip="{Binding PricesSearch, Source={x:Static s:UiText.Current}}" />
+                    <RadioButton x:Name="LangEn" Style="{StaticResource TabToggle}" GroupName="PriceLang" Content="EN" Margin="8,0,0,0" Checked="Lang_Checked" Tag="en"
+                                 ToolTip="{Binding PricesSearchLang, Source={x:Static s:UiText.Current}}" />
+                    <RadioButton x:Name="LangEs" Style="{StaticResource TabToggle}" GroupName="PriceLang" Content="ES" Checked="Lang_Checked" Tag="es"
+                                 ToolTip="{Binding PricesSearchLang, Source={x:Static s:UiText.Current}}" />
+                    <TextBlock x:Name="SearchHint" Foreground="{StaticResource TextMute}" FontSize="11.5" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </StackPanel>
+                <ListBox x:Name="Results" MaxHeight="170" Margin="0,4,0,0" Visibility="Collapsed" Background="#1A1F2E" BorderBrush="{StaticResource GoldDim}" BorderThickness="1"
+                         Foreground="{StaticResource Text}" MouseLeftButtonUp="Result_Click" KeyDown="Result_KeyDown" HorizontalContentAlignment="Stretch">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="2,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Label}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Id}" Foreground="{StaticResource TextMute}" Margin="12,0,4,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+            <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="18,6,18,14">
                 <TextBox x:Name="ItemBox" Style="{StaticResource Field}" Width="130" ToolTip="{Binding PricesItemId, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
                 <TextBox x:Name="MaxBox" Style="{StaticResource Field}" Width="130" Margin="8,0,0,0" ToolTip="{Binding PricesMax, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
                 <Button Style="{StaticResource Small}" Content="{Binding PricesAdd, Source={x:Static s:UiText.Current}}" Click="Add_Click" Margin="8,0,0,0" />

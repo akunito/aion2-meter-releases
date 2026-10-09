@@ -375,6 +375,8 @@ public sealed class UiText
     public string PricesMax { get; init; } = "max price";
     public string PricesNotChecked { get; init; } = "not checked yet";
     public string PricesLastPoll { get; init; } = "last check {0}";
+    public string PricesSearch { get; init; } = "search an item by name…";
+    public string PricesSearchLang { get; init; } = "Search language";
     public string TopCount { get; init; } = "{0} players kept";
     public string TopHint { get; init; } = "The ten best DPS this meter has seen per class (one fight per player, 30 s or longer). Click a row for skill shares, opener, repeated sequences and casts per minute; Open shows the saved fight.";
     public string TopEmpty { get; init; } = "No fight of 30 s or more with a known class yet. The ranking fills itself as fights finish.";
@@ -749,6 +751,8 @@ public sealed class UiText
         PricesMax = "макс. цена",
         PricesNotChecked = "ещё не проверялось",
         PricesLastPoll = "последняя проверка {0}",
+        PricesSearch = "поиск предмета по названию…",
+        PricesSearchLang = "Язык поиска",
         AtlasNoMap = "Для зоны {0} нет откалиброванной карты. Ресурсы всё равно записываются.",
         AtlasFollow = "Следовать за мной",
         NameNodeTitle = "Новый вид ресурса",

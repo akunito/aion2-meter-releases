@@ -40,6 +40,7 @@ public partial class PriceWatchWindow : Window
         }
         public PriceWatch Watch { get; }
         public string Name { get; }
+        public string Alt { get; init; } = "";
         public string Sub { get; }
         public string MaxText { get; }
         public string LastText { get; }
@@ -50,10 +51,13 @@ public partial class PriceWatchWindow : Window
         public Brush Frame { get; }
     }
 
+    public sealed record Hit(int Id, string Label);
+
     public PriceWatchWindow(MeterService meter)
     {
         _meter = meter;
         InitializeComponent();
+        if (_meter.Settings.PriceSearchLanguage == "es") LangEs.IsChecked = true; else LangEn.IsChecked = true;
         Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; };
         Closed += (_, _) => _meter.Prices.Changed -= OnChanged;
     }
@@ -63,7 +67,12 @@ public partial class PriceWatchWindow : Window
     private void Reload()
     {
         var rows = new List<Row>();
-        foreach (var w in _meter.Prices.All()) rows.Add(new Row(w, _meter.Items.NameOf(w.Item)));
+        foreach (var w in _meter.Prices.All())
+        {
+            var (en, es) = _meter.Names.Both(w.Item);
+            var other = _meter.Settings.PriceSearchLanguage == "es" ? en : es;   // the row shows the name in the other language under it
+            rows.Add(new Row(w, _meter.Names.Name(w.Item, _meter.Settings.PriceSearchLanguage) ?? _meter.Items.NameOf(w.Item)) { Alt = other is not null && other != w.Name ? other : "" });
+        }
         List.ItemsSource = rows;
         var last = _meter.Prices.LastPollAt;
         StatusText.Text = last is { } l ? string.Format(T.PricesLastPoll, l.ToString("HH:mm")) : T.PricesNotChecked;
@@ -92,7 +101,7 @@ public partial class PriceWatchWindow : Window
         if (!int.TryParse(ItemBox.Text.Trim(), out var item) || item <= 0) { AddHint.Text = T.PricesItemId; return; }
         if (!TryParsePrice(MaxBox.Text, out var max)) { AddHint.Text = T.PricesMax; return; }
         AddHint.Text = "";
-        var cached = _meter.Items.Cached(item)?.Name;
+        var cached = _meter.Names.Name(item, Lang) ?? _meter.Items.Cached(item)?.Name;
         _meter.Prices.Add(item, cached ?? $"Item {item}", max);
         ItemBox.Text = ""; MaxBox.Text = "";
         if (cached is null)
@@ -113,5 +122,54 @@ public partial class PriceWatchWindow : Window
     }
 
     private void Check_Click(object sender, RoutedEventArgs e) => _meter.PollPricesNow();
+
+    private string Lang => _meter.Settings.PriceSearchLanguage;
+
+    private void Lang_Checked(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded || sender is not RadioButton { Tag: string lang }) return;
+        if (_meter.Settings.PriceSearchLanguage == lang) return;
+        _meter.Settings.PriceSearchLanguage = lang;
+        _meter.Settings.Save();
+        RunSearch();
+        Reload();
+    }
+
+    private void Search_TextChanged(object sender, TextChangedEventArgs e) => RunSearch();
+
+    private void RunSearch()
+    {
+        var q = SearchBox.Text;
+        if (q.Trim().Length < 2) { Results.Visibility = Visibility.Collapsed; Results.ItemsSource = null; SearchHint.Text = ""; return; }
+        var hits = _meter.Names.Search(q, Lang, 40);
+        var list = new List<Hit>(hits.Count);
+        foreach (var (id, en, es) in hits)
+        {
+            var main = Lang == "es" && es.Length > 0 ? es : en;
+            var alt = Lang == "es" ? en : es;
+            list.Add(new Hit(id, alt.Length > 0 && alt != main ? $"{main}  ·  {alt}" : main));
+        }
+        Results.ItemsSource = list;
+        Results.Visibility = list.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SearchHint.Text = list.Count == 0 ? "0" : list.Count >= 40 ? "40+" : list.Count.ToString();
+    }
+
+    private void Search_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Down && Results.Items.Count > 0) { Results.SelectedIndex = 0; ((ListBoxItem)Results.ItemContainerGenerator.ContainerFromIndex(0))?.Focus(); e.Handled = true; }
+        else if (e.Key == Key.Enter && Results.Items.Count > 0) { Pick((Hit)Results.Items[0]!); e.Handled = true; }
+        else if (e.Key == Key.Escape) { SearchBox.Text = ""; }
+    }
+
+    private void Result_Click(object sender, MouseButtonEventArgs e) { if (Results.SelectedItem is Hit h) Pick(h); }
+    private void Result_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter && Results.SelectedItem is Hit h) { Pick(h); e.Handled = true; } }
+
+    private void Pick(Hit h)
+    {
+        ItemBox.Text = h.Id.ToString();
+        AddHint.Text = h.Label;
+        Results.Visibility = Visibility.Collapsed;
+        MaxBox.Focus();
+    }
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }
