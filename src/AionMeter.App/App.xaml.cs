@@ -439,7 +439,7 @@ public partial class App : Application
     {
         foreach (var w in _meter.TakePriceHits())
         {
-            _tray?.ShowBalloon(UiText.Current.PricesTitle, string.Format(UiText.Current.PriceHit, w.Name, w.LastPrice ?? 0, w.MaxPrice, w.LastListings ?? 0), ShowPrices);
+            _tray?.ShowBalloon(UiText.Current.PricesTitle, string.Format(w.Sell ? UiText.Current.PriceHitSell : UiText.Current.PriceHit, w.Name, w.LastPrice ?? 0, w.MaxPrice, w.LastListings ?? 0), ShowPrices);
             System.Media.SystemSounds.Asterisk.Play();
         }
     }

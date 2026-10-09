@@ -38,16 +38,28 @@ public class PriceWatchTests
     {
         var path = Path.Combine(Path.GetTempPath(), "pw-" + Guid.NewGuid().ToString("N"), "price-watch.json");
         using var s = new PriceWatchStore(path);
-        Assert.Single(s.All());
+        Assert.Equal(2, s.All().Count);                       // the two seeds
+        Assert.True(s.All().Single(w => w.Item == 610530010).Sell);
         Assert.True(s.Due(10_000));
         s.Add(110130002, "Wisdom Greatsword", 900_000);
         s.SetMax(110130002, 800_000);
         s.Save();
         using var again = new PriceWatchStore(path);
-        Assert.Equal(2, again.Count);
+        Assert.Equal(3, again.Count);
         Assert.Equal(800_000, again.All().Single(w => w.Item == 110130002).MaxPrice);
-        again.Remove(610511013);
-        Assert.Single(again.All());
+        again.Remove(110130002);
+        Assert.Equal(2, again.All().Count);
         Directory.Delete(Path.GetDirectoryName(path)!, true);
+    }
+
+    [Fact]
+    public void SellWatchHitsAtOrAboveTarget()
+    {
+        var w = new PriceWatch { Item = 610530010, MaxPrice = 500_000, Sell = true, Quantity = 26, PaidEach = 225_000, LastPrice = 499_999 };
+        Assert.False(w.Hit);
+        w.LastPrice = 500_000;
+        Assert.True(w.Hit);
+        w.Sell = false;
+        Assert.False(w.Hit);
     }
 }

@@ -11,14 +11,19 @@ public sealed class PriceWatch
 {
     public int Item { get; set; }
     public string Name { get; set; } = "";
+    /// <summary>Threshold: buy at or below it (Sell = false) or sell at or above it (Sell = true).</summary>
     public long MaxPrice { get; set; }
+    public bool Sell { get; set; }
+    /// <summary>Units held and what each cost, for the value / gain column; 0 = unknown.</summary>
+    public int Quantity { get; set; }
+    public long PaidEach { get; set; }
     public long? LastPrice { get; set; }
     public int? LastListings { get; set; }
     public DateTimeOffset? LastCheck { get; set; }
     public string? LastError { get; set; }
     /// <summary>Lowest listing about a day before the last point, for the trend arrow.</summary>
     public long? DayAgoPrice { get; set; }
-    [JsonIgnore] public bool Hit => LastPrice is long p && p > 0 && p <= MaxPrice;
+    [JsonIgnore] public bool Hit => LastPrice is long p && p > 0 && MaxPrice > 0 && (Sell ? p >= MaxPrice : p <= MaxPrice);
 }
 
 public sealed record PricePoint(DateTimeOffset Ts, long Low, long High, long Avg, long Close, int Listings);
@@ -72,6 +77,8 @@ public sealed class PriceWatchStore : IDisposable
     }
 
     public void SetMax(int item, long maxPrice) { lock (_gate) { var w = _watches.Find(x => x.Item == item); if (w is null || w.MaxPrice == maxPrice) return; w.MaxPrice = maxPrice; } Save(); Changed?.Invoke(); }
+    public void SetSell(int item, bool sell) { lock (_gate) { var w = _watches.Find(x => x.Item == item); if (w is null || w.Sell == sell) return; w.Sell = sell; } Save(); Changed?.Invoke(); }
+    public void SetHolding(int item, int quantity, long paidEach) { lock (_gate) { var w = _watches.Find(x => x.Item == item); if (w is null || (w.Quantity == quantity && w.PaidEach == paidEach)) return; w.Quantity = quantity; w.PaidEach = paidEach; } Save(); Changed?.Invoke(); }
     public void Rename(int item, string name) { lock (_gate) { var w = _watches.Find(x => x.Item == item); if (w is null || w.Name == name) return; w.Name = name; } Save(); Changed?.Invoke(); }
     public void Remove(int item) { lock (_gate) if (_watches.RemoveAll(x => x.Item == item) == 0) return; Save(); Changed?.Invoke(); }
 
@@ -147,19 +154,23 @@ public sealed class PriceWatchStore : IDisposable
 
     private void Load()
     {
-        if (_path is null) return;
         try
         {
-            if (File.Exists(_path))
+            if (_path is not null && File.Exists(_path))
             {
                 var list = JsonSerializer.Deserialize<List<PriceWatch>>(File.ReadAllText(_path), Json);
                 if (list is not null) _watches.AddRange(list);
-                return;
             }
         }
         catch (Exception) { }
-        // First run: the item the watch was built for (Daevanion material, Templar). Wrathful Mind = "Perversión de ira" in the Spanish client.
-        _watches.Add(new PriceWatch { Item = 610511013, Name = "Wrathful Mind · Perversión de ira", MaxPrice = 1_000_000 });
+        Seed();
+    }
+
+    /// <summary>Diego's watches of 2026-10-09: buy Wrathful Mind under 1.2M; sell the 26 Artisan's Ultimate Refining Stones (bought ~225k) once they reach 500k (docs/17 thesis). Idempotent, so an old file gets the new seed too.</summary>
+    private void Seed()
+    {
+        if (_watches.All(w => w.Item != 610511013)) _watches.Add(new PriceWatch { Item = 610511013, Name = "Wrathful Mind · Perversión de ira", MaxPrice = 1_200_000 });
+        if (_watches.All(w => w.Item != 610530010)) _watches.Add(new PriceWatch { Item = 610530010, Name = "Artisan's Ultimate Refining Stone · Piedra de refinamiento suprema de artesano", MaxPrice = 500_000, Sell = true, Quantity = 26 });
     }
 
     public void Save()

@@ -369,6 +369,10 @@ public sealed class UiText
     public string TrayPrices { get; init; } = "Price watch (aion2.exchange, once an hour)";
     public string PricesHint { get; init; } = "Items to buy below a price. aion2.exchange is read once an hour per item; a Windows notification and a chime fire while the lowest listing is at or under your maximum. The globe opens the item on the site.";
     public string PriceHit { get; init; } = "{0}: {1:N0} Kinah (≤ {2:N0}), {3} listings";
+    public string PriceHitSell { get; init; } = "{0}: {1:N0} Kinah (≥ {2:N0}) — time to sell, {3} listings";
+    public string PricesSell { get; init; } = "sell above";
+    public string PricesQty { get; init; } = "units held";
+    public string PricesPaid { get; init; } = "paid each";
     public string PricesAdd { get; init; } = "Add";
     public string PricesCheckNow { get; init; } = "Check now";
     public string PricesItemId { get; init; } = "item id";
@@ -745,6 +749,10 @@ public sealed class UiText
         TrayPrices = "Слежение за ценами (aion2.exchange, раз в час)",
         PricesHint = "Предметы, которые нужно купить дешевле заданной цены. aion2.exchange читается раз в час на предмет; уведомление Windows и сигнал звучат, пока минимальный лот не выше вашего максимума. Глобус открывает предмет на сайте.",
         PriceHit = "{0}: {1:N0} кинар (≤ {2:N0}), лотов: {3}",
+        PriceHitSell = "{0}: {1:N0} кинар (≥ {2:N0}) — пора продавать, лотов: {3}",
+        PricesSell = "продать выше",
+        PricesQty = "штук в наличии",
+        PricesPaid = "цена покупки",
         PricesAdd = "Добавить",
         PricesCheckNow = "Проверить сейчас",
         PricesItemId = "id предмета",

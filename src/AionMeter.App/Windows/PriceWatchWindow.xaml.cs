@@ -30,6 +30,15 @@ public partial class PriceWatchWindow : Window
             Listings = w.LastListings is { } n ? n.ToString() : "";
             PriceBrush = w.Hit ? Down : (w.LastPrice is null ? Flat : Up);
             Frame = w.Hit ? HitFrame : PriceWatchWindow.Frame;
+            ModeText = w.Sell ? "≥" : "≤";
+            QtyText = w.Quantity > 0 ? w.Quantity.ToString() : "";
+            PaidText = w.PaidEach > 0 ? w.PaidEach.ToString("N0", CultureInfo.InvariantCulture) : "";
+            ValueText = ""; ValueBrush = Flat;
+            if (w.Quantity > 0 && w.LastPrice is { } lastp)
+            {
+                ValueText = (w.Quantity * lastp).ToString("N0", CultureInfo.InvariantCulture);
+                if (w.PaidEach > 0) { var gain = (lastp - w.PaidEach) * 100.0 / w.PaidEach; ValueText += "  " + gain.ToString("+0;-0;0") + "%"; ValueBrush = gain > 0 ? Down : gain < 0 ? Up : Flat; }
+            }
             if (w.LastPrice is { } lp && w.DayAgoPrice is { } ago && ago > 0)
             {
                 var pct = (lp - ago) * 100.0 / ago;
@@ -47,6 +56,11 @@ public partial class PriceWatchWindow : Window
         public string Listings { get; }
         public string Trend { get; }
         public Brush PriceBrush { get; }
+        public string ModeText { get; }
+        public string QtyText { get; }
+        public string PaidText { get; }
+        public string ValueText { get; }
+        public Brush ValueBrush { get; }
         public Brush TrendBrush { get; }
         public Brush Frame { get; }
     }
@@ -103,7 +117,8 @@ public partial class PriceWatchWindow : Window
         AddHint.Text = "";
         var cached = _meter.Names.Name(item, Lang) ?? _meter.Items.Cached(item)?.Name;
         _meter.Prices.Add(item, cached ?? $"Item {item}", max);
-        ItemBox.Text = ""; MaxBox.Text = "";
+        if (SellBox.IsChecked == true) _meter.Prices.SetSell(item, true);
+        ItemBox.Text = ""; MaxBox.Text = ""; SellBox.IsChecked = false;
         if (cached is null)
             _ = Task.Run(async () => { var info = await _meter.Items.GetAsync(item); if (info is not null) _meter.Prices.Rename(item, info.Name); });
         _meter.PollPricesNow();
@@ -112,6 +127,22 @@ public partial class PriceWatchWindow : Window
     private void Max_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter && sender is TextBox tb) { ApplyMax(tb); Keyboard.ClearFocus(); } }
     private void Max_LostFocus(object sender, RoutedEventArgs e) { if (sender is TextBox tb) ApplyMax(tb); }
     private void ApplyMax(TextBox tb) { if (tb.Tag is PriceWatch w && TryParsePrice(tb.Text, out var max)) _meter.Prices.SetMax(w.Item, max); }
+
+    private void Mode_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: PriceWatch w }) _meter.Prices.SetSell(w.Item, !w.Sell); }
+
+    private void Holding_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter && sender is TextBox tb) { ApplyHolding(tb); Keyboard.ClearFocus(); } }
+    private void Holding_LostFocus(object sender, RoutedEventArgs e) { if (sender is TextBox tb) ApplyHolding(tb); }
+
+    /// <summary>The qty and paid boxes are siblings in one panel: read both whichever was edited.</summary>
+    private void ApplyHolding(TextBox tb)
+    {
+        if (tb.Tag is not PriceWatch w || tb.Parent is not StackPanel panel) return;
+        TextBox? qtyBox = null, paidBox = null;
+        foreach (var child in panel.Children) if (child is TextBox b) { if (qtyBox is null) qtyBox = b; else paidBox ??= b; }
+        var qty = int.TryParse((qtyBox?.Text ?? "").Trim(), out var q) ? q : 0;
+        var paid = TryParsePrice(paidBox?.Text, out var p) ? p : 0;
+        _meter.Prices.SetHolding(w.Item, qty, paid);
+    }
 
     private void Remove_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: PriceWatch w }) _meter.Prices.Remove(w.Item); }
 
