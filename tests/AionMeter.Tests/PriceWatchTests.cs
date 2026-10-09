@@ -59,7 +59,9 @@ public class PriceWatchTests
         Assert.False(w.Hit);
         w.LastPrice = 500_000;
         Assert.True(w.Hit);
-        w.Sell = false;
+        w.Sell = false;                 // buy mode: 500,000 is at the maximum, so still a hit; one above is not
+        Assert.True(w.Hit);
+        w.LastPrice = 500_001;
         Assert.False(w.Hit);
     }
 }
