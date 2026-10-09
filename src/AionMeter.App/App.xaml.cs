@@ -459,7 +459,7 @@ public partial class App : Application
         var now = DateTimeOffset.Now;
         foreach (var ev in _meter.Events)
         {
-            var (start, _, running) = ev.Next(now);
+            var (start, _, running) = ev.Next(now, _meter.Settings.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null);
             if (running) continue;
             var a = _meter.Settings.AlertFor(ev.Key);
             if (!a.Notify && !a.Sound) continue;

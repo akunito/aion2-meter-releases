@@ -378,6 +378,8 @@ public sealed class UiText
     public string AtlasZonesTip { get; init; } = "{0}: outline its 5 densest areas (up to two kinds at once)";
     public string EventMenuSound { get; init; } = "Sound";
     public string EventMenuAt10 { get; init; } = "Alert 10 min before";
+    public string EventMenuSyncNow { get; init; } = "Starts now (sync the cycle)";
+    public string EventMenuResetSync { get; init; } = "Back to the schedule";
     public string EventMenuAt5 { get; init; } = "Alert 5 min before";
     public string EventStartsAt { get; init; } = "{0} starts at {1} ({2} min)";
     public string TopScopeHistory { get; init; } = "My fights";

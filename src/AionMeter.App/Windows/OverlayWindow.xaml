@@ -537,6 +537,9 @@
                                                 <Separator />
                                                 <MenuItem Header="{Binding EventMenuAt10, Source={x:Static s:UiText.Current}}" IsCheckable="True" IsChecked="{Binding At10, Mode=TwoWay}" />
                                                 <MenuItem Header="{Binding EventMenuAt5, Source={x:Static s:UiText.Current}}" IsCheckable="True" IsChecked="{Binding At5, Mode=TwoWay}" />
+                                                <Separator />
+                                                <MenuItem Header="{Binding EventMenuSyncNow, Source={x:Static s:UiText.Current}}" Click="EventSync_Click" IsEnabled="{Binding CanSync}" />
+                                                <MenuItem Header="{Binding EventMenuResetSync, Source={x:Static s:UiText.Current}}" Click="EventResetSync_Click" IsEnabled="{Binding CanSync}" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                     </Button>

@@ -178,3 +178,26 @@ public class NodeZonesTests
         Assert.DoesNotContain((5f, 5f), h);
     }
 }
+
+public class EventAnchorTests
+{
+    [Fact]
+    public void A_confirmed_start_rephases_an_hourly_event()
+    {
+        var zone = TimeZoneInfo.Utc;
+        var times = Enumerable.Range(0, 24).Select(h => new TimeOnly(h, 0)).ToList();
+        var ev = new ScheduledEvent("shugo", "Shugo", zone, times, 10, 5, null, EveryMinutes: 60);
+        var now = new DateTimeOffset(2026, 10, 9, 10, 30, 0, TimeSpan.Zero);
+        var (s0, _, r0) = ev.Next(now);
+        Assert.Equal(new DateTimeOffset(2026, 10, 9, 11, 0, 0, TimeSpan.Zero), s0);
+        Assert.False(r0);
+        var anchor = new DateTimeOffset(2026, 10, 9, 9, 3, 0, TimeSpan.Zero); // seen starting at 09:03
+        var (s1, e1, r1) = ev.Next(now, anchor);
+        Assert.Equal(new DateTimeOffset(2026, 10, 9, 11, 3, 0, TimeSpan.Zero), s1);
+        Assert.False(r1);
+        var (s2, _, r2) = ev.Next(new DateTimeOffset(2026, 10, 9, 11, 5, 0, TimeSpan.Zero), anchor);
+        Assert.Equal(s1, s2);
+        Assert.True(r2);
+        Assert.Equal(s1.AddMinutes(10), e1);
+    }
+}

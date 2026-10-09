@@ -55,6 +55,8 @@ public sealed class AppSettings
     }
 
     public Dictionary<string, EventAlert> EventAlerts { get; set; } = new();
+    /// <summary>A start the player confirmed in game per periodic event (key → time): re-phases the cycle until "back to the schedule".</summary>
+    public Dictionary<string, DateTimeOffset> EventAnchors { get; set; } = new();
 
     public EventAlert AlertFor(string key)
     {

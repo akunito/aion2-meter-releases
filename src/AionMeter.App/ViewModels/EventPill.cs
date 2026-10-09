@@ -4,8 +4,11 @@ using AionMeter.App.Services;
 namespace AionMeter.App.ViewModels;
 
 /// <summary>A footer pill for one recurring event: text and colour by time left, plus the right-click alert toggles (saved to settings).</summary>
-public sealed class EventPill(string key, string name, AppSettings.EventAlert alert, Action save) : ObservableObject
+public sealed class EventPill(string key, string name, AppSettings.EventAlert alert, Action save, Action<string> syncNow, Action<string> resetSync) : ObservableObject
 {
+    public bool CanSync { get; init; } = true;
+    public void SyncNow() => syncNow(key);
+    public void ResetSync() => resetSync(key);
     private string _text = name;
     private Brush _fill = Calm, _stroke = CalmStroke;
 

@@ -610,13 +610,13 @@ public partial class OverlayWindow : Window
         var i = 0;
         foreach (var ev in _meter.Events)
         {
-            var (start, end, running) = ev.Next(now);
+            var (start, end, running) = ev.Next(now, _meter.Settings.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null);
             var left = running ? end - now : start - now;
             var span = left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{Math.Max(0, (int)Math.Ceiling(left.TotalMinutes))}m";
             var text = running ? $"{ev.Name} ● {span}" : $"{ev.Name} {span}";
             if (i >= pills.Count || pills[i].Key != ev.Key)
             {
-                var pill = new EventPill(ev.Key, ev.Name, _meter.Settings.AlertFor(ev.Key), _meter.Settings.Save);
+                var pill = new EventPill(ev.Key, ev.Name, _meter.Settings.AlertFor(ev.Key), _meter.Settings.Save, SyncEventNow, ResetEventSync) { CanSync = ev.EveryMinutes > 0 };
                 if (i >= pills.Count) pills.Add(pill); else pills[i] = pill;
             }
             if (pills[i].Text != text) pills[i].Text = text;
@@ -624,6 +624,31 @@ public partial class OverlayWindow : Window
             i++;
         }
         while (pills.Count > i) pills.RemoveAt(pills.Count - 1);
+    }
+
+    /// <summary>The player saw the event begin: re-phase its cycle from this instant (and log it, to find the packet that announces it later).</summary>
+    private void SyncEventNow(string key)
+    {
+        _meter.Settings.EventAnchors[key] = DateTimeOffset.Now;
+        _meter.Settings.Save();
+        Log.Info($"Event {key} synced by hand: starts now ({DateTimeOffset.Now:HH:mm:ss})");
+        UpdateEventLabels();
+    }
+
+    private void ResetEventSync(string key)
+    {
+        if (_meter.Settings.EventAnchors.Remove(key)) _meter.Settings.Save();
+        UpdateEventLabels();
+    }
+
+    private void EventSync_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: EventPill p }) p.SyncNow();
+    }
+
+    private void EventResetSync_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: EventPill p }) p.ResetSync();
     }
 
     private void Top_Click(object sender, RoutedEventArgs e)
