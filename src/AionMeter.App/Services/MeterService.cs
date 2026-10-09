@@ -364,7 +364,7 @@ public sealed class MeterService : IDisposable
             savedAt = DateTimeOffset.Now.ToString("O"),
             serverId = Tracker.SelfServerId,
             mapId = Atlas.MapId, x = Atlas.SelfX, y = Atlas.SelfY,
-            character = _characterKey.Length > 0 ? _characterKey : null,
+            characterKey = _characterKey.Length > 0 ? _characterKey : null,
             characterName = Tracker.SelfName,
             kinah = Inventory.CountOf(InventoryStore.Kinah),
             characters = CharacterFolders(),
