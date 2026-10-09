@@ -286,6 +286,7 @@ public sealed class MeterService : IDisposable
         var now = Environment.TickCount64;
         if (Tracker.SelfServerId > 0) Prices.ExchangeServerId = 10000 + Tracker.SelfServerId;
         if (_characterKey.Length == 0) BindCharacterStores();   // identity restored from the names cache at start-up raises no SelfIdentified
+        if (_characterKey.Length > 0 && now - _lastProfileSync > 6 * 3_600_000L && _lastProfileSync > 0) { _lastProfileSync = now; _ = SyncProfileAsync(_characterKey, Tracker.SelfName ?? "", Tracker.SelfServerId); }
         if (Prices.Due(now)) _ = PollPricesAsync(now);
         if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
         // The player state on disk is what the AI side reads: a few seconds behind the packets at most, plus a summary with the ages.
@@ -317,6 +318,35 @@ public sealed class MeterService : IDisposable
         Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
         Log.Info($"Character stores bound to {key}");
         _lastSummary = "";
+        _ = SyncProfileAsync(key, name, server);
+    }
+
+    private long _lastProfileSync;
+    private int _profileSyncing;
+
+    /// <summary>
+    /// Daevanion boards, skills with levels and stigmas never travel on the wire (client data), so they come from the official
+    /// character API: fetched when a character logs in and again every 6 h while playing, into characters/&lt;key&gt;/profile.json
+    /// (+ profile.txt, the same text as the Top DPS profile panel). The site itself lags the game by an unknown delay.
+    /// </summary>
+    private async Task SyncProfileAsync(string key, string name, int server)
+    {
+        if (Interlocked.Exchange(ref _profileSyncing, 1) == 1) return;
+        try
+        {
+            var p = await Armory.LookupAsync(name, server, withDaevanion: true).ConfigureAwait(false);
+            if (p is not null && DateTimeOffset.UtcNow - p.FetchedAt > TimeSpan.FromHours(6)) p = await Armory.LookupAsync(name, server, withDaevanion: true, force: true).ConfigureAwait(false);
+            if (p is null) { Log.Info($"Profile sync: {name} not found on server {server}"); return; }
+            var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "profile.json"), System.Text.Json.JsonSerializer.Serialize(p, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(dir, "profile.txt"), ProfileFormatter.Text(p, null, Data));
+            _lastProfileSync = Environment.TickCount64;
+            _lastSummary = "";
+            Log.Info($"Profile sync: {name} (fetched {p.FetchedAt:HH:mm}, {p.Skills.Count} skills, {p.Daevanion.Count} daevanion nodes)");
+        }
+        catch (Exception e) { Log.Error("Profile sync", e); }
+        finally { _profileSyncing = 0; }
     }
 
     /// <summary>Every character folder with its Kinah, stack count and inventory age, for the AI side.</summary>
@@ -335,7 +365,9 @@ public sealed class MeterService : IDisposable
                     foreach (var st in System.Text.Json.JsonSerializer.Deserialize<List<ItemStack>>(File.ReadAllText(inv)) ?? new()) { stacks++; if (st.Item == InventoryStore.Kinah) kinah = st.Count; }
             }
             catch (Exception) { }
-            list.Add(new { key = Path.GetFileName(dir), kinah, stacks, inventoryAt = File.Exists(inv) ? new DateTimeOffset(File.GetLastWriteTime(inv)).ToString("O") : null, current = Path.GetFileName(dir) == _characterKey });
+            var prof = Path.Combine(dir, "profile.json");
+            list.Add(new { key = Path.GetFileName(dir), kinah, stacks, inventoryAt = File.Exists(inv) ? new DateTimeOffset(File.GetLastWriteTime(inv)).ToString("O") : null,
+                           profileAt = File.Exists(prof) ? new DateTimeOffset(File.GetLastWriteTime(prof)).ToString("O") : null, current = Path.GetFileName(dir) == _characterKey });
         }
         return list;
     }
@@ -375,7 +407,7 @@ public sealed class MeterService : IDisposable
             character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count },
             broker = new { listings = Broker.Count },
             prices = new { lastPollAt = Prices.LastPollAt?.ToString("O"), watches = Prices.Count },
-            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
+            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json", "characters/<key>/profile.json (official API: gear, skills+levels, stigmas, daevanion boards; profile.txt readable)", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
         };
         try
         {
