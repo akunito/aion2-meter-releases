@@ -318,7 +318,7 @@ public sealed class MeterService : IDisposable
         var invAge = Inventory.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Inventory.UpdatedMs).ToLocalTime().ToString("O")
                    : File.Exists(invPath) ? new DateTimeOffset(File.GetLastWriteTime(invPath)).ToString("O") : null;
         var chrAge = Character.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.UpdatedMs).ToLocalTime().ToString("O") : null;
-        var key = $"{Inventory.UpdatedMs}|{Inventory.CountOf(Inventory.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
+        var key = $"{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
         if (key == _lastSummary) return;
         _lastSummary = key;
         var o = new
@@ -326,7 +326,7 @@ public sealed class MeterService : IDisposable
             savedAt = DateTimeOffset.Now.ToString("O"),
             serverId = Tracker.SelfServerId,
             mapId = Atlas.MapId, x = Atlas.SelfX, y = Atlas.SelfY,
-            kinah = Inventory.CountOf(Inventory.Kinah),
+            kinah = Inventory.CountOf(InventoryStore.Kinah),
             currencies = Currencies(),
             inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
             character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count },
