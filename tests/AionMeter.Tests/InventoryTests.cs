@@ -86,4 +86,27 @@ public class InventoryTests
         store.OnEvent(new InventoryEvent(2, false, new[] { new ItemStack(1241087, InventoryStore.Kinah, 2_169_808, Containers.Bag, 0, 0) }));
         Assert.Equal(2_169_808, store.CountOf(InventoryStore.Kinah));
     }
+
+    [Fact]
+    public void BindCarriesTheLoginListIntoTheNewCharacterFile()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "inv-" + Guid.NewGuid().ToString("N"));
+        var a = Path.Combine(root, "a", "inventory.json"); var b = Path.Combine(root, "b", "inventory.json"); var mirror = Path.Combine(root, "inventory.json");
+        var store = new InventoryStore(a);
+        store.OnEvent(new InventoryEvent(1, true, new[] { new ItemStack(7, InventoryStore.Kinah, 100, Containers.Bag, 0, 0) }));
+        store.Save();
+        // identity arrives right after the login list: the list moves with it, file a keeps what it had
+        store.OnEvent(new InventoryEvent(2, true, new[] { new ItemStack(8, InventoryStore.Kinah, 555, Containers.Bag, 0, 0) }));
+        store.Bind(b, mirror);
+        store.Save();
+        Assert.Equal(555, store.CountOf(InventoryStore.Kinah));
+        Assert.True(File.Exists(b) && File.Exists(mirror));
+        Assert.Contains("\"Count\":555", File.ReadAllText(b));
+        Assert.Contains("\"Count\":100", File.ReadAllText(a));
+        // a plain switch (no fresh login list) loads the other file
+        var again = new InventoryStore(b);
+        again.Bind(a);
+        Assert.Equal(100, again.CountOf(InventoryStore.Kinah));
+        Directory.Delete(root, true);
+    }
 }

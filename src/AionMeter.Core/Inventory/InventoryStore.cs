@@ -26,13 +26,36 @@ public sealed class InventoryStore
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
     private readonly object _gate = new();
     private readonly Dictionary<byte, Dictionary<byte, ItemStack>> _containers = new();
-    private readonly string? _path;
+    private string? _path, _mirror;
     private bool _dirty;
+    private long _lastFullMs;
 
     public InventoryStore(string? path)
     {
         _path = path;
         Load();
+    }
+
+    public string? FilePath => _path;
+
+    /// <summary>
+    /// Switch to another character's file (characters/&lt;server&gt;-&lt;name&gt;/inventory.json). The login list (Full) usually lands a
+    /// moment before the identity packet, so a full list seen in the last 60 s is carried into the new file instead of being
+    /// written to the previous character. <paramref name="mirror"/> is also written on every save (the legacy inventory.json = current character).
+    /// </summary>
+    public void Bind(string? path, string? mirror = null)
+    {
+        if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) { _mirror = mirror; return; }
+        bool keep;
+        lock (_gate) keep = _lastFullMs > 0 && Environment.TickCount64 - _lastFullMs < 60_000;
+        if (!keep) Save();
+        lock (_gate)
+        {
+            _path = path; _mirror = mirror;
+            if (keep) _dirty = true;
+            else { _containers.Clear(); UpdatedMs = 0; Load(); _dirty = true; }
+        }
+        Changed?.Invoke();
     }
 
     public event Action? Changed;
@@ -65,7 +88,7 @@ public sealed class InventoryStore
         if (e is not InventoryEvent inv || inv.Stacks.Count == 0) return;
         lock (_gate)
         {
-            if (inv.Full) _containers.Clear();
+            if (inv.Full) { _containers.Clear(); _lastFullMs = Environment.TickCount64; }
             else if (inv.Stacks.Count >= 8)
             {
                 // A whole container re-sent (its window opened): replace it, slots that vanished are gone.
@@ -122,9 +145,13 @@ public sealed class InventoryStore
         }
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path + ".tmp", text);
-            File.Move(_path + ".tmp", _path, overwrite: true);
+            foreach (var target in new[] { _path, _mirror })
+            {
+                if (target is null) continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.WriteAllText(target + ".tmp", text);
+                File.Move(target + ".tmp", target, overwrite: true);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { lock (_gate) _dirty = true; }
     }

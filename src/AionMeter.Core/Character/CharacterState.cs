@@ -14,7 +14,8 @@ public sealed class CharacterState
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     private readonly object _gate = new();
-    private readonly string? _path;
+    private string? _path, _mirror;
+    private long _lastListMs;
     private bool _dirty;
 
     public CharacterState(string? path)
@@ -51,7 +52,26 @@ public sealed class CharacterState
                     return;
             }
             UpdatedMs = e.TimeMs;
+            _lastListMs = Environment.TickCount64;
             _dirty = true;
+        }
+        Changed?.Invoke();
+    }
+
+    public string? FilePath => _path;
+
+    /// <summary>Switch to another character's file; login lists seen in the last 60 s belong to the new character and are carried over (see InventoryStore.Bind).</summary>
+    public void Bind(string? path, string? mirror = null)
+    {
+        if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) { _mirror = mirror; return; }
+        bool keep;
+        lock (_gate) keep = _lastListMs > 0 && Environment.TickCount64 - _lastListMs < 60_000;
+        if (!keep) Save();
+        lock (_gate)
+        {
+            _path = path; _mirror = mirror;
+            if (keep) _dirty = true;
+            else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); UpdatedMs = 0; Load(); _dirty = true; }
         }
         Changed?.Invoke();
     }
@@ -82,9 +102,13 @@ public sealed class CharacterState
         }
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path + ".tmp", text);
-            File.Move(_path + ".tmp", _path, overwrite: true);
+            foreach (var target in new[] { _path, _mirror })
+            {
+                if (target is null) continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.WriteAllText(target + ".tmp", text);
+                File.Move(target + ".tmp", target, overwrite: true);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { lock (_gate) _dirty = true; }
     }

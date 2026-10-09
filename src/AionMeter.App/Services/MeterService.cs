@@ -93,7 +93,7 @@ public sealed class MeterService : IDisposable
         Timers.SetCurrentServer(Tracker.SelfServerId);
         Tracker.SelfIdentified += _ =>
         {
-            if (!_replaying && !DemoRunning) Timers.SetCurrentServer(Tracker.SelfServerId);
+            if (!_replaying && !DemoRunning) { Timers.SetCurrentServer(Tracker.SelfServerId); BindCharacterStores(); }
         };
     }
 
@@ -301,6 +301,44 @@ public sealed class MeterService : IDisposable
     private long _lastStateSave;
     private string _lastSummary = "";
 
+    private string _characterKey = "";
+
+    /// <summary>One folder per character (characters/&lt;server&gt;-&lt;name&gt;/) so every alt keeps its own live inventory and lists; the legacy inventory.json and state/character.json mirror the character that is logged in.</summary>
+    private void BindCharacterStores()
+    {
+        var name = Tracker.SelfName; var server = Tracker.SelfServerId;
+        if (Settings.Transient || string.IsNullOrEmpty(name) || server <= 0) return;
+        var key = $"{server}-{string.Concat(name.Where(ch => char.IsLetterOrDigit(ch) || ch == '-' || ch == '_'))}";
+        if (key == _characterKey) return;
+        _characterKey = key;
+        var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
+        Inventory.Bind(Path.Combine(dir, "inventory.json"), Path.Combine(AppSettings.AppDataDir, "inventory.json"));
+        Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
+        Log.Info($"Character stores bound to {key}");
+        _lastSummary = "";
+    }
+
+    /// <summary>Every character folder with its Kinah, stack count and inventory age, for the AI side.</summary>
+    private List<object> CharacterFolders()
+    {
+        var list = new List<object>();
+        var root = Path.Combine(AppSettings.AppDataDir, "characters");
+        if (!Directory.Exists(root)) return list;
+        foreach (var dir in Directory.GetDirectories(root))
+        {
+            var inv = Path.Combine(dir, "inventory.json");
+            long kinah = 0; var stacks = 0;
+            try
+            {
+                if (File.Exists(inv))
+                    foreach (var st in System.Text.Json.JsonSerializer.Deserialize<List<ItemStack>>(File.ReadAllText(inv)) ?? new()) { stacks++; if (st.Item == InventoryStore.Kinah) kinah = st.Count; }
+            }
+            catch (Exception) { }
+            list.Add(new { key = Path.GetFileName(dir), kinah, stacks, inventoryAt = File.Exists(inv) ? new DateTimeOffset(File.GetLastWriteTime(inv)).ToString("O") : null, current = Path.GetFileName(dir) == _characterKey });
+        }
+        return list;
+    }
+
     /// <summary>The wallet is a family of bag stacks (item 9301xxxxx: Kina 930100031, Enhance Stone 930100023, Abyss Points 930100003…), so it is always as fresh as the inventory.</summary>
     private List<object> Currencies()
     {
@@ -318,7 +356,7 @@ public sealed class MeterService : IDisposable
         var invAge = Inventory.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Inventory.UpdatedMs).ToLocalTime().ToString("O")
                    : File.Exists(invPath) ? new DateTimeOffset(File.GetLastWriteTime(invPath)).ToString("O") : null;
         var chrAge = Character.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.UpdatedMs).ToLocalTime().ToString("O") : null;
-        var key = $"{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
+        var key = $"{_characterKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
         if (key == _lastSummary) return;
         _lastSummary = key;
         var o = new
@@ -326,13 +364,16 @@ public sealed class MeterService : IDisposable
             savedAt = DateTimeOffset.Now.ToString("O"),
             serverId = Tracker.SelfServerId,
             mapId = Atlas.MapId, x = Atlas.SelfX, y = Atlas.SelfY,
+            character = _characterKey.Length > 0 ? _characterKey : null,
+            characterName = Tracker.SelfName,
             kinah = Inventory.CountOf(InventoryStore.Kinah),
+            characters = CharacterFolders(),
             currencies = Currencies(),
             inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
             character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count },
             broker = new { listings = Broker.Count },
             prices = new { lastPollAt = Prices.LastPollAt?.ToString("O"), watches = Prices.Count },
-            files = new[] { "inventory.json", "state/character.json", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
+            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
         };
         try
         {
