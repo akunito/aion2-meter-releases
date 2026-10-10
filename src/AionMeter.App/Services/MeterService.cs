@@ -41,6 +41,7 @@ public sealed class MeterService : IDisposable
         Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
         Recipes = RecipeBook.Load(Path.Combine(DataDirectory, "gamedb", "recipes.json"));
         Market = Core.Market.MarketSnapshot.Load(MarketPath);
+        Icons = new IconCache(ItemIcons.Load(Path.Combine(DataDirectory, "gamedb", "item-icons.json")));
         Pets = PetBook.Load(Path.Combine(DataDirectory, "gamedb", "pets.json"));
         Titles = TitleBook.Load(Path.Combine(DataDirectory, "gamedb", "titles.json"));
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
@@ -175,6 +176,8 @@ public sealed class MeterService : IDisposable
     /// <summary>The last market export Diego loaded (Craft → Load market file…), kept as market\latest.json; the craft profit calculator reads it.</summary>
     public Core.Market.MarketSnapshot Market { get; private set; } = Core.Market.MarketSnapshot.Empty;
     public static string MarketPath => Path.Combine(AppSettings.AppDataDir, "market", "latest.json");
+    /// <summary>Item icons on demand for the Craft and Prices rows (A2M-26).</summary>
+    public IconCache Icons { get; private set; } = new(ItemIcons.Empty);
     public event Action? MarketChanged;
     /// <summary>Copies the export next to the state and reloads it; false when the file does not parse as an export.</summary>
     public bool ImportMarket(string path)

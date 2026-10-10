@@ -55,6 +55,7 @@ public partial class PriceWatchView : UserControl
         public string Name { get; }
         public string Alt { get; init; } = "";
         public object? AltTip => Alt.Length > 0 ? Alt : null;   // null = no tooltip at all
+        public ImageSource? Icon { get; init; }
         public string Sub { get; }
         public string MaxText { get; }
         public string LastText { get; }
@@ -77,8 +78,8 @@ public partial class PriceWatchView : UserControl
         _meter = meter;
         InitializeComponent();
         if (_meter.Settings.PriceSearchLanguage == "es") LangEs.IsChecked = true; else LangEn.IsChecked = true;
-        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
-        Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _cooldown.Stop(); };
+        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _meter.Icons.Loaded += OnChanged; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
+        Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _meter.Icons.Loaded -= OnChanged; _cooldown.Stop(); };
         _cooldown.Tick += Cooldown_Tick;
     }
 
@@ -90,7 +91,7 @@ public partial class PriceWatchView : UserControl
         foreach (var w in _meter.Prices.All())
         {
             var (en, es) = _meter.Names.Both(w.Item);
-            rows.Add(new Row(w, en ?? _meter.Items.NameOf(w.Item) ?? "") { Alt = es ?? "" });
+            rows.Add(new Row(w, en ?? _meter.Items.NameOf(w.Item) ?? "") { Alt = es ?? "", Icon = _meter.Icons.Get(w.Item) });
         }
         List.ItemsSource = rows;
         var last = _meter.Prices.LastPollAt;

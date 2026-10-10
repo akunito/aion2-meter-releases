@@ -73,9 +73,12 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" ToolTip="{Binding AltTip}" />
-                                        <TextBlock Text="{Binding Sub}" FontSize="11" Foreground="{StaticResource TextMute}" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Image Source="{Binding Icon}" Width="30" Height="30" Margin="0,0,10,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" ToolTip="{Binding AltTip}" />
+                                            <TextBlock Text="{Binding Sub}" FontSize="11" Foreground="{StaticResource TextMute}" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <!-- holdings (units, paid each, value) in their own column so every control of the row sits on one line (Diego, 2026-10-11) -->
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">

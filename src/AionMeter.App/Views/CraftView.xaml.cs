@@ -21,7 +21,7 @@ public partial class CraftView : UserControl
     public sealed class Row
     {
         public string Name { get; init; } = ""; public string Sub { get; init; } = ""; public string Times { get; init; } = ""; public Brush TimesBrush { get; init; } = Ok; public Brush Frame { get; init; } = CraftView.Frame;
-        public int Output { get; init; } public bool Fav { get; init; }
+        public int Output { get; init; } public bool Fav { get; init; } public ImageSource? Icon { get; init; }
         public string Star => Fav ? "\u2605" : "\u2606"; public Brush StarBrush => Fav ? Near : CraftView.Frame;
     }
 
@@ -32,11 +32,15 @@ public partial class CraftView : UserControl
         Professions.ItemsSource = new[] { new Prof("", T.CraftAll, true), new Prof("blacksmithing", "Blacksmith", false), new Prof("tailoring", "Tailor", false), new Prof("jewelcrafting", "Jewel", false), new Prof("alchemy", "Alchemy", false), new Prof("cooking", "Cooking", false) };
         foreach (ComboBoxItem it in ScopeBox.Items) if ((string)it.Tag == meter.Settings.CraftScope) { ScopeBox.SelectedItem = it; break; }
         if (ScopeBox.SelectedItem is null) ScopeBox.SelectedIndex = 0;
-        Loaded += (_, _) => { Reload(); _meter.Inventory.Changed += OnChanged; _meter.MarketChanged += OnChanged; };
-        Unloaded += (_, _) => { _meter.Inventory.Changed -= OnChanged; _meter.MarketChanged -= OnChanged; };
+        Loaded += (_, _) => { Reload(); _meter.Inventory.Changed += OnChanged; _meter.MarketChanged += OnChanged; _meter.Icons.Loaded += OnIcon; };
+        Unloaded += (_, _) => { _meter.Inventory.Changed -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.Icons.Loaded -= OnIcon; _iconTick.Stop(); };
+        _iconTick.Tick += (_, _) => { _iconTick.Stop(); Reload(); };
     }
 
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
+    // icons land one per 400 ms: redraw at most every 600 ms instead of per icon
+    private readonly System.Windows.Threading.DispatcherTimer _iconTick = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private void OnIcon() { if (!_iconTick.IsEnabled) _iconTick.Start(); }
     private void Filter_Changed(object sender, TextChangedEventArgs e) { ClearSearch.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; Reload(); }
     private void ClearSearch_Click(object sender, RoutedEventArgs e) { SearchBox.Text = ""; SearchBox.Focus(); }
     private void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape && SearchBox.Text.Length > 0) { SearchBox.Text = ""; e.Handled = true; } }
@@ -88,7 +92,7 @@ public partial class CraftView : UserControl
                       $" → {Kinah(p.Value)} {T.CraftAfterFee} · {T.CraftCost} {Kinah(p.Cost)}" + (p.UnpricedMaterials > 0 ? $" ({p.UnpricedMaterials} {T.CraftUnpriced})" : "") +
                       (p.Times > 0 ? $" · ×{p.Times} {T.CraftNow}" : "") + "\n" + mats;
             var good = p.Profit > 0;
-            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output) });
+            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output), Icon = _meter.Icons.Get(p.Recipe.Output) });
         }
         List.ItemsSource = rows;
         StatusText.Text = string.Format(T.CraftMarketFrom, m.Count, m.Server, m.CapturedAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "?", fee.ToString("0.#", CultureInfo.InvariantCulture));
@@ -115,8 +119,8 @@ public partial class CraftView : UserControl
             if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", o.Recipe.Name)) continue;
             var mats = string.Join(", ", o.Recipe.Materials.Select(m => $"{Nm(m.Item)} ×{m.Qty}"));
             var sub = $"{o.Recipe.Profession} {o.Recipe.Level} · {o.Recipe.Grade} · {mats}";
-            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav }); }
-            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
+            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icon = _meter.Icons.Get(o.Recipe.Output) }); }
+            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icon = _meter.Icons.Get(o.Recipe.Output), Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
         }
         List.ItemsSource = rows;
         StatusText.Text = q.Length > 0 ? string.Format(T.CraftMatches, rows.Count, craftable) : string.Format(T.CraftStatus, craftable, rows.Count - craftable);

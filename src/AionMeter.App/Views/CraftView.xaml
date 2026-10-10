@@ -61,9 +61,12 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="{Binding Icon}" Width="30" Height="30" Margin="0,0,10,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Sub}" FontSize="11" Foreground="{StaticResource TextMute}" TextWrapping="Wrap" />
+                                    </StackPanel>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Times}" Foreground="{Binding TimesBrush}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="10,0,0,0" />
