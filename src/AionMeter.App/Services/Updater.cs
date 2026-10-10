@@ -56,7 +56,7 @@ public sealed class Updater : IDisposable
     /// <summary>The upstream project's newest release, watched only when Settings.CheckUpstream (Diego: "re-audit" signal).</summary>
     public ReleaseInfo? UpstreamLatest { get; private set; }
     /// <summary>The audited upstream version this build is based on (patch 0001–00xx on v0.2.5).</summary>
-    public static readonly Version UpstreamBase = new(0, 2, 5);
+    public static readonly Version UpstreamBase = new(0, 2, 6);   // merged 2026-10-10 (A2M-22)
     public ReleaseInfo? UpstreamAvailable => UpstreamLatest is { } u && u.Version > UpstreamBase ? u : null;
 
     private static (string? Tag, string? Sha) ReadBuildInfo()
