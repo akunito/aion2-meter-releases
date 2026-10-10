@@ -39,6 +39,7 @@ public sealed class MeterService : IDisposable
         Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
         Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
         Recipes = RecipeBook.Load(Path.Combine(DataDirectory, "gamedb", "recipes.json"));
+        Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
         // First run with the ranking: fill it from the fights already on disk, off the UI thread.
@@ -396,7 +397,7 @@ public sealed class MeterService : IDisposable
         var rows = new List<object>(opts.Count);
         foreach (var o in opts)
             rows.Add(new { item = o.Recipe.Output, name = Names.Name(o.Recipe.Output) ?? o.Recipe.Name, profession = o.Recipe.Profession, level = o.Recipe.Level, grade = o.Recipe.Grade, times = o.Times,
-                           missing = o.Missing.Select(m => new { item = m.Item, name = Names.Name(m.Item), need = m.Need, have = m.Have }) });
+                           missing = o.Missing.Select(m => new { item = m.Item, name = Names.Name(m.Item), need = m.Need, have = m.Have, source = Names.Source(m.Item) }) });
         try
         {
             var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "craftable.json");

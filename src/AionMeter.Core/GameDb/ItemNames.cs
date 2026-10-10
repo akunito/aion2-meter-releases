@@ -11,6 +11,24 @@ namespace AionMeter.Core.GameDb;
 public sealed class ItemNames
 {
     public static readonly ItemNames Empty = new(Array.Empty<int>(), Array.Empty<string>(), Array.Empty<string>());
+    private Dictionary<int, string> _sources = new();
+
+    /// <summary>data/gamedb/item-sources.json ({"id": "gather; craft; drop 4% Draupnir (Hard)…"}, tools/item-sources.py from aion2hub).</summary>
+    public void LoadSources(string path)
+    {
+        if (!File.Exists(path)) return;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            var d = new Dictionary<int, string>(14_000);
+            foreach (var p in doc.RootElement.EnumerateObject()) if (int.TryParse(p.Name, out var id)) d[id] = p.Value.GetString() ?? "";
+            _sources = d;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException) { }
+    }
+
+    public string? Source(int id) => _sources.TryGetValue(id, out var s) ? s : null;
+
     private readonly int[] _ids;
     private readonly string[] _en, _es, _enKey, _esKey;
 
