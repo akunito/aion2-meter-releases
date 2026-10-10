@@ -182,7 +182,6 @@ public partial class OverlayWindow : Window
     /// <summary>Re-reads appearance settings changed in the Settings window.</summary>
     public void ApplyAppearance()
     {
-        if (secondary) { CloseWindowButton.Visibility = Visibility.Visible; RightPanel.Margin = new Thickness(0, 0, 26, 0); Left += 40; Top += 40; }
         OpacitySlider.Value = _settings.BackgroundOpacity;
         FrameBackground.Opacity = _settings.BackgroundOpacity;
         ApplyRowSize(_settings.RowSize);
