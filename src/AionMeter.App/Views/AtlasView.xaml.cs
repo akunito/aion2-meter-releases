@@ -292,7 +292,8 @@ public partial class AtlasView : UserControl
     /// <summary>The last 10 s of the player's drawn position as a fading line (new point only when it moved ≥ 0.5 m).</summary>
     // ------------------------------------------------------------------ pets below level 3 (A2M-11)
     private List<Core.Atlas.MonsterTemplate> _monsters = new();
-    private List<(string Pet, int Level, Core.Atlas.MonsterTemplate Template)>? _petLayer;
+    private List<(Core.GameDb.PetInfo Pet, int Level, Core.Atlas.MonsterTemplate Template)>? _petLayer;
+    private readonly List<(double X, double Y, int Index)> _petMarkers = new();   // screen positions drawn this frame, for the right-click card
     private long _petLayerKey = -1;
     // soft, so the markers never compete with the nodes: red = not owned / level 0, orange = 1, yellow = 2; level 3 draws nothing
     private static readonly Brush[] PetLevelBrush = [Soft(0xE0, 0x47, 0x3F), Soft(0xF0, 0x8A, 0x24), Soft(0xF2, 0xC2, 0x5A)];
@@ -319,7 +320,8 @@ public partial class AtlasView : UserControl
         if (_petLayer is null || _petLayerKey != key)
         {
             _petLayerKey = key;
-            _petLayer = new List<(string, int, Core.Atlas.MonsterTemplate)>();
+            _petLayer = new List<(Core.GameDb.PetInfo, int, Core.Atlas.MonsterTemplate)>();
+            HidePetInfo();
             var below = 0;
             foreach (var pet in _meter.Pets.All)
             {
@@ -333,13 +335,15 @@ public partial class AtlasView : UserControl
                     var hit = false;
                     if (pet.Droppers.Length > 0) { for (var i = 0; i < pet.Droppers.Length && !hit; i++) hit = pet.Droppers[i].Equals(t.Name, StringComparison.OrdinalIgnoreCase); }
                     else hit = t.Name.EndsWith(pet.Name, StringComparison.OrdinalIgnoreCase) && (t.Name.Length == pet.Name.Length || t.Name[t.Name.Length - pet.Name.Length - 1] == ' ');
-                    if (hit) _petLayer.Add((pet.Name, level, t));
+                    if (hit) _petLayer.Add((pet, level, t));
                 }
             }
-            PetsBox.ToolTip = string.Format(T.AtlasPetsTip, below, _petLayer.Select(x => x.Pet).Distinct().Count());
+            PetsBox.ToolTip = string.Format(T.AtlasPetsTip, below, _petLayer.Select(x => x.Pet.Id).Distinct().Count());
         }
-        foreach (var (pet, level, t) in _petLayer)
+        _petMarkers.Clear();
+        for (var li = 0; li < _petLayer.Count; li++)
         {
+            var (pet, level, t) = _petLayer[li];
             var brush = PetLevelBrush[Math.Clamp(level, 0, 2)];
             double sx = 0, sy = 0; var n = 0;
             foreach (var (x, y) in t.Points)
@@ -349,7 +353,7 @@ public partial class AtlasView : UserControl
                 if (vx < -50 || vy < -50 || vx > Viewport.ActualWidth + 50 || vy > Viewport.ActualHeight + 50) { sx += vx; sy += vy; n++; continue; }
                 var dot = new Ellipse { Width = 7, Height = 7, Fill = brush };
                 Canvas.SetLeft(dot, vx - 3.5); Canvas.SetTop(dot, vy - 3.5);
-                Overlay.Children.Add(dot);
+                Overlay.Children.Add(dot); _petMarkers.Add((vx, vy, li));
                 sx += vx; sy += vy; n++;
             }
             if (n == 0) continue;
@@ -358,10 +362,10 @@ public partial class AtlasView : UserControl
             var badge = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), Background = brush, BorderBrush = PetInk, BorderThickness = new Thickness(1),
                                      Child = new TextBlock { Text = level.ToString(), FontSize = 10, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
             Canvas.SetLeft(badge, cx - 9); Canvas.SetTop(badge, cy - 9);
-            Overlay.Children.Add(badge);
+            Overlay.Children.Add(badge); _petMarkers.Add((cx, cy, li));
             if (_scale * _f >= 0.12)
             {
-                var text = new TextBlock { Text = pet, FontSize = 10.5, Foreground = Brushes.White, Background = PetInk, Padding = new Thickness(3, 0, 3, 0), Opacity = 0.85 };
+                var text = new TextBlock { Text = pet.Name, FontSize = 10.5, Foreground = Brushes.White, Background = PetInk, Padding = new Thickness(3, 0, 3, 0), Opacity = 0.85 };
                 Canvas.SetLeft(text, cx + 11); Canvas.SetTop(text, cy - 8);
                 Overlay.Children.Add(text);
             }
@@ -486,6 +490,7 @@ public partial class AtlasView : UserControl
 
     private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)
     {
+        HidePetInfo();
         var p = e.GetPosition(Viewport);
         var k = e.Delta > 0 ? 1.15 : 1 / 1.15;
         var next = Math.Clamp(_scale * k, 0.08, 12);
@@ -497,6 +502,7 @@ public partial class AtlasView : UserControl
     private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
     {
         _dragFrom = e.GetPosition(Viewport); _dragTx = _tx; _dragTy = _ty;
+        HidePetInfo();
         Viewport.CaptureMouse();
         e.Handled = true; // not the window-drag
     }
@@ -515,6 +521,17 @@ public partial class AtlasView : UserControl
     {
         if (_cal is null) return;
         var p = e.GetPosition(Viewport);
+        if (PetsBox.IsChecked == true && _petLayer is not null)
+        {
+            var best = -1; var bestD = 14.0 * 14.0;
+            for (var i = 0; i < _petMarkers.Count; i++)
+            {
+                var dx = _petMarkers[i].X - p.X; var dy = _petMarkers[i].Y - p.Y; var d = dx * dx + dy * dy;
+                if (d < bestD) { bestD = d; best = _petMarkers[i].Index; }
+            }
+            if (best >= 0) { ShowPetInfo(best, p); e.Handled = true; return; }
+        }
+        HidePetInfo();
         // screen → calibration pixel → world (the affine is scale + offset: invert through two known points)
         var px = (p.X - _tx) / (_f * _scale); var py = (p.Y - _ty) / (_f * _scale);
         var (ox, oy) = _cal.ToPixel(0, 0); var (ux, uy) = _cal.ToPixel(1000, 1000);
@@ -524,6 +541,38 @@ public partial class AtlasView : UserControl
         AppHost.Current.ShowNameNode(spot.Code);
         e.Handled = true;
     }
+
+    /// <summary>Card for a right-clicked pet marker: the mob (name, level/family/Named, spawns on this map) and the pet (our level, souls per level, other droppers, zones).</summary>
+    private void ShowPetInfo(int index, Point at)
+    {
+        var (pet, level, t) = _petLayer![index];
+        PetInfoTitle.Text = t.Name;
+        PetInfoTitle.Foreground = PetLevelBrush[Math.Clamp(level, 0, 2)];
+        var sb = new System.Text.StringBuilder(256);
+        sb.Append(t.Sub.Length > 0 ? t.Sub : t.Category).Append(" · ").AppendFormat(T.AtlasPetSpawns, t.Points.Length).Append('\n');
+        sb.AppendFormat(T.AtlasPetLine, pet.Name, level, pet.NeedSoul > 0 ? pet.NeedSoul : 5).Append('\n');
+        var others = 0;
+        for (var i = 0; i < pet.Droppers.Length; i++)
+        {
+            if (pet.Droppers[i].Equals(t.Name, StringComparison.OrdinalIgnoreCase)) continue;
+            sb.Append(others == 0 ? T.AtlasPetAlso + ' ' : ", ").Append(pet.Droppers[i]);
+            if (++others == 6) { sb.Append('…'); break; }
+        }
+        if (others > 0) sb.Append('\n');
+        if (pet.Zones.Count > 0)
+        {
+            sb.Append(T.AtlasPetZones).Append(' '); var first = true;
+            foreach (var z in pet.Zones) { if (!first) sb.Append(", "); sb.Append(z.Key); first = false; }
+        }
+        PetInfoBody.Text = sb.ToString().TrimEnd('\n');
+        PetInfo.Visibility = Visibility.Visible;
+        PetInfo.UpdateLayout();
+        var w = PetInfo.ActualWidth > 0 ? PetInfo.ActualWidth : 300; var h = PetInfo.ActualHeight > 0 ? PetInfo.ActualHeight : 90;
+        Canvas.SetLeft(PetInfo, Math.Max(4, Math.Min(at.X + 14, Viewport.ActualWidth - w - 4)));
+        Canvas.SetTop(PetInfo, Math.Max(4, Math.Min(at.Y - 10, Viewport.ActualHeight - h - 4)));
+    }
+
+    private void HidePetInfo() { if (PetInfo.Visibility == Visibility.Visible) PetInfo.Visibility = Visibility.Collapsed; }
 
     private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)
     {

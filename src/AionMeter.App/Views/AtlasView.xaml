@@ -72,6 +72,15 @@
                     </Image>
                     </Canvas>
                     <Canvas x:Name="Overlay" IsHitTestVisible="False" />
+                    <!-- right-click card for a pet marker; a sibling of Overlay so Refresh() does not wipe it (Diego, 2026-10-10) -->
+                    <Canvas IsHitTestVisible="False">
+                        <Border x:Name="PetInfo" Visibility="Collapsed" Background="#E6121826" BorderBrush="#55FFFFFF" BorderThickness="1" CornerRadius="8" Padding="10,7" MaxWidth="330">
+                            <StackPanel>
+                                <TextBlock x:Name="PetInfoTitle" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PetInfoBody" FontSize="11.5" Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </Canvas>
                 </Grid>
             </Border>
             <TextBlock Grid.Row="2" x:Name="HintText" Margin="18,6,18,10" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextMute}"

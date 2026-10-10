@@ -367,6 +367,10 @@ public sealed class UiText
     public string TopTitle { get; init; } = "Top DPS";
     public string PricesTitle { get; init; } = "Prices";
     public string AtlasPets { get; init; } = "Pets";
+    public string AtlasPetSpawns { get; init; } = "{0} spawns on this map";
+    public string AtlasPetLine { get; init; } = "Pet {0}: level {1}/3 · {2} souls per level";
+    public string AtlasPetAlso { get; init; } = "Also drops from:";
+    public string AtlasPetZones { get; init; } = "Zones:";
     public string AtlasPetsTip { get; init; } = "Spawns of the species whose pet is still below level 3: red = not owned, orange = level 1, yellow = level 2 ({0} pets below 3, {1} with spawns on this map)";
     public string CraftTitle { get; init; } = "Craft";
     public string TrayCraft { get; init; } = "What this character can craft now";
@@ -762,6 +766,10 @@ public sealed class UiText
         AtlasTitle = "Атлас",
         PricesTitle = "Цены",
         AtlasPets = "Питомцы",
+        AtlasPetSpawns = "{0} точек появления на этой карте",
+        AtlasPetLine = "Питомец {0}: уровень {1}/3 · {2} душ на уровень",
+        AtlasPetAlso = "Также выпадает с:",
+        AtlasPetZones = "Зоны:",
         AtlasPetsTip = "Точки появления монстров, чьи души питомцев ещё не собраны ({0} не хватает, {1} с точками на этой карте)",
         CraftTitle = "Крафт",
         TrayCraft = "Что этот персонаж может скрафтить сейчас",
