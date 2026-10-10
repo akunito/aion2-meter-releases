@@ -236,6 +236,7 @@ public partial class PriceWatchView : UserControl
         Results.Visibility = Visibility.Collapsed;
         MaxBox.Focus();
     }
+    private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(sender is FrameworkElement { Tag: string t } ? t : "meter");
     public event Action? CloseRequested;
     private void Close_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

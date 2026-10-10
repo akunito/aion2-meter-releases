@@ -49,6 +49,7 @@
             <Grid Margin="20,0,8,0">
                 <TextBlock Text="{Binding SettingsTitle, Source={x:Static s:UiText.Current}}" FontFamily="{StaticResource TitleFont}"
                            FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Style="{StaticResource IconButton}" Content="&#xE897;" FontSize="13" Click="Help_Click" WindowChrome.IsHitTestVisibleInChrome="True" Tag="settings" Margin="8,2,0,0" VerticalAlignment="Center" ToolTip="{Binding TipHelp, Source={x:Static s:UiText.Current}}" />
                 <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Cancel_Click" HorizontalAlignment="Right"
                         VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True" />
             </Grid>

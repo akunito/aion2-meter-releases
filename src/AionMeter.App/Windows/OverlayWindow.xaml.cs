@@ -722,6 +722,8 @@ public partial class OverlayWindow : Window
         ApplyClickThrough();
     }
 
+    private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(_tab);
+
     private void PopOut_Click(object sender, RoutedEventArgs e)
     {
         if (!_drag.JustDragged) AppHost.Current.PopOut(_tab, Width, Height);

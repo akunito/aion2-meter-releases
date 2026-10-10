@@ -141,6 +141,8 @@ public sealed class AppSettings
     public string CraftScope { get; set; } = "now";
     /// <summary>Pinned recipes (output item ids): always listed first, in every scope and in profit mode.</summary>
     public List<int> CraftFavourites { get; set; } = new();
+    /// <summary>Language of the in-app help pages ("en" default, "es"); independent of the UI language.</summary>
+    public string HelpLanguage { get; set; } = "en";
     /// <summary>Atlas: draw the spawn points of the monsters whose pet souls the character still lacks.</summary>
     public bool AtlasShowPets { get; set; } = true;   // on unless the user switches it off (Diego, 2026-10-10)
     /// <summary>Language of the item-name search in the Prices window ("en" / "es"), independent of the interface language.</summary>

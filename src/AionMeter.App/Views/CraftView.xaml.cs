@@ -122,6 +122,7 @@ public partial class CraftView : UserControl
         StatusText.Text = q.Length > 0 ? string.Format(T.CraftMatches, rows.Count, craftable) : string.Format(T.CraftStatus, craftable, rows.Count - craftable);
     }
 
+    private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(sender is FrameworkElement { Tag: string t } ? t : "meter");
     public event Action? CloseRequested;
     private void Close_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

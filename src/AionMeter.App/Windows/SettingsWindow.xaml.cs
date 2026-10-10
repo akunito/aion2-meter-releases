@@ -145,6 +145,8 @@ public partial class SettingsWindow : Window
         AppHost.Current.PreviewRowSize(percent);
     }
 
+    private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp("settings");
+
     /// <summary>Asks GitHub right away; a newer version also opens the update window.</summary>
     private async void CheckNow_Click(object sender, RoutedEventArgs e)
     {

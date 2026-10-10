@@ -372,6 +372,9 @@ public sealed class UiText
     public string TrayUpdate { get; init; } = "Update to {0}…";
     public string TrayCheckUpdates { get; init; } = "Check for updates";
     public string TrayReport { get; init; } = "Report a problem…";
+    public string HelpTitle { get; init; } = "Help";
+    public string TipHelp { get; init; } = "What this tab does and how to use it";
+    public string HelpMissing { get; init; } = "No help page for this tab in this build.";
     public string ReportTitle { get; init; } = "Report a problem";
     public string ReportHint { get; init; } = "Describe what happened and what you expected. A zip with the last two logs, crash files, your settings (without private addresses), the state summary and the build info is sent to Diego (he gets a Telegram message), or saved for you to paste on Discord.";
     public string ReportDescribe { get; init; } = "What happened? What were you doing in the game?";

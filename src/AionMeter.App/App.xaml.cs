@@ -518,6 +518,18 @@ public partial class App : Application
         w.Show();
     }
 
+    private HelpWindow? _helpWindow;
+    /// <summary>The "?" of a tab: one help window, re-pointed at the tab.</summary>
+    public void ShowHelp(string tab)
+    {
+        if (_helpWindow is not { IsLoaded: true })
+        {
+            _helpWindow = new HelpWindow(_meter.Settings);
+            _helpWindow.Closed += (_, _) => _helpWindow = null;
+        }
+        _helpWindow.ShowTab(tab);
+    }
+
     public void ShowSettings()
     {
         if (_settingsWindow is { IsLoaded: true })

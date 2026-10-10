@@ -257,6 +257,7 @@ public partial class TopDpsView : UserControl
         return 0;
     }
 
+    private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(sender is FrameworkElement { Tag: string t } ? t : "meter");
     public event Action? CloseRequested;
     private void Close_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

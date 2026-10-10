@@ -44,6 +44,7 @@
                                VerticalAlignment="Center" Margin="0,2,10,0" />
                     <TextBlock Text="{Binding PricesTitle, Source={x:Static s:UiText.Current}}" FontFamily="{StaticResource TitleFont}"
                                FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Style="{StaticResource IconButton}" Content="&#xE897;" FontSize="13" Click="Help_Click" Tag="prices" Margin="8,2,0,0" VerticalAlignment="Center" ToolTip="{Binding TipHelp, Source={x:Static s:UiText.Current}}" />
                     <TextBlock x:Name="StatusText" FontSize="12" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" Margin="14,2,40,0" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
