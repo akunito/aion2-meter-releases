@@ -40,6 +40,7 @@ public sealed class MeterService : IDisposable
         Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
         Recipes = RecipeBook.Load(Path.Combine(DataDirectory, "gamedb", "recipes.json"));
         Pets = PetBook.Load(Path.Combine(DataDirectory, "gamedb", "pets.json"));
+        Titles = TitleBook.Load(Path.Combine(DataDirectory, "gamedb", "titles.json"));
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
@@ -150,6 +151,8 @@ public sealed class MeterService : IDisposable
     public RecipeBook Recipes { get; private set; } = RecipeBook.Empty;
     /// <summary>Pets and the monsters that drop their souls (data/gamedb/pets.json) for the atlas "missing pets" layer (A2M-11).</summary>
     public PetBook Pets { get; private set; } = PetBook.Empty;
+    /// <summary>Titles (data/gamedb/titles.json): names and bonuses for the login title list → characters/&lt;key&gt;/titles.json (A2M-15).</summary>
+    public TitleBook Titles { get; private set; } = TitleBook.Empty;
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
@@ -409,6 +412,41 @@ public sealed class MeterService : IDisposable
         catch (IOException) { }
     }
 
+    private long _titlesCharacterMs = -1;
+    /// <summary>
+    /// characters/&lt;key&gt;/titles.json: owned titles with their bonuses, the permanent collection totals, and every title of the
+    /// character's faction still missing with how it is obtained (grade-first), so the AI side can say what to chase. Rewritten when
+    /// the login lists change. Achievements stay as raw ids: their wire id space (1000x/1100x/1150x/1200x/1280x/1700x) matches no
+    /// public database (aion2hub/questlog use 23xx/34xx/73xx…), 2026-10-10.
+    /// </summary>
+    private void WriteTitles()
+    {
+        if (_characterKey.Length == 0 || Titles.Count == 0 || Character.UpdatedMs == _titlesCharacterMs) return;
+        _titlesCharacterMs = Character.UpdatedMs;
+        var ownedIds = Character.Titles;
+        var faction = Titles.FactionOf(ownedIds);
+        var owned = new List<object>(ownedIds.Count); var missing = new List<TitleInfo>(600);
+        foreach (var t in Titles.All)
+        {
+            if (ownedIds.Contains(t.Id)) owned.Add(new { id = t.Id, name = t.Name, category = t.Category, grade = t.Grade, equipped = t.Equipped.Select(e => e.Stat + " " + e.Value), collection = t.Collection.Select(e => e.Stat + " " + e.Value) });
+            else if (t.Faction == faction) missing.Add(t);
+        }
+        missing.Sort((a, b) => { var c = TitleBook.GradeRank(a.Grade).CompareTo(TitleBook.GradeRank(b.Grade)); return c != 0 ? c : string.CompareOrdinal(a.Name, b.Name); });
+        var unknown = ownedIds.Count(id => Titles.Get(id) is null);
+        try
+        {
+            var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "titles.json");
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new
+            {
+                at = DateTimeOffset.Now.ToString("O"), faction = faction == 'l' ? "Elyos" : faction == 'd' ? "Asmodian" : "?", owned = owned.Count, unknownIds = unknown, missingSameFaction = missing.Count,
+                collectionTotals = Titles.CollectionTotals(ownedIds),
+                ownedTitles = owned,
+                missingTitles = missing.Select(t => new { id = t.Id, name = t.Name, category = t.Category, grade = t.Grade, how = t.Description, equipped = t.Equipped.Select(e => e.Stat + " " + e.Value), collection = t.Collection.Select(e => e.Stat + " " + e.Value) })
+            }, new System.Text.Json.JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        }
+        catch (IOException) { }
+    }
+
     /// <summary>state/summary.json: when each store last changed, where the player is, what is loaded — rewritten only when something moved.</summary>
     private void WriteSummary()
     {
@@ -420,6 +458,7 @@ public sealed class MeterService : IDisposable
         if (key == _lastSummary) return;
         _lastSummary = key;
         WriteCraftable();
+        WriteTitles();
         var o = new
         {
             savedAt = DateTimeOffset.Now.ToString("O"),
@@ -435,7 +474,7 @@ public sealed class MeterService : IDisposable
             character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count },
             broker = new { listings = Broker.Count },
             prices = new { lastPollAt = Prices.LastPollAt?.ToString("O"), watches = Prices.Count },
-            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json", "characters/<key>/profile.json (official API: gear, skills+levels, stigmas, daevanion boards; profile.txt readable)", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
+            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json", "characters/<key>/titles.json (owned titles + bonuses, collection totals, missing same-faction titles with how to get them)", "characters/<key>/profile.json (official API: gear, skills+levels, stigmas, daevanion boards; profile.txt readable)", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
         };
         try
         {
