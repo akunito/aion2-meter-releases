@@ -87,6 +87,7 @@ public sealed class UiText
     public string TimersTitle { get; init; } = "Boss timers";
     public string TimersButton { get; init; } = "Boss timers";
     public string HkTimers { get; init; } = "Boss timers";
+    public string HkAtlas { get; init; } = "Atlas";
     public string TipTimers { get; init; } = "Boss respawn timers";
     public string TrayTimers { get; init; } = "Boss timers…";
     public string TimersHint { get; init; } =
@@ -489,6 +490,7 @@ public sealed class UiText
         TimersTitle = "Таймеры боссов",
         TimersButton = "Таймеры боссов",
         HkTimers = "Таймеры боссов",
+        HkAtlas = "Атлас",
         TipTimers = "Таймеры респауна боссов",
         TrayTimers = "Таймеры боссов…",
         TimersHint = "Откройте в игре список полевых боссов карты (карта → Исследование → полевые монстры) — таймеры придут прямо с сервера. Убийство полевого босса рядом с вами перезапускает его отсчёт. У боссов квестовых и запечатанных инстансов нет общего таймера — их здесь нет. 🔔 — оповещать перед респауном.",

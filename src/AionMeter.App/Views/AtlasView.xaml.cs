@@ -88,6 +88,7 @@ public partial class AtlasView : UserControl
             if (FollowBox.IsChecked == true && _mapShown > 0) _followZoomed = false; else FitWholeMap();
         }
         Overlay.Children.Clear();
+        _labelPts.Clear();
         if (_cal is null) return;
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         if (++_ticks % 60 == 1) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} image {_imgW}x{_imgH} self {atlas.SelfId} at ({atlas.SelfX:0},{atlas.SelfY:0}) age {(atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : -1)}s estimate {atlas.Estimate(now)} positions {atlas.PositionsSeen}/{atlas.SelfPositions} self spots {atlas.Count(map)}");
@@ -433,6 +434,15 @@ public partial class AtlasView : UserControl
     }
 
     /// <summary>A node: its icon (when known) over the dot, the units left beside it.</summary>
+    // Label anchors drawn this frame: at low zoom neighbouring nodes overprint each other's counts, so a label is skipped when
+    // another sits within 14 px (A2M-8 "label clustering"; the icon/dot still draws, the count comes back when zooming in).
+    private readonly List<(double X, double Y)> _labelPts = new();
+    private bool LabelRoom(double x, double y)
+    {
+        for (var i = 0; i < _labelPts.Count; i++) { var dx = _labelPts[i].X - x; var dy = _labelPts[i].Y - y; if (dx * dx + dy * dy < 14 * 14) return false; }
+        _labelPts.Add((x, y)); return true;
+    }
+
     private void Mark(double px, double py, double r, Brush fill, ImageSource? icon, string label, Brush textBrush, bool dim = false)
     {
         if (icon is null) { Dot(px, py, r, fill, label, textBrush); return; }
@@ -443,7 +453,7 @@ public partial class AtlasView : UserControl
         var image = new Image { Source = icon, Width = size, Height = size, Opacity = dim ? 0.45 : 1 };
         Canvas.SetLeft(image, x - size / 2); Canvas.SetTop(image, y - size / 2);
         Overlay.Children.Add(image);
-        if (label.Length == 0 || _scale * _f < 0.12) return;
+        if (label.Length == 0 || _scale * _f < 0.12 || !LabelRoom(x, y)) return;
         var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
         Canvas.SetLeft(text, x + size / 2 + 1); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);
@@ -464,7 +474,7 @@ public partial class AtlasView : UserControl
             Canvas.SetLeft(mark, x - 4.5); Canvas.SetTop(mark, y - 5.5);
             Overlay.Children.Add(mark);
         }
-        if (label.Length == 0 || _scale * _f < 0.12) return; // labels only once zoomed in enough to read the map
+        if (label.Length == 0 || _scale * _f < 0.12 || !LabelRoom(x, y)) return; // labels only once zoomed in enough to read the map
         var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
         Canvas.SetLeft(text, x + r + 2); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);
