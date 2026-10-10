@@ -88,7 +88,7 @@ public partial class OverlayWindow : Window
     public void Refresh()
     {
         _vm.ShowGear = _settings.ShowGear;
-        PricesPill.Foreground = _meter.Prices.AnyHit ? PriceHitBrush : PricePillBrush;   // green pill = something is at or under its maximum
+        if (TabPrices.IsChecked != true) TabPrices.Foreground = _meter.Prices.AnyHit ? PriceHitBrush : PricePillBrush;   // green tab = something is at or under its maximum
         // Looking at an old fight when a new pull starts: jump back to live so the fight is never missed.
         if ((_saved is not null || _segment is not null) &&
             _meter.Tracker.Segments() is [{ IsActive: true } running, ..] && running.StartedAt > _selectedAt)
@@ -266,9 +266,10 @@ public partial class OverlayWindow : Window
     private void ApplyClickThrough()
     {
         if (_hwnd == 0) return;
-        if (_settings.ClickThrough) NativeMethods.SetExStyle(_hwnd, NativeMethods.WS_EX_TRANSPARENT);
+        var through = _settings.ClickThrough && !TabActive;   // a tab needs the mouse
+        if (through) NativeMethods.SetExStyle(_hwnd, NativeMethods.WS_EX_TRANSPARENT);
         else NativeMethods.SetExStyle(_hwnd, 0, NativeMethods.WS_EX_TRANSPARENT);
-        Frame.BorderBrush = _settings.ClickThrough ? (Brush)FindResource("Line") : (Brush)FindResource("CardFrame");
+        Frame.BorderBrush = through ? (Brush)FindResource("Line") : (Brush)FindResource("CardFrame");
     }
 
     private void ApplyLock()
@@ -314,8 +315,8 @@ public partial class OverlayWindow : Window
     {
         _settings.OverlayLeft = Left;
         _settings.OverlayTop = Top;
-        _settings.OverlayWidth = Width;
-        _settings.OverlayHeight = Height;
+        if (TabActive) _settings.OverlayTabSizes[_tab] = [Width, Height];
+        else { _settings.OverlayWidth = Width; _settings.OverlayHeight = Height; }
         _settings.Save();
     }
 
@@ -652,19 +653,59 @@ public partial class OverlayWindow : Window
         if (sender is FrameworkElement { DataContext: EventPill p }) p.ResetSync();
     }
 
-    private void Top_Click(object sender, RoutedEventArgs e)
+    // ------------------------------------------------------------ tabs (2026-10-10): Atlas / Top / Prices live inside the card
+    private string _tab = "meter";
+    private Views.AtlasView? _atlasView;
+    private Views.TopDpsView? _topView;
+    private Views.PriceWatchView? _pricesView;
+    private static readonly Dictionary<string, (double W, double H)> TabDefaultSize = new() { ["atlas"] = (900, 760), ["top"] = (860, 680), ["prices"] = (820, 440) };
+
+    public string Tab => _tab;
+    public bool TabActive => _tab != "meter";
+    public Views.AtlasView? AtlasView => _atlasView;
+
+    private void Tab_Click(object sender, RoutedEventArgs e)
     {
-        if (!_drag.JustDragged) AppHost.Current.ShowTop();
+        if (_drag.JustDragged) { SyncTabChecks(); return; }
+        if (sender is ToggleButton { Tag: string tab }) SelectTab(tab == _tab ? "meter" : tab);
     }
 
-    private void Atlas_Click(object sender, RoutedEventArgs e)
+    /// <summary>Shows one of the tabs: the card takes the size that tab had last time (meter: the usual overlay size).</summary>
+    public void SelectTab(string tab)
     {
-        if (!_drag.JustDragged) AppHost.Current.ShowAtlas();
+        if (tab == _tab) { SyncTabChecks(); return; }
+        if (!TabActive) { _settings.OverlayWidth = Width; _settings.OverlayHeight = Height; }
+        else _settings.OverlayTabSizes[_tab] = [Width, Height];
+        _tab = tab;
+        if (tab == "meter")
+        {
+            TabHost.Visibility = Visibility.Collapsed;
+            Width = Math.Max(MinWidth, _settings.OverlayWidth); Height = Math.Max(MinHeight, _settings.OverlayHeight);
+        }
+        else
+        {
+            TabHost.Content = tab switch
+            {
+                "atlas" => _atlasView ??= Wire(new Views.AtlasView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
+                "top" => _topView ??= Wire(new Views.TopDpsView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
+                _ => _pricesView ??= Wire(new Views.PriceWatchView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
+            };
+            TabHost.Visibility = Visibility.Visible;
+            var size = _settings.OverlayTabSizes.TryGetValue(tab, out var sz) && sz.Length == 2 ? (sz[0], sz[1]) : TabDefaultSize[tab];
+            Width = Math.Max(MinWidth, size.Item1); Height = Math.Max(MinHeight, size.Item2);
+        }
+        SyncTabChecks();
+        ApplyClickThrough();
+        FitToMonitor();
+        _settings.Save();
     }
 
-    private void Prices_Click(object sender, RoutedEventArgs e)
+    private static T Wire<T>(T view, Action<T> wire) { wire(view); return view; }
+
+    private void SyncTabChecks()
     {
-        if (!_drag.JustDragged) AppHost.Current.ShowPrices();
+        TabMeter.IsChecked = _tab == "meter"; TabAtlas.IsChecked = _tab == "atlas"; TabTop.IsChecked = _tab == "top"; TabPrices.IsChecked = _tab == "prices";
+        if (TabPrices.IsChecked == true) TabPrices.Foreground = (Brush)FindResource("Text");
     }
 
     private static readonly System.Windows.Media.Brush PricePillBrush = Frozen(0xF3, 0xD5, 0x8F), PriceHitBrush = Frozen(0x8E, 0xE0, 0x8A);

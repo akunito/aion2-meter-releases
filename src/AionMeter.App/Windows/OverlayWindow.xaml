@@ -193,6 +193,36 @@
             </Setter>
         </Style>
 
+        <!-- Tab pills (header): icon-only toggles, the checked one filled gold -->
+        <Style x:Key="TabPill" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="#F3D58F" />
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Margin" Value="0,0,3,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="6" BorderThickness="1" BorderBrush="#C9A45C" Background="#99111726">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#FFE3A6" />
+                                <Setter TargetName="Bd" Property="Background" Value="#CC1A2235" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#C9A45C" />
+                                <Setter Property="Foreground" Value="#1A1407" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- Tool pills (Atlas, Top): outlined, not filled, so they do not read as timers -->
         <Style x:Key="ToolPill" TargetType="Button">
             <Setter Property="Foreground" Value="#F3D58F" />
@@ -371,16 +401,26 @@
                  and the timer on the right -->
             <Grid x:Name="Header" Background="Transparent" Height="26">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock x:Name="TitleText" Text="{Binding Title}" FontFamily="{StaticResource TitleFont}" FontSize="16" FontWeight="SemiBold"
+                <!-- Tabs (private branch, 2026-10-10): the meter, the atlas, the top DPS and the prices share this window;
+                     the card grows to the size each tab was last given (settings.OverlayTabSizes) -->
+                <StackPanel x:Name="TabStrip" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <ToggleButton x:Name="TabMeter" Style="{StaticResource TabPill}" Tag="meter" Click="Tab_Click" IsChecked="True" ToolTip="DPS" Content="&#xE9D9;" />
+                    <ToggleButton x:Name="TabAtlas" Style="{StaticResource TabPill}" Tag="atlas" Click="Tab_Click" ToolTip="{Binding T.TrayAtlas}" Content="&#xE707;" />
+                    <ToggleButton x:Name="TabTop" Style="{StaticResource TabPill}" Tag="top" Click="Tab_Click" ToolTip="{Binding T.TrayTop}" Content="&#xE734;" />
+                    <ToggleButton x:Name="TabPrices" Style="{StaticResource TabPill}" Tag="prices" Click="Tab_Click" ToolTip="{Binding T.TrayPrices}" Content="&#xE8EC;" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1" x:Name="TitleText" Text="{Binding Title}" FontFamily="{StaticResource TitleFont}" FontSize="16" FontWeight="SemiBold"
                            Typography.Capitals="SmallCaps" Foreground="{StaticResource Cream}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" Margin="0,0,10,0" Effect="{StaticResource TextShadow}" Background="Transparent"
                            MouseWheel="Title_MouseWheel" ToolTip="{Binding TitleTip}" />
 
-                <StackPanel x:Name="Toolbar" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Visibility="Collapsed">
+                <StackPanel Grid.Column="1" x:Name="Toolbar" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Visibility="Collapsed">
                     <Button Style="{StaticResource Chip}" Content="{Binding ModeLabel}" Click="Mode_Click" Margin="0,0,5,0"
                             ToolTip="Boss only / everything you hit" />
                     <Button Style="{StaticResource Chip}" Content="{Binding LanguageCode}" Click="Language_Click" Margin="0,0,5,0"
@@ -397,7 +437,7 @@
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE711;" Click="Hide_Click" ToolTip="Hide (Ctrl+Shift+D)" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Effect="{StaticResource TextShadow}">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Effect="{StaticResource TextShadow}">
                     <StackPanel x:Name="LabelPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Ellipse Width="7" Height="7" Margin="0,0,7,0" Fill="{Binding HeaderBrush}">
                             <Ellipse.Style>
@@ -546,25 +586,6 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <!-- Atlas (private branch): the nodes map -->
-                        <Button Style="{StaticResource ToolPill}" Click="Atlas_Click" ToolTip="{Binding T.TrayAtlas}" Margin="6,0,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE707;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,6,0" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding T.AtlasTitle}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource ToolPill}" Click="Top_Click" ToolTip="{Binding T.TrayTop}" Margin="6,0,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE734;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,6,0" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding T.TopTitle}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="PricesPill" Style="{StaticResource ToolPill}" Click="Prices_Click" ToolTip="{Binding T.TrayPrices}" Margin="6,0,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8EC;" FontFamily="{StaticResource IconFont}" FontSize="12" Margin="0,1,6,0" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding T.PricesTitle}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
                         <Button Style="{StaticResource FooterLink}" Content="{Binding T.OpenFight}" Click="Details_Click" Effect="{StaticResource TextShadow}" />
                         <Button Style="{StaticResource FooterLink}" Click="Segments_Click" Effect="{StaticResource TextShadow}">
                             <TextBlock><Run Text="{Binding T.Fights, Mode=OneWay}" /><Run Text=" " /><Run Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" /></TextBlock>
@@ -573,6 +594,9 @@
                 </Grid>
             </StackPanel>
         </Grid>
+
+        <!-- The active tab's view (Atlas / Top / Prices) over the meter's rows; collapsed on the meter tab -->
+        <ContentControl x:Name="TabHost" Visibility="Collapsed" Margin="8,46,8,52" Focusable="False" />
 
         <!-- Resize grip -->
         <Thumb x:Name="ResizeGrip" Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,5,5"

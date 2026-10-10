@@ -122,6 +122,8 @@ public sealed class AppSettings
     public List<string> AtlasZoneKinds { get; set; } = new();
     /// <summary>Language of the item-name search in the Prices window ("en" / "es"), independent of the interface language.</summary>
     public string PriceSearchLanguage { get; set; } = "en";
+    /// <summary>Card size per overlay tab ("atlas", "top", "prices"): [width, height] in DIP; the meter tab uses OverlayWidth/Height.</summary>
+    public Dictionary<string, double[]> OverlayTabSizes { get; set; } = new();
     /// <summary>Browser link of a watched item; {id} and {server} are replaced. The site is a hash-routed SPA: "/#/items/{id}" (Diego, 2026-10-09); "/item/{id}" renders blank.</summary>
     public string PriceItemUrl { get; set; } = "https://aion2.exchange/#/items/{id}";
     public double AtlasHeight { get; set; } = 760;

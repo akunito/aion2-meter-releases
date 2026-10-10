@@ -243,7 +243,7 @@ public partial class App : Application
             _overlay.Show();
             _autoShown = true;
         }
-        else if (!engaged && _autoShown && _overlay.IsVisible && s.AutoHideSeconds > 0 &&
+        else if (!engaged && _autoShown && _overlay.IsVisible && s.AutoHideSeconds > 0 && !_overlay.TabActive &&
                  now - _lastEngagedTick > s.AutoHideSeconds * 1000L && !_overlay.IsMouseOver)
         {
             _overlay.Hide();
@@ -404,35 +404,9 @@ public partial class App : Application
         _timersWindow.Show();
     }
 
-    private AtlasWindow? _atlasWindow;
+    public void ShowTop() => ShowTab("top");
 
-    private TopDpsWindow? _topWindow;
-
-    public void ShowTop()
-    {
-        if (_topWindow is { IsLoaded: true })
-        {
-            Activate(_topWindow);
-            return;
-        }
-        _topWindow = new TopDpsWindow(_meter);
-        _topWindow.Closed += (_, _) => _topWindow = null;
-        _topWindow.Show();
-    }
-
-    private PriceWatchWindow? _pricesWindow;
-
-    public void ShowPrices()
-    {
-        if (_pricesWindow is { IsLoaded: true })
-        {
-            Activate(_pricesWindow);
-            return;
-        }
-        _pricesWindow = new PriceWatchWindow(_meter);
-        _pricesWindow.Closed += (_, _) => _pricesWindow = null;
-        _pricesWindow.Show();
-    }
+    public void ShowPrices() => ShowTab("prices");
 
     /// <summary>Notification and chime for every watched item at or under its maximum, once per hourly poll.</summary>
     private void CheckPriceAlerts()
@@ -450,7 +424,7 @@ public partial class App : Application
     {
         // One prompt at a time: a newer gather replaces an older unanswered prompt.
         if (_nameWindow is { IsLoaded: true } open) { if (open.Code == code) { open.Activate(); return; } open.Close(); }
-        Window owner = _atlasWindow is { IsLoaded: true } a ? a : _overlay;
+        Window owner = _overlay;
         var w = new NameNodeWindow(_meter, code, fromGather);
         _nameWindow = w;
         w.Closed += (_, _) => { if (_nameWindow == w) _nameWindow = null; };
@@ -459,22 +433,15 @@ public partial class App : Application
         w.Activate();
     }
 
-    private void ToggleAtlas()
-    {
-        if (_atlasWindow is { IsLoaded: true }) _atlasWindow.Close();
-        else ShowAtlas();
-    }
+    private void ToggleAtlas() => ShowTab(_overlay.Tab == "atlas" ? "meter" : "atlas");
 
-    public void ShowAtlas()
+    public void ShowAtlas() => ShowTab("atlas");
+
+    /// <summary>Atlas, Top and Prices are tabs of the overlay card (2026-10-10): show the card and switch; "meter" switches back.</summary>
+    private void ShowTab(string tab)
     {
-        if (_atlasWindow is { IsLoaded: true })
-        {
-            Activate(_atlasWindow);
-            return;
-        }
-        _atlasWindow = new AtlasWindow(_meter);
-        _atlasWindow.Closed += (_, _) => _atlasWindow = null;
-        _atlasWindow.Show();
+        if (!_overlay.IsVisible) SetOverlayVisible(true);
+        _overlay.SelectTab(tab);
     }
 
     private readonly HashSet<(string, DateTimeOffset, int)> _eventAlerted = new();
