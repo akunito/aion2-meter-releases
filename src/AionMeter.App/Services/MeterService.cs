@@ -135,7 +135,18 @@ public sealed class MeterService : IDisposable
     /// <summary>Watches that were at or under their maximum on the last poll, each once per poll.</summary>
     public List<PriceWatch> TakePriceHits() { var l = new List<PriceWatch>(); while (_priceHits.TryDequeue(out var h)) l.Add(h); return l; }
 
-    public void PollPricesNow() => _ = PollPricesAsync(Environment.TickCount64);
+    /// <summary>Manual "Check now": one read per 5 minutes (Diego, 2026-10-10: the button must not be spammable; the site samples hourly anyway). Returns false while cooling down.</summary>
+    public DateTimeOffset PricesManualUntil { get; private set; } = DateTimeOffset.MinValue;
+    /// <summary>A newly added watch is read at once regardless of the manual cooldown.</summary>
+    public void PollPricesAfterAdd() => _ = PollPricesAsync(Environment.TickCount64);
+    public bool PollPricesNow()
+    {
+        var now = DateTimeOffset.Now;
+        if (now < PricesManualUntil) return false;
+        PricesManualUntil = now.AddMinutes(5);
+        _ = PollPricesAsync(Environment.TickCount64);
+        return true;
+    }
 
     private async Task PollPricesAsync(long now)
     {

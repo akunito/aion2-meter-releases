@@ -59,7 +59,7 @@
                             ToolTip="{Binding PricesCopyTip, Source={x:Static s:UiText.Current}}" />
                     <Button Style="{StaticResource Small}" Content="{Binding PricesCopyItems, Source={x:Static s:UiText.Current}}" Click="CopyItems_Click" Margin="0,0,10,0"
                             ToolTip="{Binding PricesCopyTip, Source={x:Static s:UiText.Current}}" />
-                    <Button Style="{StaticResource Small}" Content="{Binding PricesCheckNow, Source={x:Static s:UiText.Current}}" Click="Check_Click" Margin="0,0,10,0" />
+                    <Button x:Name="CheckButton" Style="{StaticResource Small}" Content="{Binding PricesCheckNow, Source={x:Static s:UiText.Current}}" Click="Check_Click" Margin="0,0,10,0" MinWidth="110" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click"
                             ToolTip="{Binding TipClose, Source={x:Static s:UiText.Current}}" />
                 </StackPanel>

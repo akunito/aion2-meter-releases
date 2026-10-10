@@ -75,8 +75,9 @@ public partial class PriceWatchView : UserControl
         _meter = meter;
         InitializeComponent();
         if (_meter.Settings.PriceSearchLanguage == "es") LangEs.IsChecked = true; else LangEn.IsChecked = true;
-        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; };
-        Unloaded += (_, _) => _meter.Prices.Changed -= OnChanged;
+        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
+        Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _cooldown.Stop(); };
+        _cooldown.Tick += Cooldown_Tick;
     }
 
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
@@ -124,7 +125,7 @@ public partial class PriceWatchView : UserControl
         ItemBox.Text = ""; MaxBox.Text = ""; SellBox.IsChecked = false;
         if (cached is null)
             _ = Task.Run(async () => { var info = await _meter.Items.GetAsync(item); if (info is not null) _meter.Prices.Rename(item, info.Name); });
-        _meter.PollPricesNow();
+        _meter.PollPricesAfterAdd();
     }
 
     private void Max_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter && sender is TextBox tb) { ApplyMax(tb); Keyboard.ClearFocus(); } }
@@ -157,7 +158,16 @@ public partial class PriceWatchView : UserControl
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception ex) { Log.Error("Open item page", ex); }
     }
 
-    private void Check_Click(object sender, RoutedEventArgs e) => _meter.PollPricesNow();
+    // The button shows the remaining cooldown (m:ss) and stays disabled until it ends; the deadline lives in the service, so switching tabs keeps it.
+    private readonly System.Windows.Threading.DispatcherTimer _cooldown = new() { Interval = TimeSpan.FromSeconds(1) };
+    private void Check_Click(object sender, RoutedEventArgs e) { _meter.PollPricesNow(); Cooldown_Tick(null, EventArgs.Empty); }
+    private void Cooldown_Tick(object? sender, EventArgs e)
+    {
+        var left = _meter.PricesManualUntil - DateTimeOffset.Now;
+        if (left <= TimeSpan.Zero) { CheckButton.IsEnabled = true; CheckButton.Content = T.PricesCheckNow; return; }
+        CheckButton.IsEnabled = false;
+        CheckButton.Content = $"{T.PricesCheckNow} ({(int)left.TotalMinutes}:{left.Seconds:00})";
+    }
 
     /// <summary>The browser-console export scripts ride along in data/gamedb; the watched-items one gets the current ids spliced in.</summary>
     private void CopyMarket_Click(object sender, RoutedEventArgs e) => CopyScript("aion2exchange-export.js", null);
