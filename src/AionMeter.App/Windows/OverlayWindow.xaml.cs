@@ -618,7 +618,7 @@ public partial class OverlayWindow : Window
         var i = 0;
         foreach (var ev in _meter.Events)
         {
-            var (start, end, running) = ev.Next(now, _meter.Settings.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null);
+            var (start, end, running) = ev.Next(now, _meter.Settings.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null, _meter.Settings.EventPeriods.TryGetValue(ev.Key, out var pm) ? pm : null);
             var left = running ? end - now : start - now;
             var span = left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{Math.Max(0, (int)Math.Ceiling(left.TotalMinutes))}m";
             var text = running ? $"{ev.Name} ● {span}" : $"{ev.Name} {span}";
@@ -637,15 +637,29 @@ public partial class OverlayWindow : Window
     /// <summary>The player saw the event begin: re-phase its cycle from this instant (and log it, to find the packet that announces it later).</summary>
     private void SyncEventNow(string key)
     {
-        _meter.Settings.EventAnchors[key] = DateTimeOffset.Now;
+        var now = DateTimeOffset.Now;
+        // Two marks ≥ 30 min apart measure the real cycle: elapsed / rounded number of cycles. Within ±15 min of nominal it is kept
+        // and used from then on, so a Shugo that really runs every 63 min stops drifting after the second mark.
+        if (_meter.Settings.EventAnchors.TryGetValue(key, out var prev) && _meter.Events.FirstOrDefault(e => e.Key == key) is { EveryMinutes: > 0 } ev)
+        {
+            var elapsed = (now - prev).TotalMinutes;
+            if (elapsed >= 30 && elapsed <= 24 * 60)
+            {
+                var cycles = Math.Max(1, Math.Round(elapsed / ev.EveryMinutes));
+                var period = elapsed / cycles;
+                if (Math.Abs(period - ev.EveryMinutes) <= 15) { _meter.Settings.EventPeriods[key] = period; Log.Info($"Event {key}: period measured {period:0.0} min from {cycles} cycle(s) between marks"); }
+            }
+        }
+        _meter.Settings.EventAnchors[key] = now;
         _meter.Settings.Save();
-        Log.Info($"Event {key} synced by hand: starts now ({DateTimeOffset.Now:HH:mm:ss})");
+        Log.Info($"Event {key} synced by hand: starts now ({now:HH:mm:ss})");
         UpdateEventLabels();
     }
 
     private void ResetEventSync(string key)
     {
-        if (_meter.Settings.EventAnchors.Remove(key)) _meter.Settings.Save();
+        var removed = _meter.Settings.EventAnchors.Remove(key) | _meter.Settings.EventPeriods.Remove(key);
+        if (removed) _meter.Settings.Save();
         UpdateEventLabels();
     }
 

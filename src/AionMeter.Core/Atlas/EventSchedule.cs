@@ -10,11 +10,12 @@ public sealed record ScheduledEvent(string Key, string Name, TimeZoneInfo Zone, 
     /// a start the player confirmed in game, which re-phases the cycle (the server's hourly events drift after a restart or
     /// maintenance; measured 2026-10-09, Shugo ran at :03 instead of :00).
     /// </summary>
-    public (DateTimeOffset Start, DateTimeOffset End, bool Running) Next(DateTimeOffset now, DateTimeOffset? anchor = null)
+    public (DateTimeOffset Start, DateTimeOffset End, bool Running) Next(DateTimeOffset now, DateTimeOffset? anchor = null, double? periodMinutes = null)
     {
         if (anchor is { } a && EveryMinutes > 0)
         {
-            var period = TimeSpan.FromMinutes(EveryMinutes);
+            // periodMinutes: the cycle measured from two of the player's marks (Diego 2026-10-10: Shugo starts a few minutes later every hour on EU)
+            var period = TimeSpan.FromMinutes(periodMinutes is > 0 ? periodMinutes.Value : EveryMinutes);
             var elapsed = now - a;
             var cycles = Math.Floor(elapsed / period);
             var start = a + period * cycles;

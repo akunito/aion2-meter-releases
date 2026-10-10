@@ -141,10 +141,12 @@ public partial class TopDpsView : UserControl
         var server = _scope == 1 ? _meter.Data.ServerName(_meter.Tracker.SelfServerId) : null;
         var cls = _class;
         CountText.Text = T.TopBoardLoading;
+        LoadingBox.Visibility = Visibility.Visible;   // the first Server/Europe read walks several ranking pages (Diego: "tarda en cargar la primera vez")
         try
         {
             var rows = await _meter.Leaderboard.TopAsync("eu", cls, server);
             if (load != _boardLoad) return;
+            LoadingBox.Visibility = Visibility.Collapsed;
             var me = _meter.Tracker.SelfName;
             var rank = 0;
             foreach (var b in rows)
@@ -159,6 +161,7 @@ public partial class TopDpsView : UserControl
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
             if (load != _boardLoad) return;
+            LoadingBox.Visibility = Visibility.Collapsed;
             Log.Error("Leaderboard read failed", ex);
             CountText.Text = string.Format(T.TopBoardFailed, ex.Message);
         }

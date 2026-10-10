@@ -51,6 +51,8 @@
                               Content="{Binding AtlasPets, Source={x:Static s:UiText.Current}}" />
                     <CheckBox x:Name="FollowBox" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0"
                               Content="{Binding AtlasFollow, Source={x:Static s:UiText.Current}}" />
+                    <TextBlock Text="{Binding AtlasZoom, Source={x:Static s:UiText.Current}}" Foreground="{StaticResource TextDim}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <Slider x:Name="ZoomSlider" Width="130" Minimum="-2.53" Maximum="2.48" Value="0" VerticalAlignment="Center" Margin="0,0,12,0" IsMoveToPointEnabled="True" ValueChanged="Zoom_Changed" />
                     <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="0,0,10,0" Content="Fit" Click="Fit_Click" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" />
                 </StackPanel>
@@ -74,10 +76,10 @@
                     <Canvas x:Name="Overlay" IsHitTestVisible="False" />
                     <!-- right-click card for a pet marker; a sibling of Overlay so Refresh() does not wipe it (Diego, 2026-10-10) -->
                     <Canvas IsHitTestVisible="False">
-                        <Border x:Name="PetInfo" Visibility="Collapsed" Background="#E6121826" BorderBrush="#55FFFFFF" BorderThickness="1" CornerRadius="8" Padding="10,7" MaxWidth="330">
+                        <Border x:Name="PetInfo" Visibility="Collapsed" Background="#E6121826" BorderBrush="#55FFFFFF" BorderThickness="1" CornerRadius="8" Padding="10,7" MaxWidth="360">
                             <StackPanel>
                                 <TextBlock x:Name="PetInfoTitle" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextWrapping="Wrap" />
-                                <TextBlock x:Name="PetInfoBody" FontSize="11.5" Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                <TextBlock x:Name="PetInfoBody" FontSize="11.5" Foreground="{StaticResource TextDim}" TextWrapping="Wrap" Margin="0,4,0,0" LineHeight="17" />
                             </StackPanel>
                         </Border>
                     </Canvas>

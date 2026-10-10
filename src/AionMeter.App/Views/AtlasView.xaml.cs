@@ -105,11 +105,23 @@ public partial class AtlasView : UserControl
         RefreshToggles(spots);
         DrawZones(spots);
         if (PetsBox.IsChecked == true) DrawPets();
+        // Zoomed out, icons of one kind pile up: group the spots of a kind per 28 px screen cell and draw one icon with the count
+        // (same idea as the label clustering; Diego 2026-10-10). Zoomed in, every spot draws on its own as before.
+        var cluster = _scale * _f < 0.16;
+        var cells = cluster ? new Dictionary<(string, int, int), (double Px, double Py, int N, int Alive)>() : null;
         foreach (var s in spots)
         {
             var (px, py) = _cal.ToPixel(s.X, s.Y);
             // Known kinds draw their icon at the spot (name kept for the tooltip-less reader: none); unknown kinds a plain dot.
-            var icon = KindOf(s) is { } kn ? Icon(kn) : null;
+            var kind = KindOf(s);
+            if (cells is not null && kind is not null)
+            {
+                var sx = px * _f * _scale + _tx; var sy = py * _f * _scale + _ty;
+                var key = (kind, (int)Math.Floor(sx / 28), (int)Math.Floor(sy / 28));
+                cells[key] = cells.TryGetValue(key, out var c) ? (c.Px + px, c.Py + py, c.N + 1, c.Alive + (s.Alive && !s.Seeded ? 1 : 0)) : (px, py, 1, s.Alive && !s.Seeded ? 1 : 0);
+                continue;
+            }
+            var icon = kind is { } kn ? Icon(kn) : null;
             if (s.Seeded) { Mark(px, py, 3, Gone, icon, "", Gone, dim: true); continue; }
             if (s.Alive && s.InView) Mark(px, py, 5, Live, icon, $"{s.UnitsLeft}", Live);
             else if (s.Alive) Mark(px, py, 4, Live, icon, $"{s.UnitsLeft}?", Gone);
@@ -119,6 +131,9 @@ public partial class AtlasView : UserControl
                 Mark(px, py, 4, Gone, icon, eta, Gone, dim: true);
             }
         }
+        if (cells is not null)
+            foreach (var ((kind, _, _), c) in cells)
+                Mark(c.Px / c.N, c.Py / c.N, 5, c.Alive > 0 ? Live : Gone, Icon(kind), c.N > 1 ? "×" + c.N : "", c.Alive > 0 ? Live : Gone, dim: c.Alive == 0, always: true);
 
         // The player: the last reported position (casts, gathers, state records) when fresh, else the centroid of
         // what is in view (hollow dot), else the last report however old.
@@ -443,9 +458,9 @@ public partial class AtlasView : UserControl
         _labelPts.Add((x, y)); return true;
     }
 
-    private void Mark(double px, double py, double r, Brush fill, ImageSource? icon, string label, Brush textBrush, bool dim = false)
+    private void Mark(double px, double py, double r, Brush fill, ImageSource? icon, string label, Brush textBrush, bool dim = false, bool always = false)
     {
-        if (icon is null) { Dot(px, py, r, fill, label, textBrush); return; }
+        if (icon is null) { Dot(px, py, r, fill, label, textBrush, always: always); return; }
         var x = px * _f * _scale + _tx;
         var y = py * _f * _scale + _ty;
         if (x < -200 || y < -200 || x > Viewport.ActualWidth + 200 || y > Viewport.ActualHeight + 200) return;
@@ -453,14 +468,14 @@ public partial class AtlasView : UserControl
         var image = new Image { Source = icon, Width = size, Height = size, Opacity = dim ? 0.45 : 1 };
         Canvas.SetLeft(image, x - size / 2); Canvas.SetTop(image, y - size / 2);
         Overlay.Children.Add(image);
-        if (label.Length == 0 || _scale * _f < 0.12 || !LabelRoom(x, y)) return;
+        if (label.Length == 0 || (!always && (_scale * _f < 0.12 || !LabelRoom(x, y)))) return;
         var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
         Canvas.SetLeft(text, x + size / 2 + 1); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);
     }
 
     /// <summary>Draws at the screen position of a calibration pixel; shapes and text keep their size at any zoom.</summary>
-    private void Dot(double px, double py, double r, Brush fill, string label, Brush textBrush, bool skull = false)
+    private void Dot(double px, double py, double r, Brush fill, string label, Brush textBrush, bool skull = false, bool always = false)
     {
         var x = px * _f * _scale + _tx;
         var y = py * _f * _scale + _ty;
@@ -474,7 +489,7 @@ public partial class AtlasView : UserControl
             Canvas.SetLeft(mark, x - 4.5); Canvas.SetTop(mark, y - 5.5);
             Overlay.Children.Add(mark);
         }
-        if (label.Length == 0 || _scale * _f < 0.12 || !LabelRoom(x, y)) return; // labels only once zoomed in enough to read the map
+        if (label.Length == 0 || (!always && (_scale * _f < 0.12 || !LabelRoom(x, y)))) return; // labels only once zoomed in enough to read the map
         var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
         Canvas.SetLeft(text, x + r + 2); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);
@@ -496,6 +511,27 @@ public partial class AtlasView : UserControl
     {
         Zoom.ScaleX = Zoom.ScaleY = _scale;
         Pan.X = _tx; Pan.Y = _ty;
+        if (!_syncingSlider) { _syncingSlider = true; ZoomSlider.Value = Math.Log(_scale); _syncingSlider = false; }
+    }
+
+    // Wheel ticks and drag moves arrive faster than the data layer redraws (hundreds of icons at low zoom): the map transform
+    // applies at once, the layer is redrawn at most every 40 ms (Diego 2026-10-10: "el zoom con la rueda va muy lento").
+    private readonly System.Windows.Threading.DispatcherTimer _redraw = new(System.Windows.Threading.DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(40) };
+    private bool _redrawWired, _syncingSlider;
+    private void RequestRefresh()
+    {
+        if (!_redrawWired) { _redrawWired = true; _redraw.Tick += (_, _) => { _redraw.Stop(); Refresh(); }; }
+        if (!_redraw.IsEnabled) _redraw.Start();
+    }
+
+    private void Zoom_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_syncingSlider || _cal is null) return;
+        var next = Math.Clamp(Math.Exp(e.NewValue), 0.08, 12);
+        var cx = Viewport.ActualWidth / 2; var cy = Viewport.ActualHeight / 2;   // zoom around the centre of the view
+        _tx = cx - (cx - _tx) * next / _scale; _ty = cy - (cy - _ty) * next / _scale; _scale = next;
+        _syncingSlider = true; Apply(); _syncingSlider = false;
+        RequestRefresh();
     }
 
     private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -506,7 +542,7 @@ public partial class AtlasView : UserControl
         var next = Math.Clamp(_scale * k, 0.08, 12);
         k = next / _scale; _scale = next;
         _tx = p.X - (p.X - _tx) * k; _ty = p.Y - (p.Y - _ty) * k;
-        Apply(); Refresh(); // zooming keeps Follow: the next tick re-centres at the new zoom
+        Apply(); RequestRefresh(); // zooming keeps Follow: the next tick re-centres at the new zoom
     }
 
     private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
@@ -523,7 +559,7 @@ public partial class AtlasView : UserControl
         var p = e.GetPosition(Viewport);
         _tx = _dragTx + (p.X - from.X); _ty = _dragTy + (p.Y - from.Y);
         FollowBox.IsChecked = false;
-        Apply(); Refresh();
+        Apply(); RequestRefresh();
     }
 
     /// <summary>Right-click on a node: name its kind (also the way to name a node that was in view before the meter started).</summary>
@@ -557,24 +593,26 @@ public partial class AtlasView : UserControl
     {
         var (pet, level, t) = _petLayer![index];
         PetInfoTitle.Text = t.Name;
-        PetInfoTitle.Foreground = PetLevelBrush[Math.Clamp(level, 0, 2)];
-        var sb = new System.Text.StringBuilder(256);
-        sb.Append(t.Sub.Length > 0 ? t.Sub : t.Category).Append(" · ").AppendFormat(T.AtlasPetSpawns, t.Points.Length).Append('\n');
-        sb.AppendFormat(T.AtlasPetLine, pet.Name, level, pet.NeedSoul > 0 ? pet.NeedSoul : 5).Append('\n');
-        var others = 0;
+        PetInfoTitle.Foreground = Brushes.White;
+        var body = PetInfoBody.Inlines; body.Clear();
+        void Label(string t) => body.Add(new System.Windows.Documents.Run(t + " ") { FontWeight = FontWeights.SemiBold, Foreground = Brushes.White });
+        void Text(string t) => body.Add(new System.Windows.Documents.Run(t));
+        void Br() => body.Add(new System.Windows.Documents.LineBreak());
+        Text((t.Sub.Length > 0 ? t.Sub : t.Category) + " · " + string.Format(T.AtlasPetSpawns, t.Points.Length)); Br();
+        Label(T.AtlasPets + ":"); Text(pet.Name + " · ");
+        body.Add(new System.Windows.Documents.Run(string.Format(T.AtlasPetLevel, level)) { FontWeight = FontWeights.Bold, Foreground = PetLevelBrush[Math.Clamp(level, 0, 2)] });
+        Text(" · " + string.Format(T.AtlasPetNeed, pet.NeedSoul > 0 ? pet.NeedSoul : 5));
+        var others = new System.Text.StringBuilder(); var n = 0;
         for (var i = 0; i < pet.Droppers.Length; i++)
         {
             if (pet.Droppers[i].Equals(t.Name, StringComparison.OrdinalIgnoreCase)) continue;
-            sb.Append(others == 0 ? T.AtlasPetAlso + ' ' : ", ").Append(pet.Droppers[i]);
-            if (++others == 6) { sb.Append('…'); break; }
+            if (n > 0) others.Append(", ");
+            others.Append(pet.Droppers[i]);
+            if (++n == 6) { others.Append('…'); break; }
         }
-        if (others > 0) sb.Append('\n');
-        if (pet.Zones.Count > 0)
-        {
-            sb.Append(T.AtlasPetZones).Append(' '); var first = true;
-            foreach (var z in pet.Zones) { if (!first) sb.Append(", "); sb.Append(z.Key); first = false; }
-        }
-        PetInfoBody.Text = sb.ToString().TrimEnd('\n');
+        if (n > 0) { Br(); Label(T.AtlasPetAlso); Text(others.ToString()); }
+        if (pet.Zones.Count > 0) { Br(); Label(T.AtlasPetZones); Text(string.Join(", ", pet.Zones.Keys)); }
+
         PetInfo.Visibility = Visibility.Visible;
         PetInfo.UpdateLayout();
         var w = PetInfo.ActualWidth > 0 ? PetInfo.ActualWidth : 300; var h = PetInfo.ActualHeight > 0 ? PetInfo.ActualHeight : 90;

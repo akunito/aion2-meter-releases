@@ -368,6 +368,9 @@ public sealed class UiText
     public string TopTitle { get; init; } = "Top DPS";
     public string PricesTitle { get; init; } = "Prices";
     public string AtlasPets { get; init; } = "Pets";
+    public string AtlasZoom { get; init; } = "Zoom";
+    public string AtlasPetLevel { get; init; } = "level {0}/3";
+    public string AtlasPetNeed { get; init; } = "{0} souls per level";
     public string AtlasPetSpawns { get; init; } = "{0} spawns on this map";
     public string AtlasPetLine { get; init; } = "Pet {0}: level {1}/3 · {2} souls per level";
     public string AtlasPetAlso { get; init; } = "Also drops from:";
@@ -395,7 +398,7 @@ public sealed class UiText
     public string PricesCopyTip { get; init; } = "Browser-console script that exports the whole market of your server (one request per 400 ms) from your own session; the watched-items one reads just these items on every server.";
     public string PricesAdd { get; init; } = "Add";
     public string PricesCheckNow { get; init; } = "Check now";
-    public string PricesItemId { get; init; } = "item id";
+    public string PricesItemId { get; init; } = "item id (or pick one above)";
     public string PricesMax { get; init; } = "max price";
     public string PricesNotChecked { get; init; } = "not checked yet";
     public string PricesLastPoll { get; init; } = "last check {0}";
@@ -424,6 +427,7 @@ public sealed class UiText
     public string TopScopeHistory { get; init; } = "My fights";
     public string TopScopeServer { get; init; } = "Server {0}";
     public string TopScopeGlobal { get; init; } = "Europe";
+    public string TopLoading { get; init; } = "Loading data…";
     public string TopBoardLoading { get; init; } = "Reading the ranking pages (aion2index.com, one per 400 ms)…";
     public string TopBoardHint { get; init; } = "Strongest characters by combat power (aion2index.com, refreshed daily; the game publishes no DPS ranking). Load profile shows their official gear, Daevanion and skill levels to compare with yours.";
     public string TopBoardFailed { get; init; } = "The ranking pages did not answer: {0}";
@@ -771,6 +775,10 @@ public sealed class UiText
         AtlasTitle = "Атлас",
         PricesTitle = "Цены",
         AtlasPets = "Питомцы",
+        AtlasZoom = "Масштаб",
+        AtlasPetLevel = "уровень {0}/3",
+        AtlasPetNeed = "{0} душ на уровень",
+        TopLoading = "Загрузка данных…",
         AtlasPetSpawns = "{0} точек появления на этой карте",
         AtlasPetLine = "Питомец {0}: уровень {1}/3 · {2} душ на уровень",
         AtlasPetAlso = "Также выпадает с:",

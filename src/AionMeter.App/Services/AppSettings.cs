@@ -57,6 +57,8 @@ public sealed class AppSettings
     public Dictionary<string, EventAlert> EventAlerts { get; set; } = new();
     /// <summary>A start the player confirmed in game per periodic event (key → time): re-phases the cycle until "back to the schedule".</summary>
     public Dictionary<string, DateTimeOffset> EventAnchors { get; set; } = new();
+    /// <summary>Cycle length measured from two "Starts now" marks of the same event (minutes); absent = the nominal every_minutes.</summary>
+    public Dictionary<string, double> EventPeriods { get; set; } = new();
 
     public EventAlert AlertFor(string key)
     {
@@ -94,7 +96,7 @@ public sealed class AppSettings
 
     // Updates
     /// <summary>Ask GitHub for a newer version shortly after start and every few hours.</summary>
-    public bool CheckUpdates { get; set; } = true;
+    public bool CheckUpdates { get; set; } = false;   // off for the clan build; Diego keeps it on in his settings.json (2026-10-10)
     /// <summary>Installed copies download a new version by themselves and install it at a quiet moment.</summary>
     public bool AutoInstallUpdates { get; set; } = false; // akunito build: see Updater.DownloadsDisabled
     /// <summary>A version the user chose to skip ("0.2.0"): not announced again, a newer one is.</summary>

@@ -23,7 +23,8 @@ public partial class PriceWatchView : UserControl
         public Row(PriceWatch w, string catalogName)
         {
             Watch = w;
-            Name = string.IsNullOrEmpty(w.Name) ? catalogName : w.Name;
+            // English name on the row (old watches stored "en · es" in Name: keep the part before the dot), Spanish only on hover (Diego, 2026-10-10)
+            Name = catalogName.Length > 0 ? catalogName : (w.Name.IndexOf(" · ", StringComparison.Ordinal) is var cut && cut > 0 ? w.Name[..cut] : w.Name);
             // Two clocks: the site's sample (what the price really is as of) and our read of it. They differ by up to an hour.
             var when = w.LastCheck is { } c ? string.Format(T.PricesChecked, c.ToLocalTime().ToString("HH:mm")) : T.PricesNotChecked;
             var sample = w.SampledAt is { } sa ? string.Format(T.PricesSampled, sa.ToLocalTime().ToString("HH:mm")) + " · " : "";
@@ -53,6 +54,7 @@ public partial class PriceWatchView : UserControl
         public PriceWatch Watch { get; }
         public string Name { get; }
         public string Alt { get; init; } = "";
+        public object? AltTip => Alt.Length > 0 ? Alt : null;   // null = no tooltip at all
         public string Sub { get; }
         public string MaxText { get; }
         public string LastText { get; }
@@ -88,8 +90,7 @@ public partial class PriceWatchView : UserControl
         foreach (var w in _meter.Prices.All())
         {
             var (en, es) = _meter.Names.Both(w.Item);
-            var other = _meter.Settings.PriceSearchLanguage == "es" ? en : es;   // the row shows the name in the other language under it
-            rows.Add(new Row(w, _meter.Names.Name(w.Item, _meter.Settings.PriceSearchLanguage) ?? _meter.Items.NameOf(w.Item)) { Alt = other is not null && other != w.Name ? other : "" });
+            rows.Add(new Row(w, en ?? _meter.Items.NameOf(w.Item) ?? "") { Alt = es ?? "" });
         }
         List.ItemsSource = rows;
         var last = _meter.Prices.LastPollAt;
