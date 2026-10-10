@@ -31,7 +31,7 @@
                     <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" ToolTip="{Binding TipClose, Source={x:Static s:UiText.Current}}" />
                 </StackPanel>
             </Grid>
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="18,0,18,8">
+            <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="18,0,18,8">
                 <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Width="220" TextChanged="Filter_Changed" ToolTip="{Binding CraftSearch, Source={x:Static s:UiText.Current}}" />
                 <ItemsControl x:Name="Professions" Margin="8,0,0,0" VerticalAlignment="Center">
                     <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -47,7 +47,7 @@
                           Content="{Binding CraftProfit, Source={x:Static s:UiText.Current}}" ToolTip="{Binding CraftProfitTip, Source={x:Static s:UiText.Current}}" />
                 <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="12,0,0,0" Click="LoadMarket_Click" Content="{Binding CraftLoadMarket, Source={x:Static s:UiText.Current}}"
                         ToolTip="{Binding CraftLoadMarketTip, Source={x:Static s:UiText.Current}}" />
-            </StackPanel>
+            </WrapPanel>
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="14,0,14,10">
                 <ItemsControl x:Name="List">
                     <ItemsControl.ItemTemplate>

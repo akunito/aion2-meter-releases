@@ -66,6 +66,7 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Grid Margin="18,0,8,0">
@@ -155,7 +156,7 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
             </StackPanel>
-            <WrapPanel Grid.Row="4" Orientation="Horizontal" Margin="18,6,18,14">
+            <WrapPanel Grid.Row="4" Orientation="Horizontal" Margin="18,6,18,4">
                 <StackPanel Orientation="Horizontal" Margin="0,0,18,4">
                     <TextBox x:Name="ItemBox" Style="{StaticResource Field}" Width="130" ToolTip="{Binding PricesItemId, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
                     <TextBox x:Name="MaxBox" Style="{StaticResource Field}" Width="130" Margin="8,0,0,0" ToolTip="{Binding PricesMax, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
@@ -163,6 +164,9 @@
                     <Button Style="{StaticResource Small}" Content="{Binding PricesAdd, Source={x:Static s:UiText.Current}}" Click="Add_Click" Margin="8,0,0,0" />
                     <TextBlock x:Name="AddHint" Foreground="{StaticResource TextMute}" FontSize="11.5" VerticalAlignment="Center" Margin="12,0,0,0" />
                 </StackPanel>
+            </WrapPanel>
+            <!-- the three actions in their own row, bottom-right; they wrap inside the row when the card is narrow (Diego, 2026-10-10) -->
+            <WrapPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="18,0,18,12">
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                     <Button Style="{StaticResource Small}" Content="{Binding PricesCopyMarket, Source={x:Static s:UiText.Current}}" Click="CopyMarket_Click" Margin="0,0,6,0"
                             ToolTip="{Binding PricesCopyTip, Source={x:Static s:UiText.Current}}" />
