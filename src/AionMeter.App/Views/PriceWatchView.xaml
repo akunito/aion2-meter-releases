@@ -74,14 +74,9 @@
                                VerticalAlignment="Center" Margin="0,2,10,0" />
                     <TextBlock Text="{Binding PricesTitle, Source={x:Static s:UiText.Current}}" FontFamily="{StaticResource TitleFont}"
                                FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock x:Name="StatusText" FontSize="12" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" Margin="14,2,0,0" />
+                    <TextBlock x:Name="StatusText" FontSize="12" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" Margin="14,2,40,0" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Style="{StaticResource Small}" Content="{Binding PricesCopyMarket, Source={x:Static s:UiText.Current}}" Click="CopyMarket_Click" Margin="0,0,6,0"
-                            ToolTip="{Binding PricesCopyTip, Source={x:Static s:UiText.Current}}" />
-                    <Button Style="{StaticResource Small}" Content="{Binding PricesCopyItems, Source={x:Static s:UiText.Current}}" Click="CopyItems_Click" Margin="0,0,10,0"
-                            ToolTip="{Binding PricesCopyTip, Source={x:Static s:UiText.Current}}" />
-                    <Button x:Name="CheckButton" Style="{StaticResource Small}" Content="{Binding PricesCheckNow, Source={x:Static s:UiText.Current}}" Click="Check_Click" Margin="0,0,10,0" MinWidth="110" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click"
                             ToolTip="{Binding TipClose, Source={x:Static s:UiText.Current}}" />
                 </StackPanel>
@@ -160,13 +155,22 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
             </StackPanel>
-            <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="18,6,18,14">
-                <TextBox x:Name="ItemBox" Style="{StaticResource Field}" Width="130" ToolTip="{Binding PricesItemId, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
-                <TextBox x:Name="MaxBox" Style="{StaticResource Field}" Width="130" Margin="8,0,0,0" ToolTip="{Binding PricesMax, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
-                <CheckBox x:Name="SellBox" Style="{StaticResource DarkCheck}" Content="{Binding PricesSell, Source={x:Static s:UiText.Current}}" VerticalAlignment="Center" Margin="10,0,0,0" />
-                <Button Style="{StaticResource Small}" Content="{Binding PricesAdd, Source={x:Static s:UiText.Current}}" Click="Add_Click" Margin="8,0,0,0" />
-                <TextBlock x:Name="AddHint" Foreground="{StaticResource TextMute}" FontSize="11.5" VerticalAlignment="Center" Margin="12,0,0,0" />
-            </StackPanel>
+            <WrapPanel Grid.Row="4" Orientation="Horizontal" Margin="18,6,18,14">
+                <StackPanel Orientation="Horizontal" Margin="0,0,18,4">
+                    <TextBox x:Name="ItemBox" Style="{StaticResource Field}" Width="130" ToolTip="{Binding PricesItemId, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
+                    <TextBox x:Name="MaxBox" Style="{StaticResource Field}" Width="130" Margin="8,0,0,0" ToolTip="{Binding PricesMax, Source={x:Static s:UiText.Current}}" KeyDown="Add_KeyDown" />
+                    <CheckBox x:Name="SellBox" Style="{StaticResource DarkCheck}" Content="{Binding PricesSell, Source={x:Static s:UiText.Current}}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <Button Style="{StaticResource Small}" Content="{Binding PricesAdd, Source={x:Static s:UiText.Current}}" Click="Add_Click" Margin="8,0,0,0" />
+                    <TextBlock x:Name="AddHint" Foreground="{StaticResource TextMute}" FontSize="11.5" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <Button Style="{StaticResource Small}" Content="{Binding PricesCopyMarket, Source={x:Static s:UiText.Current}}" Click="CopyMarket_Click" Margin="0,0,6,0"
+                            ToolTip="{Binding PricesCopyTip, Source={x:Static s:UiText.Current}}" />
+                    <Button Style="{StaticResource Small}" Content="{Binding PricesCopyItems, Source={x:Static s:UiText.Current}}" Click="CopyItems_Click" Margin="0,0,6,0"
+                            ToolTip="{Binding PricesCopyTip, Source={x:Static s:UiText.Current}}" />
+                    <Button x:Name="CheckButton" Style="{StaticResource Small}" Content="{Binding PricesCheckNow, Source={x:Static s:UiText.Current}}" Click="Check_Click" MinWidth="110" />
+                </StackPanel>
+            </WrapPanel>
         </Grid>
     </Border>
 </UserControl>
