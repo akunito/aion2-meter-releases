@@ -324,14 +324,17 @@ public partial class AtlasView : UserControl
             foreach (var pet in _meter.Pets.All)
             {
                 var level = pets.GetValueOrDefault(pet.Id, 0);
-                if (level >= 3) continue;
+                if (level >= 3 || pet.Souls.Length == 0) continue;   // no soul item = not farmable from monsters (shop/event pet)
                 below++;
-                // A soul drops from its own species: the template is a known dropper of the soul item, or its name contains the pet's name as a word
-                // ("Hill Coradon" for the pet Coradon; verified on Verteron 2026-10-10: 22 of Akunita's 82 missing pets have spawns there).
-                var word = new System.Text.RegularExpressions.Regex(@"\b" + System.Text.RegularExpressions.Regex.Escape(pet.Name) + @"\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                // Diego 2026-10-10: word matching ("Spider", "Slime", "Swarm"...) painted mobs that drop nothing → only aion2hub droppers of the soul item.
+                // Pets with a soul but no hub drop data (Coradon, Young Tog…) fall back to the species as the LAST word(s) of the template name.
                 foreach (var t in _monsters)
-                    if (word.IsMatch(t.Name) || Array.Exists(pet.Droppers, d => d.Equals(t.Name, StringComparison.OrdinalIgnoreCase)))
-                        _petLayer.Add((pet.Name, level, t));
+                {
+                    var hit = false;
+                    if (pet.Droppers.Length > 0) { for (var i = 0; i < pet.Droppers.Length && !hit; i++) hit = pet.Droppers[i].Equals(t.Name, StringComparison.OrdinalIgnoreCase); }
+                    else hit = t.Name.EndsWith(pet.Name, StringComparison.OrdinalIgnoreCase) && (t.Name.Length == pet.Name.Length || t.Name[t.Name.Length - pet.Name.Length - 1] == ' ');
+                    if (hit) _petLayer.Add((pet.Name, level, t));
+                }
             }
             PetsBox.ToolTip = string.Format(T.AtlasPetsTip, below, _petLayer.Select(x => x.Pet).Distinct().Count());
         }

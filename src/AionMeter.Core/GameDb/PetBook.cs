@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace AionMeter.Core.GameDb;
 
-public sealed record PetInfo(int Id, string Name, string Category, int NeedSoul, string[] Droppers, Dictionary<string, int> Zones);
+public sealed record PetInfo(int Id, string Name, string Category, int NeedSoul, int[] Souls, string[] Droppers, Dictionary<string, int> Zones);
 
 /// <summary>Pets with the monsters that drop their souls, from data/gamedb/pets.json (questlog pets + aion2hub NPC drops, tools/pets.py).</summary>
 public sealed class PetBook
@@ -22,11 +22,13 @@ public sealed class PetBook
             var list = new List<PetInfo>(220);
             foreach (var p in doc.RootElement.EnumerateArray())
             {
+                var souls = new List<int>();
+                if (p.TryGetProperty("souls", out var ss)) foreach (var sv in ss.EnumerateArray()) souls.Add(sv.GetInt32());
                 var droppers = new List<string>();
                 if (p.TryGetProperty("droppers", out var ds)) foreach (var d in ds.EnumerateArray()) droppers.Add(d.GetProperty("name").GetString() ?? "");
                 var zones = new Dictionary<string, int>();
                 if (p.TryGetProperty("zones", out var zs)) foreach (var z in zs.EnumerateObject()) zones[z.Name] = z.Value.GetInt32();
-                list.Add(new PetInfo(p.GetProperty("id").GetInt32(), p.GetProperty("name").GetString() ?? "", p.TryGetProperty("cat", out var c) ? c.GetString() ?? "" : "", p.TryGetProperty("needSoul", out var n) && n.ValueKind == JsonValueKind.Number ? n.GetInt32() : 0, droppers.ToArray(), zones));
+                list.Add(new PetInfo(p.GetProperty("id").GetInt32(), p.GetProperty("name").GetString() ?? "", p.TryGetProperty("cat", out var c) ? c.GetString() ?? "" : "", p.TryGetProperty("needSoul", out var n) && n.ValueKind == JsonValueKind.Number ? n.GetInt32() : 0, souls.ToArray(), droppers.ToArray(), zones));
             }
             return new PetBook(list.ToArray());
         }
