@@ -40,6 +40,7 @@ public sealed class MeterService : IDisposable
         Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
         Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
         Recipes = RecipeBook.Load(Path.Combine(DataDirectory, "gamedb", "recipes.json"));
+        Market = Core.Market.MarketSnapshot.Load(MarketPath);
         Pets = PetBook.Load(Path.Combine(DataDirectory, "gamedb", "pets.json"));
         Titles = TitleBook.Load(Path.Combine(DataDirectory, "gamedb", "titles.json"));
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
@@ -171,6 +172,22 @@ public sealed class MeterService : IDisposable
     public RecipeBook Recipes { get; private set; } = RecipeBook.Empty;
     /// <summary>Pets and the monsters that drop their souls (data/gamedb/pets.json) for the atlas "missing pets" layer (A2M-11).</summary>
     public PetBook Pets { get; private set; } = PetBook.Empty;
+    /// <summary>The last market export Diego loaded (Craft → Load market file…), kept as market\latest.json; the craft profit calculator reads it.</summary>
+    public Core.Market.MarketSnapshot Market { get; private set; } = Core.Market.MarketSnapshot.Empty;
+    public static string MarketPath => Path.Combine(AppSettings.AppDataDir, "market", "latest.json");
+    public event Action? MarketChanged;
+    /// <summary>Copies the export next to the state and reloads it; false when the file does not parse as an export.</summary>
+    public bool ImportMarket(string path)
+    {
+        var snap = Core.Market.MarketSnapshot.Load(path);
+        if (snap.Count == 0) return false;
+        try { Directory.CreateDirectory(Path.GetDirectoryName(MarketPath)!); File.Copy(path, MarketPath, overwrite: true); }
+        catch (IOException ex) { Log.Error("Market import", ex); return false; }
+        Market = snap;
+        Log.Info($"Market export loaded: {snap.Count} items, {snap.Server}, captured {snap.CapturedAt:yyyy-MM-dd HH:mm}");
+        MarketChanged?.Invoke();
+        return true;
+    }
     /// <summary>Titles (data/gamedb/titles.json): names and bonuses for the login title list → characters/&lt;key&gt;/titles.json (A2M-15).</summary>
     public TitleBook Titles { get; private set; } = TitleBook.Empty;
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>

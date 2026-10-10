@@ -7,6 +7,9 @@ public sealed record Recipe(int Output, string Name, string Profession, int Leve
 /// <summary>One recipe against what the player holds: Times = how many crafts the stock allows; Missing = materials short (item, need, have).</summary>
 public sealed record CraftOption(Recipe Recipe, int Times, (int Item, int Need, int Have)[] Missing);
 
+/// <summary>Value = cheapest listing × yield after the broker fee; Cost = cheapest listings of the materials; UnpricedMaterials = materials the snapshot does not list (cost counted as 0: a gathered or quest item, or a gap).</summary>
+public sealed record CraftProfit(Recipe Recipe, long OutUnit, long Value, long Cost, long Profit, int UnpricedMaterials, int Times);
+
 /// <summary>Recipes from data/gamedb/recipes.json (aion2hub, 1,684 global recipes) matched against the inventory counts.</summary>
 public sealed class RecipeBook
 {
@@ -36,6 +39,29 @@ public sealed class RecipeBook
     }
 
     /// <summary>Every recipe the stock allows at least once (Times ≥ 1), plus those short by at most <paramref name="maxMissingKinds"/> materials; sorted craftable first, then by level descending.</summary>
+    /// <summary>Every recipe whose output has a price, by profit (one craft). <paramref name="count"/> = stock, for "×N now".</summary>
+    public List<CraftProfit> Profit(Func<int, long?> price, double feePercent, Func<int, int> count, string? profession = null)
+    {
+        var list = new List<CraftProfit>(_recipes.Length / 4);
+        var keep = 1 - Math.Clamp(feePercent, 0, 50) / 100.0;
+        foreach (var r in _recipes)
+        {
+            if (profession is not null && !string.Equals(r.Profession, profession, StringComparison.OrdinalIgnoreCase)) continue;
+            if (price(r.Output) is not { } unit) continue;
+            long cost = 0; var unpriced = 0; var times = int.MaxValue;
+            foreach (var (item, qty) in r.Materials)
+            {
+                if (price(item) is { } p) cost += p * qty; else unpriced++;
+                var have = count(item); times = Math.Min(times, qty > 0 ? have / qty : times);
+            }
+            if (r.Materials.Length == 0) times = 0;
+            var value = (long)(unit * Math.Max(1, r.Yield) * keep);
+            list.Add(new CraftProfit(r, unit, value, cost, value - cost, unpriced, times == int.MaxValue ? 0 : times));
+        }
+        list.Sort((a, b) => b.Profit.CompareTo(a.Profit));
+        return list;
+    }
+
     public List<CraftOption> Evaluate(Func<int, int> count, int maxMissingKinds = 2, string? profession = null)
     {
         var result = new List<CraftOption>();

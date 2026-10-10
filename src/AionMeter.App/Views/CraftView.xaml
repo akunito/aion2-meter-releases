@@ -43,6 +43,10 @@
                 </ItemsControl>
                 <CheckBox x:Name="NearBox" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0" Click="Filter_Click"
                           Content="{Binding CraftShowNear, Source={x:Static s:UiText.Current}}" />
+                <CheckBox x:Name="ProfitBox" Style="{StaticResource DarkCheck}" VerticalAlignment="Center" Margin="12,0,0,0" Click="Filter_Click"
+                          Content="{Binding CraftProfit, Source={x:Static s:UiText.Current}}" ToolTip="{Binding CraftProfitTip, Source={x:Static s:UiText.Current}}" />
+                <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="12,0,0,0" Click="LoadMarket_Click" Content="{Binding CraftLoadMarket, Source={x:Static s:UiText.Current}}"
+                        ToolTip="{Binding CraftLoadMarketTip, Source={x:Static s:UiText.Current}}" />
             </StackPanel>
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="14,0,14,10">
                 <ItemsControl x:Name="List">
