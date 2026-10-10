@@ -550,16 +550,16 @@
                 </Grid>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}" Margin="0,0,10,0">
                         <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" Margin="0,0,7,0" />
                         <TextBlock x:Name="FooterText" FontSize="12" Foreground="#B4BCCB" TextTrimming="CharacterEllipsis"
                                    Effect="{StaticResource TextShadow}" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,12,0">
-                        <!-- Boss timers: always visible, shows the next respawn -->
+                    <WrapPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,12,0">
+                        <!-- Boss timers: always visible, shows the next respawn; the whole strip wraps into lines on a narrow overlay (Diego, 2026-10-11) -->
                         <Button Style="{StaticResource TimersPill}" Click="Timers_Click" ToolTip="{Binding T.TipTimers}" Margin="10,0,0,0">
                             <Button.ContextMenu>
                                 <ContextMenu Opened="BossMenu_Opened">
@@ -575,11 +575,11 @@
                         <!-- Recurring server events (private branch): Shugo, Rift, siege, reset -->
                         <ItemsControl ItemsSource="{Binding EventLabels}" VerticalAlignment="Center" Margin="6,0,0,0">
                             <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Style="{StaticResource EventPill}" Margin="0,0,6,0" Content="{Binding Text}"
+                                    <Button Style="{StaticResource EventPill}" Margin="0,2,6,2" Content="{Binding Text}"
                                             Background="{Binding Fill}" BorderBrush="{Binding Stroke}">
                                         <Button.ContextMenu>
                                             <ContextMenu>
@@ -601,7 +601,7 @@
                         <Button Style="{StaticResource FooterLink}" Click="Segments_Click" Effect="{StaticResource TextShadow}">
                             <TextBlock><Run Text="{Binding T.Fights, Mode=OneWay}" /><Run Text=" " /><Run Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" /></TextBlock>
                         </Button>
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
             </StackPanel>
         </Grid>

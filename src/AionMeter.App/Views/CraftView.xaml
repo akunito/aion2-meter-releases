@@ -4,15 +4,6 @@
         xmlns:s="clr-namespace:AionMeter.App.Services" Background="{StaticResource Bg0}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
         FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}" FontSize="12.5">
     <UserControl.Resources>
-        <Style x:Key="Field" TargetType="TextBox">
-            <Setter Property="Background" Value="#1A1F2E" />
-            <Setter Property="Foreground" Value="{StaticResource Text}" />
-            <Setter Property="BorderBrush" Value="{StaticResource GoldDim}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="6,3" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="CaretBrush" Value="{StaticResource Gold}" />
-        </Style>
     </UserControl.Resources>
     <Border BorderBrush="{StaticResource GoldDim}" BorderThickness="1">
         <Grid>
@@ -31,26 +22,34 @@
                     <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" ToolTip="{Binding TipClose, Source={x:Static s:UiText.Current}}" />
                 </StackPanel>
             </Grid>
-            <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="18,0,18,8">
-                <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Width="220" TextChanged="Filter_Changed" ToolTip="{Binding CraftSearch, Source={x:Static s:UiText.Current}}" />
-                <ItemsControl x:Name="Professions" Margin="8,0,0,0" VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <RadioButton Style="{StaticResource TabToggle}" GroupName="CraftProf" Content="{Binding Label}" Tag="{Binding Key}" IsChecked="{Binding Selected}" Checked="Profession_Checked" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <ComboBox x:Name="ScopeBox" MinWidth="230" VerticalAlignment="Center" Margin="12,0,0,0" SelectionChanged="Scope_Changed" ToolTip="{Binding CraftOnlyNowTip, Source={x:Static s:UiText.Current}}">
-                    <ComboBoxItem Content="{Binding CraftScopeNow, Source={x:Static s:UiText.Current}}" Tag="now" />
-                    <ComboBoxItem Content="{Binding CraftScopeNear, Source={x:Static s:UiText.Current}}" Tag="near" />
-                    <ComboBoxItem Content="{Binding CraftScopeAll, Source={x:Static s:UiText.Current}}" Tag="all" />
-                </ComboBox>
-                <CheckBox x:Name="ProfitBox" Style="{StaticResource DarkCheck}" VerticalAlignment="Center" Margin="12,0,0,0" Click="Filter_Click"
-                          Content="{Binding CraftProfit, Source={x:Static s:UiText.Current}}" ToolTip="{Binding CraftProfitTip, Source={x:Static s:UiText.Current}}" />
-                <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="12,0,0,0" Click="LoadMarket_Click" Content="{Binding CraftLoadMarket, Source={x:Static s:UiText.Current}}"
-                        ToolTip="{Binding CraftLoadMarketTip, Source={x:Static s:UiText.Current}}" />
-            </WrapPanel>
+            <StackPanel Grid.Row="1" Margin="18,0,18,8">
+                <WrapPanel Orientation="Horizontal">
+                    <Grid Width="250" Height="28" Margin="0,0,10,6">
+                        <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Padding="6,3,26,3" TextChanged="Filter_Changed" ToolTip="{Binding CraftSearch, Source={x:Static s:UiText.Current}}" />
+                        <Button x:Name="ClearSearch" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                                Click="ClearSearch_Click" Visibility="Collapsed" ToolTip="{Binding CraftClear, Source={x:Static s:UiText.Current}}" />
+                    </Grid>
+                    <ItemsControl x:Name="Professions" VerticalAlignment="Center" Margin="0,0,0,6">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton Style="{StaticResource TabToggle}" GroupName="CraftProf" Content="{Binding Label}" Tag="{Binding Key}" IsChecked="{Binding Selected}" Checked="Profession_Checked" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </WrapPanel>
+                <WrapPanel Orientation="Horizontal">
+                    <ComboBox x:Name="ScopeBox" Width="250" Height="28" VerticalAlignment="Center" Margin="0,0,10,0" SelectionChanged="Scope_Changed" ToolTip="{Binding CraftOnlyNowTip, Source={x:Static s:UiText.Current}}">
+                        <ComboBoxItem Content="{Binding CraftScopeNow, Source={x:Static s:UiText.Current}}" Tag="now" />
+                        <ComboBoxItem Content="{Binding CraftScopeNear, Source={x:Static s:UiText.Current}}" Tag="near" />
+                        <ComboBoxItem Content="{Binding CraftScopeAll, Source={x:Static s:UiText.Current}}" Tag="all" />
+                    </ComboBox>
+                    <CheckBox x:Name="ProfitBox" Style="{StaticResource DarkCheck}" VerticalAlignment="Center" Margin="0,0,10,0" Click="Filter_Click"
+                              Content="{Binding CraftProfit, Source={x:Static s:UiText.Current}}" ToolTip="{Binding CraftProfitTip, Source={x:Static s:UiText.Current}}" />
+                    <Button Style="{StaticResource Chip}" Height="28" FontSize="12" Click="LoadMarket_Click" Content="{Binding CraftLoadMarket, Source={x:Static s:UiText.Current}}"
+                            ToolTip="{Binding CraftLoadMarketTip, Source={x:Static s:UiText.Current}}" />
+                </WrapPanel>
+            </StackPanel>
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="14,0,14,10">
                 <ItemsControl x:Name="List">
                     <ItemsControl.ItemTemplate>

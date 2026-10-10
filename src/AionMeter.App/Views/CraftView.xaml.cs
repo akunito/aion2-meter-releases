@@ -36,7 +36,8 @@ public partial class CraftView : UserControl
     }
 
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
-    private void Filter_Changed(object sender, TextChangedEventArgs e) => Reload();
+    private void Filter_Changed(object sender, TextChangedEventArgs e) { ClearSearch.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; Reload(); }
+    private void ClearSearch_Click(object sender, RoutedEventArgs e) { SearchBox.Text = ""; SearchBox.Focus(); }
     private void Filter_Click(object sender, RoutedEventArgs e) => Reload();
     private string Scope => ScopeBox.SelectedItem is ComboBoxItem { Tag: string t } ? t : "now";
     private void Scope_Changed(object sender, SelectionChangedEventArgs e) { if (!IsLoaded) return; _meter.Settings.CraftScope = Scope; _meter.Settings.Save(); Reload(); }
@@ -93,7 +94,8 @@ public partial class CraftView : UserControl
         string Nm(int id) => names.Name(id, lang) ?? _meter.Items.NameOf(id);
         var q = ItemNames.Normalize(SearchBox.Text);
         if (ProfitBox.IsChecked == true) { ReloadProfit(Nm, q); return; }
-        var scope = Scope; var favs = _meter.Settings.CraftFavourites;
+        // Typing searches the whole book (Diego 2026-10-11): the scope only applies while the box is empty
+        var scope = q.Length > 0 ? "all" : Scope; var favs = _meter.Settings.CraftFavourites;
         // one pass over every recipe (1,684: cheap); the scope filters, favourites bypass it and lead the list
         var opts = _meter.Recipes.Evaluate(_meter.Inventory.CountOf, 99, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(opts.Count); var craftable = 0;
@@ -110,7 +112,7 @@ public partial class CraftView : UserControl
             else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
         }
         List.ItemsSource = rows;
-        StatusText.Text = string.Format(T.CraftStatus, craftable, rows.Count - craftable);
+        StatusText.Text = q.Length > 0 ? string.Format(T.CraftMatches, rows.Count, craftable) : string.Format(T.CraftStatus, craftable, rows.Count - craftable);
     }
 
     public event Action? CloseRequested;

@@ -5,37 +5,6 @@
         FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}" FontSize="12.5">
 
     <UserControl.Resources>
-        <Style x:Key="Field" TargetType="TextBox">
-            <Setter Property="Background" Value="#1A1F2E" />
-            <Setter Property="Foreground" Value="{StaticResource Text}" />
-            <Setter Property="BorderBrush" Value="{StaticResource GoldDim}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="6,3" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3">
-                            <Grid>
-                                <TextBlock x:Name="Hint" Text="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=ToolTip}" Foreground="#5F6778" FontSize="{TemplateBinding FontSize}"
-                                           Margin="7,0,4,0" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" TextTrimming="CharacterEllipsis" />
-                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="Text" Value="" />
-                                    <Condition Property="IsKeyboardFocused" Value="False" />
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="CaretBrush" Value="{StaticResource Gold}" />
-        </Style>
         <Style x:Key="Small" TargetType="Button">
             <Setter Property="Foreground" Value="#F3D58F" />
             <Setter Property="Cursor" Value="Hand" />

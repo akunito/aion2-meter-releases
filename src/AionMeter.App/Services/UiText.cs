@@ -401,7 +401,9 @@ public sealed class UiText
     public string AtlasPetsTip { get; init; } = "Spawns of the species whose pet is still below level 3: red = not owned, orange = level 1, yellow = level 2 ({0} pets below 3, {1} with spawns on this map)";
     public string CraftTitle { get; init; } = "Craft";
     public string TrayCraft { get; init; } = "What this character can craft now";
-    public string CraftSearch { get; init; } = "search a recipe…";
+    public string CraftSearch { get; init; } = "search a recipe (English or Spanish)…";
+    public string CraftClear { get; init; } = "Clear the search";
+    public string CraftMatches { get; init; } = "{0} matches · {1} craftable now";
     public string CraftAll { get; init; } = "All";
     public string CraftShowNear { get; init; } = "also short by 1–2 materials";
     public string CraftOnlyNow { get; init; } = "Only what I can craft now";
