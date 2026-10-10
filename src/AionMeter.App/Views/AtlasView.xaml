@@ -15,6 +15,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                     <TextBlock Text="&#xE707;" FontFamily="{StaticResource IconFont}" FontSize="17" Foreground="{StaticResource Gold}" VerticalAlignment="Center" Margin="0,2,10,0" />
@@ -55,11 +56,13 @@
                               Content="{Binding AtlasPets, Source={x:Static s:UiText.Current}}" />
                     <CheckBox x:Name="FollowBox" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0"
                               Content="{Binding AtlasFollow, Source={x:Static s:UiText.Current}}" />
-                    <TextBlock Text="{Binding AtlasZoom, Source={x:Static s:UiText.Current}}" Foreground="{StaticResource TextDim}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <Slider x:Name="ZoomSlider" Width="130" Minimum="-2.53" Maximum="2.48" Value="0" VerticalAlignment="Center" Margin="0,0,12,0" IsMoveToPointEnabled="True" ValueChanged="Zoom_Changed" />
-                    <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="0,0,10,0" Content="Fit" Click="Fit_Click" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="{Binding AtlasZoom, Source={x:Static s:UiText.Current}}" Foreground="{StaticResource TextDim}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <Slider x:Name="ZoomSlider" Width="130" Minimum="-2.53" Maximum="2.48" Value="0" VerticalAlignment="Center" IsMoveToPointEnabled="True" ValueChanged="Zoom_Changed" />
+                    </StackPanel>
+                    <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Content="Fit" Click="Fit_Click" />
                 </WrapPanel>
+                <Button Grid.Column="2" Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" VerticalAlignment="Top" Margin="6,12,0,0" />
             </Grid>
             <Border Grid.Row="1" x:Name="Viewport" ClipToBounds="True" Background="#0B0F18" Margin="1,0"
                     MouseWheel="Viewport_MouseWheel" MouseLeftButtonDown="Viewport_MouseDown" MouseLeftButtonUp="Viewport_MouseUp" MouseMove="Viewport_MouseMove" MouseRightButtonDown="Viewport_RightClick">
