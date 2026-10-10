@@ -354,6 +354,30 @@ public sealed class MeterService : IDisposable
     private string _lastSummary = "";
 
     private string _characterKey = "";
+    public string CharacterKey => _characterKey;
+    /// <summary>The bound character changed (login, or a manual pick while the game is closed): tabs re-read their stores.</summary>
+    public event Action? CharacterChanged;
+    public List<string> CharacterKeys()
+    {
+        var dir = Path.Combine(AppSettings.AppDataDir, "characters");
+        if (!Directory.Exists(dir)) return new List<string>();
+        return Directory.EnumerateDirectories(dir).Select(Path.GetFileName).Where(n => n is not null).Select(n => n!).OrderBy(n => n).ToList();
+    }
+    /// <summary>Browse another saved character while the game is closed (A2M-28). Refused while AION2.exe runs: the game decides who is bound.</summary>
+    public bool SelectCharacter(string key)
+    {
+        if (key == _characterKey) return true;
+        if (Core.Capture.GameProcessLocator.FindGameProcessIds().Length > 0) return false;
+        var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
+        if (!Directory.Exists(dir)) return false;
+        _characterKey = key;
+        Inventory.Bind(Path.Combine(dir, "inventory.json"), null);   // no legacy mirrors: this is a view, the live login rebinds with them
+        Character.Bind(Path.Combine(dir, "character.json"), null);
+        _lastSummary = "";
+        Log.Info($"Character stores switched by hand to {key}");
+        CharacterChanged?.Invoke();
+        return true;
+    }
 
     /// <summary>One folder per character (characters/&lt;server&gt;-&lt;name&gt;/) so every alt keeps its own live inventory and lists; the legacy inventory.json and state/character.json mirror the character that is logged in.</summary>
     private void BindCharacterStores()
@@ -368,6 +392,7 @@ public sealed class MeterService : IDisposable
         Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
         Log.Info($"Character stores bound to {key}");
         _lastSummary = "";
+        CharacterChanged?.Invoke();
         _ = SyncProfileAsync(key, name, server);
     }
 

@@ -724,6 +724,31 @@ public partial class OverlayWindow : Window
 
     private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(_tab);
 
+    // ---- character selector (A2M-28) ----
+    private bool _charSync;
+    private static string CharLabel(string key) { var i = key.IndexOf('-'); return i > 0 ? key[(i + 1)..] : key; }
+    /// <summary>Fills the list and selects the bound character; disabled while the game runs (the login decides).</summary>
+    public void SyncCharBox()
+    {
+        _charSync = true;
+        try
+        {
+            var keys = _meter.CharacterKeys();
+            CharBox.ItemsSource = keys.Select(k => new ComboBoxItem { Content = CharLabel(k), Tag = k }).ToList();
+            foreach (ComboBoxItem it in CharBox.Items) if ((string)it.Tag == _meter.CharacterKey) { CharBox.SelectedItem = it; break; }
+            var playing = Core.Capture.GameProcessLocator.FindGameProcessIds().Length > 0;
+            CharBox.IsEnabled = !playing && keys.Count > 0;
+            CharBox.Visibility = keys.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally { _charSync = false; }
+    }
+    private void CharBox_Opened(object sender, EventArgs e) => SyncCharBox();
+    private void CharBox_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_charSync || CharBox.SelectedItem is not ComboBoxItem { Tag: string key }) return;
+        if (!_meter.SelectCharacter(key)) SyncCharBox();
+    }
+
     private void PopOut_Click(object sender, RoutedEventArgs e)
     {
         if (!_drag.JustDragged) AppHost.Current.PopOut(_tab, Width, Height);

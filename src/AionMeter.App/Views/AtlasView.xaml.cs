@@ -537,7 +537,7 @@ public partial class AtlasView : UserControl
         bmp.BeginInit();
         bmp.CacheOption = BitmapCacheOption.OnLoad;
         bmp.UriSource = new Uri(path);
-        bmp.DecodePixelWidth = 3000;
+        bmp.DecodePixelWidth = 4096;   // the maps are 4096² JPEGs: native size = 64 MB texture, sharp at full zoom (3000 upscaled before, 2026-10-11)
         bmp.EndInit();
         bmp.Freeze();
         return bmp;

@@ -163,6 +163,8 @@ public partial class App : Application
 
         // New versions on GitHub: tray item, the overlay's update button and one notification per version.
         _meter.Updates.Changed += OnUpdatesChanged;
+        _meter.CharacterChanged += () => Dispatcher.BeginInvoke(_overlay.SyncCharBox);   // selector follows the login / the manual pick
+        Dispatcher.BeginInvoke(_overlay.SyncCharBox, DispatcherPriority.ApplicationIdle);
         _meter.Updates.Start();
         Updater.CleanDownloads();
         if (e.Args.Contains("--updated")) // started by the installer after an in-app update

@@ -72,7 +72,7 @@
                          The Image sits in a Canvas: a Grid cell would lay it out at the window size and Image clips its
                          bitmap to its layout box (measured: only the top-left corner of the map was ever drawn). -->
                     <Canvas>
-                    <Image x:Name="MapImage" Stretch="None" RenderOptions.BitmapScalingMode="LowQuality">
+                    <Image x:Name="MapImage" Stretch="None" RenderOptions.BitmapScalingMode="Linear">
                         <Image.RenderTransform>
                             <TransformGroup>
                                 <ScaleTransform x:Name="Zoom" />
