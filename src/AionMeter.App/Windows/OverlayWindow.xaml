@@ -550,17 +550,19 @@
                 </Grid>
                 <!-- Footer, two lines (Diego 2026-10-11): status + fight links on the left, the timer/event pills below, wrapping -->
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}" Margin="0,0,14,0">
+                    <Grid Margin="0,0,12,4">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}" HorizontalAlignment="Left" Margin="0,0,14,0">
                             <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" Margin="0,0,7,0" />
                             <TextBlock x:Name="FooterText" FontSize="12" Foreground="#B4BCCB" TextTrimming="CharacterEllipsis"
                                        Effect="{StaticResource TextShadow}" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
                         <Button Style="{StaticResource FooterLink}" Content="{Binding T.OpenFight}" Click="Details_Click" Effect="{StaticResource TextShadow}" />
                         <Button Style="{StaticResource FooterLink}" Click="Segments_Click" Effect="{StaticResource TextShadow}">
                             <TextBlock><Run Text="{Binding T.Fights, Mode=OneWay}" /><Run Text=" " /><Run Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" /></TextBlock>
                         </Button>
-                    </StackPanel>
+                        </StackPanel>
+                    </Grid>
                     <WrapPanel Orientation="Horizontal" Margin="0,0,12,0">
                         <!-- Boss timers: always visible, shows the next respawn; the whole strip wraps into lines on a narrow overlay (Diego, 2026-10-11) -->
                         <Button Style="{StaticResource TimersPill}" Click="Timers_Click" ToolTip="{Binding T.TipTimers}" Margin="0,2,6,2">
