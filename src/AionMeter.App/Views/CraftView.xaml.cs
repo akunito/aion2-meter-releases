@@ -20,6 +20,8 @@ public partial class CraftView : UserControl
     public sealed class Row
     {
         public string Name { get; init; } = ""; public string Sub { get; init; } = ""; public string Times { get; init; } = ""; public Brush TimesBrush { get; init; } = Ok; public Brush Frame { get; init; } = CraftView.Frame;
+        public int Output { get; init; } public bool Fav { get; init; }
+        public string Star => Fav ? "\u2605" : "\u2606"; public Brush StarBrush => Fav ? Near : CraftView.Frame;
     }
 
     public CraftView(MeterService meter)
@@ -27,7 +29,8 @@ public partial class CraftView : UserControl
         _meter = meter;
         InitializeComponent();
         Professions.ItemsSource = new[] { new Prof("", T.CraftAll, true), new Prof("blacksmithing", "Blacksmith", false), new Prof("tailoring", "Tailor", false), new Prof("jewelcrafting", "Jewel", false), new Prof("alchemy", "Alchemy", false), new Prof("cooking", "Cooking", false) };
-        OnlyNowBox.IsChecked = meter.Settings.CraftOnlyNow;
+        foreach (ComboBoxItem it in ScopeBox.Items) if ((string)it.Tag == meter.Settings.CraftScope) { ScopeBox.SelectedItem = it; break; }
+        if (ScopeBox.SelectedItem is null) ScopeBox.SelectedIndex = 0;
         Loaded += (_, _) => { Reload(); _meter.Inventory.Changed += OnChanged; _meter.MarketChanged += OnChanged; };
         Unloaded += (_, _) => { _meter.Inventory.Changed -= OnChanged; _meter.MarketChanged -= OnChanged; };
     }
@@ -35,7 +38,16 @@ public partial class CraftView : UserControl
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
     private void Filter_Changed(object sender, TextChangedEventArgs e) => Reload();
     private void Filter_Click(object sender, RoutedEventArgs e) => Reload();
-    private void OnlyNow_Click(object sender, RoutedEventArgs e) { _meter.Settings.CraftOnlyNow = OnlyNowBox.IsChecked == true; _meter.Settings.Save(); Reload(); }
+    private string Scope => ScopeBox.SelectedItem is ComboBoxItem { Tag: string t } ? t : "now";
+    private void Scope_Changed(object sender, SelectionChangedEventArgs e) { if (!IsLoaded) return; _meter.Settings.CraftScope = Scope; _meter.Settings.Save(); Reload(); }
+    /// <summary>Star on a row: pin or unpin the recipe (favourites always come first).</summary>
+    private void Star_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: int output }) return;
+        if (!_meter.Settings.CraftFavourites.Remove(output)) _meter.Settings.CraftFavourites.Add(output);
+        _meter.Settings.Save(); Reload();
+    }
+    private static bool Match(string q, params string[] names) { foreach (var n in names) if (n.Length > 0 && ItemNames.Normalize(n).Contains(q, StringComparison.Ordinal)) return true; return false; }
     private void Profession_Checked(object sender, RoutedEventArgs e) { if (IsLoaded && sender is RadioButton { Tag: string key }) { _profession = key; Reload(); } }
 
     /// <summary>Craft → Load market file…: the JSON the browser-console script saved in Downloads (Prices → Copy market script).</summary>
@@ -57,11 +69,11 @@ public partial class CraftView : UserControl
         if (m.Count == 0) { List.ItemsSource = Array.Empty<Row>(); StatusText.Text = T.CraftNoMarket; return; }
         var fee = _meter.Settings.BrokerFeePercent;
         var all = _meter.Recipes.Profit(m.Price, fee, _meter.Inventory.CountOf, _profession.Length == 0 ? null : _profession);
-        var rows = new List<Row>(120); var shown = 0;
-        foreach (var p in all)
+        var rows = new List<Row>(120); var shown = 0; var favs = _meter.Settings.CraftFavourites;
+        foreach (var p in all.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
-            var name = Nm(p.Recipe.Output);
-            if (q.Length > 0 && !ItemNames.Normalize(name).Contains(q, StringComparison.Ordinal) && !ItemNames.Normalize(p.Recipe.Name).Contains(q, StringComparison.Ordinal)) continue;
+            var name = Nm(p.Recipe.Output); var (en, es) = _meter.Names.Both(p.Recipe.Output);
+            if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", p.Recipe.Name)) continue;
             if (++shown > 150) break;
             var mats = string.Join(", ", p.Recipe.Materials.Select(x => $"{Nm(x.Item)} ×{x.Qty}" + (m.Price(x.Item) is { } mp ? $" @{Kinah(mp)}" : " @?")));
             var margin = p.Cost > 0 ? (double)p.Profit / p.Cost * 100 : 0;
@@ -69,7 +81,7 @@ public partial class CraftView : UserControl
                       $" → {Kinah(p.Value)} {T.CraftAfterFee} · {T.CraftCost} {Kinah(p.Cost)}" + (p.UnpricedMaterials > 0 ? $" ({p.UnpricedMaterials} {T.CraftUnpriced})" : "") +
                       (p.Times > 0 ? $" · ×{p.Times} {T.CraftNow}" : "") + "\n" + mats;
             var good = p.Profit > 0;
-            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame });
+            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output) });
         }
         List.ItemsSource = rows;
         StatusText.Text = string.Format(T.CraftMarketFrom, m.Count, m.Server, m.CapturedAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "?", fee.ToString("0.#", CultureInfo.InvariantCulture));
@@ -81,17 +93,21 @@ public partial class CraftView : UserControl
         string Nm(int id) => names.Name(id, lang) ?? _meter.Items.NameOf(id);
         var q = ItemNames.Normalize(SearchBox.Text);
         if (ProfitBox.IsChecked == true) { ReloadProfit(Nm, q); return; }
-        var near = OnlyNowBox.IsChecked != true;
-        var opts = _meter.Recipes.Evaluate(_meter.Inventory.CountOf, near ? 2 : 0, _profession.Length == 0 ? null : _profession);
+        var scope = Scope; var favs = _meter.Settings.CraftFavourites;
+        // one pass over every recipe (1,684: cheap); the scope filters, favourites bypass it and lead the list
+        var opts = _meter.Recipes.Evaluate(_meter.Inventory.CountOf, 99, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(opts.Count); var craftable = 0;
-        foreach (var o in opts)
+        foreach (var o in opts.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
-            var name = Nm(o.Recipe.Output);
-            if (q.Length > 0 && !ItemNames.Normalize(name).Contains(q, StringComparison.Ordinal) && !ItemNames.Normalize(o.Recipe.Name).Contains(q, StringComparison.Ordinal)) continue;
+            var fav = favs.Contains(o.Recipe.Output);
+            if (!fav && scope == "now" && o.Times == 0) continue;
+            if (!fav && scope == "near" && o.Times == 0 && o.Missing.Length > 2) continue;
+            var name = Nm(o.Recipe.Output); var (en, es) = _meter.Names.Both(o.Recipe.Output);
+            if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", o.Recipe.Name)) continue;
             var mats = string.Join(", ", o.Recipe.Materials.Select(m => $"{Nm(m.Item)} ×{m.Qty}"));
             var sub = $"{o.Recipe.Profession} {o.Recipe.Level} · {o.Recipe.Grade} · {mats}";
-            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame }); }
-            else rows.Add(new Row { Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
+            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav }); }
+            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
         }
         List.ItemsSource = rows;
         StatusText.Text = string.Format(T.CraftStatus, craftable, rows.Count - craftable);

@@ -41,8 +41,11 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <CheckBox x:Name="OnlyNowBox" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0" Click="OnlyNow_Click"
-                          Content="{Binding CraftOnlyNow, Source={x:Static s:UiText.Current}}" ToolTip="{Binding CraftOnlyNowTip, Source={x:Static s:UiText.Current}}" />
+                <ComboBox x:Name="ScopeBox" MinWidth="230" VerticalAlignment="Center" Margin="12,0,0,0" SelectionChanged="Scope_Changed" ToolTip="{Binding CraftOnlyNowTip, Source={x:Static s:UiText.Current}}">
+                    <ComboBoxItem Content="{Binding CraftScopeNow, Source={x:Static s:UiText.Current}}" Tag="now" />
+                    <ComboBoxItem Content="{Binding CraftScopeNear, Source={x:Static s:UiText.Current}}" Tag="near" />
+                    <ComboBoxItem Content="{Binding CraftScopeAll, Source={x:Static s:UiText.Current}}" Tag="all" />
+                </ComboBox>
                 <CheckBox x:Name="ProfitBox" Style="{StaticResource DarkCheck}" VerticalAlignment="Center" Margin="12,0,0,0" Click="Filter_Click"
                           Content="{Binding CraftProfit, Source={x:Static s:UiText.Current}}" ToolTip="{Binding CraftProfitTip, Source={x:Static s:UiText.Current}}" />
                 <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="12,0,0,0" Click="LoadMarket_Click" Content="{Binding CraftLoadMarket, Source={x:Static s:UiText.Current}}"
@@ -62,7 +65,11 @@
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Sub}" FontSize="11" Foreground="{StaticResource TextMute}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="{Binding Times}" Foreground="{Binding TimesBrush}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Times}" Foreground="{Binding TimesBrush}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                        <Button Style="{StaticResource IconButton}" Content="{Binding Star}" Foreground="{Binding StarBrush}" FontFamily="Segoe UI Symbol" FontSize="15" Tag="{Binding Output}" Click="Star_Click" Margin="8,0,0,0"
+                                                ToolTip="{Binding CraftFavTip, Source={x:Static s:UiText.Current}}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </DataTemplate>
