@@ -41,13 +41,16 @@ public partial class CraftView : UserControl
         Loaded += (_, _) => { Reload(); _meter.Inventory.Changed += OnChanged; _meter.MarketChanged += OnChanged; _meter.ItemIconCache.Loaded += OnIcon; };
         Unloaded += (_, _) => { _meter.Inventory.Changed -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.ItemIconCache.Loaded -= OnIcon; _iconTick.Stop(); };
         _iconTick.Tick += (_, _) => { _iconTick.Stop(); if (List.ItemsSource is IEnumerable<Row> rows) foreach (var r in rows) r.RefreshIcon(); };
+        _searchTick.Tick += (_, _) => { _searchTick.Stop(); Reload(); };
     }
 
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
     // icons land one per 400 ms: redraw at most every 600 ms instead of per icon
     private readonly System.Windows.Threading.DispatcherTimer _iconTick = new() { Interval = TimeSpan.FromMilliseconds(600) };
     private void OnIcon() { if (!_iconTick.IsEnabled) _iconTick.Start(); }
-    private void Filter_Changed(object sender, TextChangedEventArgs e) { ClearSearch.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; Reload(); }
+    // typing: one rebuild 150 ms after the last key, not one per key (1,684 rows when the box searches the whole book)
+    private readonly System.Windows.Threading.DispatcherTimer _searchTick = new() { Interval = TimeSpan.FromMilliseconds(150) };
+    private void Filter_Changed(object sender, TextChangedEventArgs e) { ClearSearch.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; _searchTick.Stop(); _searchTick.Start(); }
     private void ClearSearch_Click(object sender, RoutedEventArgs e) { SearchBox.Text = ""; SearchBox.Focus(); }
     private void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape && SearchBox.Text.Length > 0) { SearchBox.Text = ""; e.Handled = true; } }
     private void Filter_Click(object sender, RoutedEventArgs e) => Reload();
