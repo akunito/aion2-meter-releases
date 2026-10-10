@@ -78,8 +78,8 @@ public partial class PriceWatchView : UserControl
         _meter = meter;
         InitializeComponent();
         if (_meter.Settings.PriceSearchLanguage == "es") LangEs.IsChecked = true; else LangEn.IsChecked = true;
-        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _meter.Icons.Loaded += OnChanged; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
-        Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _meter.Icons.Loaded -= OnChanged; _cooldown.Stop(); };
+        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _meter.ItemIconCache.Loaded += OnChanged; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
+        Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _meter.ItemIconCache.Loaded -= OnChanged; _cooldown.Stop(); };
         _cooldown.Tick += Cooldown_Tick;
     }
 
@@ -91,7 +91,7 @@ public partial class PriceWatchView : UserControl
         foreach (var w in _meter.Prices.All())
         {
             var (en, es) = _meter.Names.Both(w.Item);
-            rows.Add(new Row(w, en ?? _meter.Items.NameOf(w.Item) ?? "") { Alt = es ?? "", Icon = _meter.Icons.Get(w.Item) });
+            rows.Add(new Row(w, en ?? _meter.Items.NameOf(w.Item) ?? "") { Alt = es ?? "", Icon = _meter.ItemIconCache.Get(w.Item) });
         }
         List.ItemsSource = rows;
         var last = _meter.Prices.LastPollAt;

@@ -25,6 +25,8 @@ public sealed class IconCache : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private Task? _worker;
     public event Action? Loaded;
+    /// <summary>Settings → "download icons": off = no network, only what is on disk already.</summary>
+    public bool Enabled { get; set; } = true;
 
     public IconCache(ItemIcons index)
     {
@@ -45,7 +47,7 @@ public sealed class IconCache : IDisposable
             _mem[item] = img;
             return img;
         }
-        if (_queued.TryAdd(item, 0)) { _queue.Enqueue(item); _worker ??= Task.Run(WorkAsync); }
+        if (Enabled && _queued.TryAdd(item, 0)) { _queue.Enqueue(item); _worker ??= Task.Run(WorkAsync); }
         return null;
     }
 
