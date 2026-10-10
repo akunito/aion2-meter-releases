@@ -19,7 +19,7 @@
                                VerticalAlignment="Center" Margin="0,2,10,0" />
                     <TextBlock Text="{Binding TopTitle, Source={x:Static s:UiText.Current}}" FontFamily="{StaticResource TitleFont}"
                                FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock x:Name="CountText" FontSize="12" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" Margin="14,2,0,0" />
+                    <TextBlock x:Name="CountText" FontSize="12" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" Margin="14,2,0,0" ToolTip="{Binding TopHint, Source={x:Static s:UiText.Current}}" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click"
@@ -46,8 +46,6 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock x:Name="HintText" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextMute}"
-                           Text="{Binding TopHint, Source={x:Static s:UiText.Current}}" />
             </StackPanel>
 
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="14,0,14,12">

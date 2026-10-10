@@ -70,28 +70,30 @@
                                         <ColumnDefinition Width="44" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" ToolTip="{Binding AltTip}" />
                                         <TextBlock Text="{Binding Sub}" FontSize="11" Foreground="{StaticResource TextMute}" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                    </StackPanel>
+                                    <!-- holdings (units, paid each, value) in their own column so every control of the row sits on one line (Diego, 2026-10-11) -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                                             <TextBox Style="{StaticResource Field}" Width="54" Text="{Binding QtyText, Mode=OneWay}" Tag="{Binding Watch}" LostFocus="Holding_LostFocus" KeyDown="Holding_KeyDown"
                                                      ToolTip="{Binding PricesQty, Source={x:Static s:UiText.Current}}" FontSize="11" />
                                             <TextBox Style="{StaticResource Field}" Width="84" Text="{Binding PaidText, Mode=OneWay}" Tag="{Binding Watch}" LostFocus="Holding_LostFocus" KeyDown="Holding_KeyDown"
                                                      ToolTip="{Binding PricesPaid, Source={x:Static s:UiText.Current}}" FontSize="11" Margin="4,0,0,0" />
                                             <TextBlock Text="{Binding ValueText}" Foreground="{Binding ValueBrush}" FontSize="11.5" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                        </StackPanel>
                                     </StackPanel>
-                                    <Button Grid.Column="1" Style="{StaticResource Small}" Content="{Binding ModeText}" Tag="{Binding Watch}" Click="Mode_Click" Margin="6,0,0,0" Padding="0"
+                                    <Button Grid.Column="2" Style="{StaticResource Small}" Content="{Binding ModeText}" Tag="{Binding Watch}" Click="Mode_Click" Margin="6,0,0,0" Padding="0"
                                             ToolTip="{Binding PricesSell, Source={x:Static s:UiText.Current}}" VerticalAlignment="Center" Width="30" />
-                                    <TextBox Grid.Column="2" Style="{StaticResource Field}" Text="{Binding MaxText, Mode=OneWay}" Tag="{Binding Watch}" VerticalAlignment="Center"
+                                    <TextBox Grid.Column="3" Style="{StaticResource Field}" Text="{Binding MaxText, Mode=OneWay}" Tag="{Binding Watch}" VerticalAlignment="Center"
                                              LostFocus="Max_LostFocus" KeyDown="Max_KeyDown" Margin="4,0" ToolTip="{Binding PricesMax, Source={x:Static s:UiText.Current}}" />
-                                    <TextBlock Grid.Column="3" Text="{Binding LastText}" Foreground="{Binding PriceBrush}" FontWeight="SemiBold" FontSize="14"
+                                    <TextBlock Grid.Column="4" Text="{Binding LastText}" Foreground="{Binding PriceBrush}" FontWeight="SemiBold" FontSize="14"
                                                VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" />
-                                    <TextBlock Grid.Column="4" Text="{Binding Trend}" Foreground="{Binding TrendBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                    <TextBlock Grid.Column="5" Text="{Binding Listings}" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                    <Button Grid.Column="6" Style="{StaticResource IconButton}" Content="&#xE774;" Tag="{Binding Watch}" Click="Open_Click" Margin="6,0,0,0" ToolTip="aion2.exchange" />
-                                    <Button Grid.Column="7" Style="{StaticResource IconButton}" Content="&#xE74D;" Tag="{Binding Watch}" Click="Remove_Click" Margin="2,0,0,0" />
+                                    <TextBlock Grid.Column="5" Text="{Binding Trend}" Foreground="{Binding TrendBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    <TextBlock Grid.Column="6" Text="{Binding Listings}" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                    <Button Grid.Column="7" Style="{StaticResource IconButton}" Content="&#xE774;" Tag="{Binding Watch}" Click="Open_Click" Margin="6,0,0,0" ToolTip="aion2.exchange" />
+                                    <Button Grid.Column="8" Style="{StaticResource IconButton}" Content="&#xE74D;" Tag="{Binding Watch}" Click="Remove_Click" Margin="2,0,0,0" />
                                 </Grid>
                             </Border>
                         </DataTemplate>

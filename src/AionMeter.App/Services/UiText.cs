@@ -160,7 +160,7 @@ public sealed class UiText
     public string SavedFight { get; init; } = "saved fight";
     public string ThisSession { get; init; } = "this session";
     public string WaitingLabel { get; init; } = "waiting for combat";
-    public string WaitingTitle { get; init; } = "Waiting for combat";
+    public string WaitingTitle { get; init; } = "";   // the status on the right already says "waiting for combat" (Diego 2026-10-11: it showed twice)
     public string WaitingDetail { get; init; } = "Hit something — the meter starts on its own";
     public string EmptyParty { get; init; } = "Your party appears here as soon as someone lands a hit.";
     public string TopHit { get; init; } = "TOP HIT";
