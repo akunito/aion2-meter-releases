@@ -135,6 +135,8 @@ public sealed class AppSettings
     public List<DateTimeOffset> ReportSends { get; set; } = new();
     /// <summary>Broker cut taken from a sale, used by the craft profit calculator. 10 is an assumption (2026-10-10): adjust when measured on a real sale.</summary>
     public double BrokerFeePercent { get; set; } = 10;
+    /// <summary>Craft tab: only recipes the stock allows now (default); off also lists those short by one or two materials (Diego, 2026-10-10).</summary>
+    public bool CraftOnlyNow { get; set; } = true;
     /// <summary>Atlas: draw the spawn points of the monsters whose pet souls the character still lacks.</summary>
     public bool AtlasShowPets { get; set; } = true;   // on unless the user switches it off (Diego, 2026-10-10)
     /// <summary>Language of the item-name search in the Prices window ("en" / "es"), independent of the interface language.</summary>

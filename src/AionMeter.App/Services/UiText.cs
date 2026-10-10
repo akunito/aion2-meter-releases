@@ -404,6 +404,8 @@ public sealed class UiText
     public string CraftSearch { get; init; } = "search a recipe…";
     public string CraftAll { get; init; } = "All";
     public string CraftShowNear { get; init; } = "also short by 1–2 materials";
+    public string CraftOnlyNow { get; init; } = "Only what I can craft now";
+    public string CraftOnlyNowTip { get; init; } = "On: recipes the current inventory covers completely. Off: also the ones short by one or two kinds of material, with what is missing and where it comes from.";
     public string CraftMissing { get; init; } = "missing";
     public string CraftStatus { get; init; } = "{0} craftable now · {1} almost";
     public string CraftProfit { get; init; } = "Profit";

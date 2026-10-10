@@ -27,6 +27,7 @@ public partial class CraftView : UserControl
         _meter = meter;
         InitializeComponent();
         Professions.ItemsSource = new[] { new Prof("", T.CraftAll, true), new Prof("blacksmithing", "Blacksmith", false), new Prof("tailoring", "Tailor", false), new Prof("jewelcrafting", "Jewel", false), new Prof("alchemy", "Alchemy", false), new Prof("cooking", "Cooking", false) };
+        OnlyNowBox.IsChecked = meter.Settings.CraftOnlyNow;
         Loaded += (_, _) => { Reload(); _meter.Inventory.Changed += OnChanged; _meter.MarketChanged += OnChanged; };
         Unloaded += (_, _) => { _meter.Inventory.Changed -= OnChanged; _meter.MarketChanged -= OnChanged; };
     }
@@ -34,6 +35,7 @@ public partial class CraftView : UserControl
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
     private void Filter_Changed(object sender, TextChangedEventArgs e) => Reload();
     private void Filter_Click(object sender, RoutedEventArgs e) => Reload();
+    private void OnlyNow_Click(object sender, RoutedEventArgs e) { _meter.Settings.CraftOnlyNow = OnlyNowBox.IsChecked == true; _meter.Settings.Save(); Reload(); }
     private void Profession_Checked(object sender, RoutedEventArgs e) { if (IsLoaded && sender is RadioButton { Tag: string key }) { _profession = key; Reload(); } }
 
     /// <summary>Craft → Load market file…: the JSON the browser-console script saved in Downloads (Prices → Copy market script).</summary>
@@ -79,7 +81,7 @@ public partial class CraftView : UserControl
         string Nm(int id) => names.Name(id, lang) ?? _meter.Items.NameOf(id);
         var q = ItemNames.Normalize(SearchBox.Text);
         if (ProfitBox.IsChecked == true) { ReloadProfit(Nm, q); return; }
-        var near = NearBox.IsChecked == true;
+        var near = OnlyNowBox.IsChecked != true;
         var opts = _meter.Recipes.Evaluate(_meter.Inventory.CountOf, near ? 2 : 0, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(opts.Count); var craftable = 0;
         foreach (var o in opts)
