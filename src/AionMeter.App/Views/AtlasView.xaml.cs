@@ -55,6 +55,7 @@ public partial class AtlasView : UserControl
     {
         _meter = meter;
         InitializeComponent();
+        StaticLayer.Draw = DrawStatic;
         FollowBox.IsChecked = true;
         PetsBox.IsChecked = meter.Settings.AtlasShowPets;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -86,6 +87,7 @@ public partial class AtlasView : UserControl
             else { _imgW = _imgH = 0; _f = 1; Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})"); }
             // Following: a map change (instance in and out) must not zoom out to the whole map; the next tick re-centres at the follow zoom.
             if (FollowBox.IsChecked == true && _mapShown > 0) _followZoomed = false; else FitWholeMap();
+            StaticLayer.InvalidateVisual();
         }
         Overlay.Children.Clear();
         _labelPts.Clear();
@@ -108,6 +110,10 @@ public partial class AtlasView : UserControl
         // Zoomed out, icons of one kind pile up: group the spots of a kind per 28 px screen cell and draw one icon with the count
         // (same idea as the label clustering; Diego 2026-10-10). Zoomed in, every spot draws on its own as before.
         var cluster = _scale * _f < 0.16;
+        // the static layer paints the seeded spots (and the pet spawns); it repaints when their set, the cluster mode or the view changes
+        var seededCount = 0; foreach (var s0 in spots) if (s0.Seeded) seededCount++;
+        _spotsCache = spots;
+        if (cluster != _clusterNow || seededCount != _seededCount || PetsBox.IsChecked != _petsShown) { _clusterNow = cluster; _seededCount = seededCount; _petsShown = PetsBox.IsChecked; StaticLayer.InvalidateVisual(); }
         var cells = cluster ? new Dictionary<(string, int, int), (double Px, double Py, int N, int Alive)>() : null;
         foreach (var s in spots)
         {
@@ -122,7 +128,7 @@ public partial class AtlasView : UserControl
                 continue;
             }
             var icon = kind is { } kn ? Icon(kn) : null;
-            if (s.Seeded) { Mark(px, py, 3, Gone, icon, "", Gone, dim: true); continue; }
+            if (s.Seeded) continue;   // painted by the static layer
             if (s.Alive && s.InView) Mark(px, py, 5, Live, icon, $"{s.UnitsLeft}", Live);
             else if (s.Alive) Mark(px, py, 4, Live, icon, $"{s.UnitsLeft}?", Gone);
             else
@@ -355,35 +361,65 @@ public partial class AtlasView : UserControl
                 }
             }
             PetsBox.ToolTip = string.Format(T.AtlasPetsTip, below, _petLayer.Select(x => x.Pet.Id).Distinct().Count());
+            StaticLayer.InvalidateVisual();
+        }
+    }
+
+    private List<Core.Atlas.NodeSpot> _spotsCache = new();
+    private bool _clusterNow; private int _seededCount = -1; private bool? _petsShown;
+    private static readonly Typeface BadgeFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+    private static readonly Typeface LabelFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+    private static readonly Brush SeededDim = Soft(0x9A, 0xA0, 0xB0, 0x60);
+
+    /// <summary>Seeded nodes and pet spawns, painted in one pass; also the pet markers the right-click uses.</summary>
+    private void DrawStatic(DrawingContext dc)
+    {
+        if (_cal is null) return;
+        var w = Viewport.ActualWidth; var h = Viewport.ActualHeight; var k = _f * _scale;
+        var dip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        if (!_clusterNow && _spotsCache.Count > 0)
+        {
+            dc.PushOpacity(0.45);
+            foreach (var s in _spotsCache)
+            {
+                if (!s.Seeded) continue;
+                var (px, py) = _cal.ToPixel(s.X, s.Y);
+                var x = px * k + _tx; var y = py * k + _ty;
+                if (x < -30 || y < -30 || x > w + 30 || y > h + 30) continue;
+                var icon = KindOf(s) is { } kn ? Icon(kn) : null;
+                if (icon is not null) dc.DrawImage(icon, new Rect(x - 11, y - 11, 22, 22));
+                else dc.DrawEllipse(SeededDim, null, new Point(x, y), 3, 3);
+            }
+            dc.Pop();
         }
         _petMarkers.Clear();
+        if (PetsBox.IsChecked != true || _petLayer is null) return;
         for (var li = 0; li < _petLayer.Count; li++)
         {
             var (pet, level, t) = _petLayer[li];
             var brush = PetLevelBrush[Math.Clamp(level, 0, 2)];
             double sx = 0, sy = 0; var n = 0;
-            foreach (var (x, y) in t.Points)
+            foreach (var (x0, y0) in t.Points)
             {
-                var (px, py) = _cal.ToPixel(x, y);
-                var vx = px * _f * _scale + _tx; var vy = py * _f * _scale + _ty;
-                if (vx < -50 || vy < -50 || vx > Viewport.ActualWidth + 50 || vy > Viewport.ActualHeight + 50) { sx += vx; sy += vy; n++; continue; }
-                var dot = new Ellipse { Width = 7, Height = 7, Fill = brush };
-                Canvas.SetLeft(dot, vx - 3.5); Canvas.SetTop(dot, vy - 3.5);
-                Overlay.Children.Add(dot); _petMarkers.Add((vx, vy, li));
+                var (px, py) = _cal.ToPixel(x0, y0);
+                var vx = px * k + _tx; var vy = py * k + _ty;
                 sx += vx; sy += vy; n++;
+                if (vx < -50 || vy < -50 || vx > w + 50 || vy > h + 50) continue;
+                dc.DrawEllipse(brush, null, new Point(vx, vy), 3.5, 3.5);
+                _petMarkers.Add((vx, vy, li));
             }
             if (n == 0) continue;
             var cx = sx / n; var cy = sy / n;
-            if (cx < -30 || cy < -30 || cx > Viewport.ActualWidth + 30 || cy > Viewport.ActualHeight + 30) continue;
-            var badge = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), Background = brush, BorderBrush = PetInk, BorderThickness = new Thickness(1),
-                                     Child = new TextBlock { Text = level.ToString(), FontSize = 10, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
-            Canvas.SetLeft(badge, cx - 9); Canvas.SetTop(badge, cy - 9);
-            Overlay.Children.Add(badge); _petMarkers.Add((cx, cy, li));
-            if (_scale * _f >= 0.12)
+            if (cx < -30 || cy < -30 || cx > w + 30 || cy > h + 30) continue;
+            dc.DrawEllipse(brush, new Pen(PetInk, 1), new Point(cx, cy), 9, 9);
+            var digit = new FormattedText(level.ToString(), System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, BadgeFace, 10, Brushes.White, dip);
+            dc.DrawText(digit, new Point(cx - digit.Width / 2, cy - digit.Height / 2));
+            _petMarkers.Add((cx, cy, li));
+            if (k >= 0.12)
             {
-                var text = new TextBlock { Text = pet.Name, FontSize = 10.5, Foreground = Brushes.White, Background = PetInk, Padding = new Thickness(3, 0, 3, 0), Opacity = 0.85 };
-                Canvas.SetLeft(text, cx + 11); Canvas.SetTop(text, cy - 8);
-                Overlay.Children.Add(text);
+                var label = new FormattedText(pet.Name, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelFace, 10.5, Brushes.White, dip);
+                dc.DrawRectangle(PetInk, null, new Rect(cx + 11, cy - 8, label.Width + 6, label.Height));
+                dc.DrawText(label, new Point(cx + 14, cy - 8));
             }
         }
     }
@@ -511,6 +547,7 @@ public partial class AtlasView : UserControl
     {
         Zoom.ScaleX = Zoom.ScaleY = _scale;
         Pan.X = _tx; Pan.Y = _ty;
+        StaticLayer.InvalidateVisual();
         if (!_syncingSlider) { _syncingSlider = true; ZoomSlider.Value = Math.Log(_scale); _syncingSlider = false; }
     }
 
