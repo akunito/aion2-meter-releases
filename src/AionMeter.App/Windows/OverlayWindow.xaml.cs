@@ -663,6 +663,11 @@ public partial class OverlayWindow : Window
         UpdateEventLabels();
     }
 
+    // Boss timer pill, right-click: the same two switches the event pills have (toast / sound), saved at once
+    private void BossMenu_Opened(object sender, RoutedEventArgs e) { BossNotifyItem.IsChecked = _meter.Settings.BossAlertNotify; BossSoundItem.IsChecked = _meter.Settings.BossAlertSound; }
+    private void BossNotify_Click(object sender, RoutedEventArgs e) { _meter.Settings.BossAlertNotify = BossNotifyItem.IsChecked; _meter.Settings.Save(); }
+    private void BossSound_Click(object sender, RoutedEventArgs e) { _meter.Settings.BossAlertSound = BossSoundItem.IsChecked; _meter.Settings.Save(); }
+
     private void EventSync_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: EventPill p }) p.SyncNow();

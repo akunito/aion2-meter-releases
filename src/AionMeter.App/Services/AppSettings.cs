@@ -42,13 +42,16 @@ public sealed class AppSettings
     public bool ShowOnStart { get; set; } = true;
 
     // Boss respawn timers
-    /// <summary>Tray notification this many minutes before a tracked boss respawns; 0 = off.</summary>
+    /// <summary>Alert this many minutes before a tracked boss respawns; 0 = off.</summary>
     public int BossAlertMinutes { get; set; } = 2;
+    // Diego 2026-10-10: a Windows toast over the game tanks the FPS; sound only by default, toast opt-in (right-click on the boss pill)
+    public bool BossAlertNotify { get; set; } = false;
+    public bool BossAlertSound { get; set; } = true;
 
     /// <summary>Per recurring event (key from data/atlas/events.json): Windows notification and/or sound, 10 and/or 5 minutes before the start.</summary>
     public sealed class EventAlert
     {
-        public bool Notify { get; set; } = true;
+        public bool Notify { get; set; } = false;   // Windows toast over the game drops the FPS (Diego, 2026-10-10): sound only unless enabled per event
         public bool Sound { get; set; } = true;
         public bool At10 { get; set; } = true;
         public bool At5 { get; set; } = true;

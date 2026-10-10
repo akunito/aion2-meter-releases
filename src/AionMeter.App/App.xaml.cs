@@ -501,8 +501,8 @@ public partial class App : Application
             var text = minutes > 0
                 ? string.Format(t.AlertSoon, name, minutes, next.ToString("HH:mm"))
                 : string.Format(t.AlertNow, name, next.ToString("HH:mm"));
-            _tray?.ShowBalloon(t.TimersTitle, text);
-            System.Media.SystemSounds.Asterisk.Play();
+            if (_meter.Settings.BossAlertNotify) _tray?.ShowBalloon(t.TimersTitle, text);
+            if (_meter.Settings.BossAlertSound) System.Media.SystemSounds.Asterisk.Play();
         }
     }
 
