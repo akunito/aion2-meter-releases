@@ -1,0 +1,44 @@
+using System.Text.Json;
+
+namespace AionMeter.Core.GameDb;
+
+public sealed record PetInfo(int Id, string Name, string Category, int NeedSoul, string[] Droppers, Dictionary<string, int> Zones);
+
+/// <summary>Pets with the monsters that drop their souls, from data/gamedb/pets.json (questlog pets + aion2hub NPC drops, tools/pets.py).</summary>
+public sealed class PetBook
+{
+    public static readonly PetBook Empty = new(Array.Empty<PetInfo>());
+    private readonly PetInfo[] _pets;
+    private PetBook(PetInfo[] pets) { _pets = pets; }
+    public IReadOnlyList<PetInfo> All => _pets;
+    public int Count => _pets.Length;
+
+    public static PetBook Load(string path)
+    {
+        if (!File.Exists(path)) return Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            var list = new List<PetInfo>(220);
+            foreach (var p in doc.RootElement.EnumerateArray())
+            {
+                var droppers = new List<string>();
+                if (p.TryGetProperty("droppers", out var ds)) foreach (var d in ds.EnumerateArray()) droppers.Add(d.GetProperty("name").GetString() ?? "");
+                var zones = new Dictionary<string, int>();
+                if (p.TryGetProperty("zones", out var zs)) foreach (var z in zs.EnumerateObject()) zones[z.Name] = z.Value.GetInt32();
+                list.Add(new PetInfo(p.GetProperty("id").GetInt32(), p.GetProperty("name").GetString() ?? "", p.TryGetProperty("cat", out var c) ? c.GetString() ?? "" : "", p.TryGetProperty("needSoul", out var n) && n.ValueKind == JsonValueKind.Number ? n.GetInt32() : 0, droppers.ToArray(), zones));
+            }
+            return new PetBook(list.ToArray());
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or KeyNotFoundException) { return Empty; }
+    }
+
+    /// <summary>Pets not in <paramref name="owned"/>; the atlas matches their species to the monster templates.</summary>
+    public List<PetInfo> Missing(IReadOnlyCollection<int> owned)
+    {
+        var set = owned as ISet<int> ?? new HashSet<int>(owned);
+        var list = new List<PetInfo>();
+        foreach (var p in _pets) if (!set.Contains(p.Id)) list.Add(p);
+        return list;
+    }
+}

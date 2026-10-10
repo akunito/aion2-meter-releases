@@ -56,6 +56,7 @@ public partial class AtlasView : UserControl
         _meter = meter;
         InitializeComponent();
         FollowBox.IsChecked = true;
+        PetsBox.IsChecked = meter.Settings.AtlasShowPets;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _clock.Tick += (_, _) => Refresh();
         Loaded += (_, _) => { Refresh(); _clock.Start(); };
@@ -70,6 +71,8 @@ public partial class AtlasView : UserControl
         {
             _mapShown = map;
             _cal = _meter.Calibration(map);
+            _monsters = Core.Atlas.MonsterSpawns.Load(System.IO.Path.Combine(MeterService.DataDirectory, "atlas"), map);
+            _petLayer = null;
             ZoneText.Text = _cal is not null ? _cal.Name : string.Format(T.AtlasNoMap, map);
             MapImage.Source = _cal is not null && File.Exists(_cal.BackgroundPath) ? LoadBitmap(_cal.BackgroundPath) : null;
             // The bitmap is decoded small (a 34-Mpx JPEG is a 135 MB texture: WPF showed it black); the element keeps the
@@ -100,6 +103,7 @@ public partial class AtlasView : UserControl
         var spots = atlas.Spots(map);
         RefreshToggles(spots);
         DrawZones(spots);
+        if (PetsBox.IsChecked == true) DrawPets();
         foreach (var s in spots)
         {
             var (px, py) = _cal.ToPixel(s.X, s.Y);
@@ -286,6 +290,53 @@ public partial class AtlasView : UserControl
     private readonly List<(long Ms, float X, float Y)> _trail = new();
 
     /// <summary>The last 10 s of the player's drawn position as a fading line (new point only when it moved ≥ 0.5 m).</summary>
+    // ------------------------------------------------------------------ missing pets (A2M-11)
+    private List<Core.Atlas.MonsterTemplate> _monsters = new();
+    private List<(string Pet, Core.Atlas.MonsterTemplate Template)>? _petLayer;
+    private int _petLayerOwned = -1;
+    private static readonly Brush PetBrush = Frozen(0xF0, 0x6E, 0xC8);
+    private static Brush Frozen(byte r, byte g, byte b) { var br = new SolidColorBrush(Color.FromRgb(r, g, b)); br.Freeze(); return br; }
+
+    private void Pets_Click(object sender, RoutedEventArgs e)
+    {
+        _meter.Settings.AtlasShowPets = PetsBox.IsChecked == true;
+        _meter.Settings.Save();
+        Refresh();
+    }
+
+    /// <summary>Spawn points of every monster whose pet soul this character lacks: one magenta dot per spawn, the pet's name at the first one; the layer is rebuilt when the pet list changes.</summary>
+    private void DrawPets()
+    {
+        if (_cal is null) return;
+        var owned = _meter.Character.Pets;
+        if (_petLayer is null || _petLayerOwned != owned.Count)
+        {
+            _petLayerOwned = owned.Count;
+            _petLayer = new List<(string, Core.Atlas.MonsterTemplate)>();
+            var missing = _meter.Pets.Missing(owned.Keys.ToHashSet());
+            // A soul drops from its own species: the template is a known dropper of the soul item, or its name contains the pet's name as a word
+            // ("Hill Coradon" for the pet Coradon; verified on Verteron 2026-10-10: 22 of Akunita's 82 missing pets have spawns there).
+            foreach (var pet in missing)
+            {
+                var word = new System.Text.RegularExpressions.Regex(@"\b" + System.Text.RegularExpressions.Regex.Escape(pet.Name) + @"\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                foreach (var t in _monsters)
+                    if (word.IsMatch(t.Name) || Array.Exists(pet.Droppers, d => d.Equals(t.Name, StringComparison.OrdinalIgnoreCase)))
+                        _petLayer.Add((pet.Name, t));
+            }
+            PetsBox.ToolTip = string.Format(T.AtlasPetsTip, missing.Count, _petLayer.Select(x => x.Pet).Distinct().Count());
+        }
+        foreach (var (pet, t) in _petLayer)
+        {
+            var first = true;
+            foreach (var (x, y) in t.Points)
+            {
+                var (px, py) = _cal.ToPixel(x, y);
+                Dot(px, py, 3, PetBrush, first ? $"{pet} · {t.Name}" : "", PetBrush);
+                first = false;
+            }
+        }
+    }
+
     private void DrawTrail(long now, float wx, float wy)
     {
         if (_cal is null) return;

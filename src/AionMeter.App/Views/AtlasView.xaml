@@ -47,6 +47,8 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <CheckBox x:Name="PetsBox" Style="{StaticResource DarkCheck}" VerticalAlignment="Center" Margin="0,0,14,0" Click="Pets_Click"
+                              Content="{Binding AtlasPets, Source={x:Static s:UiText.Current}}" />
                     <CheckBox x:Name="FollowBox" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0"
                               Content="{Binding AtlasFollow, Source={x:Static s:UiText.Current}}" />
                     <Button Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="0,0,10,0" Content="Fit" Click="Fit_Click" />

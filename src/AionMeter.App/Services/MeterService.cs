@@ -39,6 +39,7 @@ public sealed class MeterService : IDisposable
         Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
         Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
         Recipes = RecipeBook.Load(Path.Combine(DataDirectory, "gamedb", "recipes.json"));
+        Pets = PetBook.Load(Path.Combine(DataDirectory, "gamedb", "pets.json"));
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
@@ -147,6 +148,8 @@ public sealed class MeterService : IDisposable
     public ItemNames Names { get; private set; } = ItemNames.Empty;
     /// <summary>aion2hub recipes (data/gamedb/recipes.json) for the Craft tab and characters/&lt;key&gt;/craftable.json.</summary>
     public RecipeBook Recipes { get; private set; } = RecipeBook.Empty;
+    /// <summary>Pets and the monsters that drop their souls (data/gamedb/pets.json) for the atlas "missing pets" layer (A2M-11).</summary>
+    public PetBook Pets { get; private set; } = PetBook.Empty;
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);

@@ -120,6 +120,8 @@ public sealed class AppSettings
     public double AtlasWidth { get; set; } = 900;
     /// <summary>Node kinds whose best areas are outlined on the atlas (up to two, English names lower-cased).</summary>
     public List<string> AtlasZoneKinds { get; set; } = new();
+    /// <summary>Atlas: draw the spawn points of the monsters whose pet souls the character still lacks.</summary>
+    public bool AtlasShowPets { get; set; }
     /// <summary>Language of the item-name search in the Prices window ("en" / "es"), independent of the interface language.</summary>
     public string PriceSearchLanguage { get; set; } = "en";
     /// <summary>Browser link of a watched item; {id} and {server} are replaced. The site is a hash-routed SPA: "/#/items/{id}" (Diego, 2026-10-09); "/item/{id}" renders blank.</summary>
