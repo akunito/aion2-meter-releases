@@ -701,6 +701,7 @@ public partial class OverlayWindow : Window
     {
         if (tab == _tab) { SyncTabChecks(); return; }
         _tab = tab;
+        FooterStatusLine.Visibility = tab == "meter" ? Visibility.Visible : Visibility.Collapsed;   // DPS status + fight links belong to the meter tab only
         if (tab == "meter") TabHost.Visibility = Visibility.Collapsed;
         else
         {

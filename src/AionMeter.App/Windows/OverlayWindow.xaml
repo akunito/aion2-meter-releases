@@ -488,8 +488,9 @@
                 </Grid>
             </Grid>
 
-            <!-- Party (the labels and the rows share their value column widths) -->
-            <Grid Grid.Row="3" Margin="0,10,0,0" Grid.IsSharedSizeScope="True">
+            <!-- Party (the labels and the rows share their value column widths); framed like the other tabs' cards (Diego, 2026-10-11) -->
+            <Border Grid.Row="3" Margin="0,10,0,0" BorderBrush="{StaticResource GoldDim}" BorderThickness="1" Padding="8,6">
+            <Grid Grid.IsSharedSizeScope="True">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -530,6 +531,7 @@
                            Foreground="#6B7590" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                            Visibility="{Binding HasData, Converter={StaticResource VisibleIf}, ConverterParameter=!}" />
             </Grid>
+            </Border>
 
             <!-- Footer -->
             <StackPanel Grid.Row="4" Margin="0,8,0,0">
@@ -550,7 +552,7 @@
                 </Grid>
                 <!-- Footer, two lines (Diego 2026-10-11): status + fight links on the left, the timer/event pills below, wrapping -->
                 <StackPanel>
-                    <Grid Margin="0,0,12,4">
+                    <Grid x:Name="FooterStatusLine" Margin="0,0,12,4">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}" HorizontalAlignment="Left" Margin="0,0,14,0">
                             <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" Margin="0,0,7,0" />
                             <TextBlock x:Name="FooterText" FontSize="12" Foreground="#B4BCCB" TextTrimming="CharacterEllipsis"
