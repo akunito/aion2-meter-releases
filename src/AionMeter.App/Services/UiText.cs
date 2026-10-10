@@ -367,7 +367,7 @@ public sealed class UiText
     public string TopTitle { get; init; } = "Top DPS";
     public string PricesTitle { get; init; } = "Prices";
     public string AtlasPets { get; init; } = "Pets";
-    public string AtlasPetsTip { get; init; } = "Spawn points of the monsters whose pet souls this character still lacks ({0} pets missing, {1} with spawns on this map)";
+    public string AtlasPetsTip { get; init; } = "Spawns of the species whose pet is still below level 3: red = not owned, orange = level 1, yellow = level 2 ({0} pets below 3, {1} with spawns on this map)";
     public string CraftTitle { get; init; } = "Craft";
     public string TrayCraft { get; init; } = "What this character can craft now";
     public string CraftSearch { get; init; } = "search a recipe…";

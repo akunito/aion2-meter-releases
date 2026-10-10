@@ -290,12 +290,14 @@ public partial class AtlasView : UserControl
     private readonly List<(long Ms, float X, float Y)> _trail = new();
 
     /// <summary>The last 10 s of the player's drawn position as a fading line (new point only when it moved ≥ 0.5 m).</summary>
-    // ------------------------------------------------------------------ missing pets (A2M-11)
+    // ------------------------------------------------------------------ pets below level 3 (A2M-11)
     private List<Core.Atlas.MonsterTemplate> _monsters = new();
-    private List<(string Pet, Core.Atlas.MonsterTemplate Template)>? _petLayer;
-    private int _petLayerOwned = -1;
-    private static readonly Brush PetBrush = Frozen(0xF0, 0x6E, 0xC8);
-    private static Brush Frozen(byte r, byte g, byte b) { var br = new SolidColorBrush(Color.FromRgb(r, g, b)); br.Freeze(); return br; }
+    private List<(string Pet, int Level, Core.Atlas.MonsterTemplate Template)>? _petLayer;
+    private long _petLayerKey = -1;
+    // soft, so the markers never compete with the nodes: red = not owned / level 0, orange = 1, yellow = 2; level 3 draws nothing
+    private static readonly Brush[] PetLevelBrush = [Soft(0xE0, 0x47, 0x3F), Soft(0xF0, 0x8A, 0x24), Soft(0xF2, 0xC2, 0x5A)];
+    private static readonly Brush PetInk = Soft(0x10, 0x14, 0x1C, 0xA0);
+    private static Brush Soft(byte r, byte g, byte b, byte a = 0x8C) { var br = new SolidColorBrush(Color.FromArgb(a, r, g, b)); br.Freeze(); return br; }
 
     private void Pets_Click(object sender, RoutedEventArgs e)
     {
@@ -304,35 +306,61 @@ public partial class AtlasView : UserControl
         Refresh();
     }
 
-    /// <summary>Spawn points of every monster whose pet soul this character lacks: one magenta dot per spawn, the pet's name at the first one; the layer is rebuilt when the pet list changes.</summary>
+    /// <summary>
+    /// Every spawn of a species whose pet is below level 3: a small translucent dot per spawn in the level colour, and at the
+    /// centre of each template one soft badge with the level (0/1/2) and the pet's name. The layer is rebuilt when the pet
+    /// list or any level changes (Diego, 2026-10-10: icons only until level 3, 0/1/2 colour-coded, nothing once maxed).
+    /// </summary>
     private void DrawPets()
     {
         if (_cal is null) return;
-        var owned = _meter.Character.Pets;
-        if (_petLayer is null || _petLayerOwned != owned.Count)
+        var pets = _meter.Character.Pets;
+        long key = pets.Count * 1_000_003L; foreach (var kv in pets) key += kv.Key * 7L + kv.Value;
+        if (_petLayer is null || _petLayerKey != key)
         {
-            _petLayerOwned = owned.Count;
-            _petLayer = new List<(string, Core.Atlas.MonsterTemplate)>();
-            var missing = _meter.Pets.Missing(owned.Keys.ToHashSet());
-            // A soul drops from its own species: the template is a known dropper of the soul item, or its name contains the pet's name as a word
-            // ("Hill Coradon" for the pet Coradon; verified on Verteron 2026-10-10: 22 of Akunita's 82 missing pets have spawns there).
-            foreach (var pet in missing)
+            _petLayerKey = key;
+            _petLayer = new List<(string, int, Core.Atlas.MonsterTemplate)>();
+            var below = 0;
+            foreach (var pet in _meter.Pets.All)
             {
+                var level = pets.GetValueOrDefault(pet.Id, 0);
+                if (level >= 3) continue;
+                below++;
+                // A soul drops from its own species: the template is a known dropper of the soul item, or its name contains the pet's name as a word
+                // ("Hill Coradon" for the pet Coradon; verified on Verteron 2026-10-10: 22 of Akunita's 82 missing pets have spawns there).
                 var word = new System.Text.RegularExpressions.Regex(@"\b" + System.Text.RegularExpressions.Regex.Escape(pet.Name) + @"\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                 foreach (var t in _monsters)
                     if (word.IsMatch(t.Name) || Array.Exists(pet.Droppers, d => d.Equals(t.Name, StringComparison.OrdinalIgnoreCase)))
-                        _petLayer.Add((pet.Name, t));
+                        _petLayer.Add((pet.Name, level, t));
             }
-            PetsBox.ToolTip = string.Format(T.AtlasPetsTip, missing.Count, _petLayer.Select(x => x.Pet).Distinct().Count());
+            PetsBox.ToolTip = string.Format(T.AtlasPetsTip, below, _petLayer.Select(x => x.Pet).Distinct().Count());
         }
-        foreach (var (pet, t) in _petLayer)
+        foreach (var (pet, level, t) in _petLayer)
         {
-            var first = true;
+            var brush = PetLevelBrush[Math.Clamp(level, 0, 2)];
+            double sx = 0, sy = 0; var n = 0;
             foreach (var (x, y) in t.Points)
             {
                 var (px, py) = _cal.ToPixel(x, y);
-                Dot(px, py, 3, PetBrush, first ? $"{pet} · {t.Name}" : "", PetBrush);
-                first = false;
+                var vx = px * _f * _scale + _tx; var vy = py * _f * _scale + _ty;
+                if (vx < -50 || vy < -50 || vx > Viewport.ActualWidth + 50 || vy > Viewport.ActualHeight + 50) { sx += vx; sy += vy; n++; continue; }
+                var dot = new Ellipse { Width = 7, Height = 7, Fill = brush };
+                Canvas.SetLeft(dot, vx - 3.5); Canvas.SetTop(dot, vy - 3.5);
+                Overlay.Children.Add(dot);
+                sx += vx; sy += vy; n++;
+            }
+            if (n == 0) continue;
+            var cx = sx / n; var cy = sy / n;
+            if (cx < -30 || cy < -30 || cx > Viewport.ActualWidth + 30 || cy > Viewport.ActualHeight + 30) continue;
+            var badge = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), Background = brush, BorderBrush = PetInk, BorderThickness = new Thickness(1),
+                                     Child = new TextBlock { Text = level.ToString(), FontSize = 10, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+            Canvas.SetLeft(badge, cx - 9); Canvas.SetTop(badge, cy - 9);
+            Overlay.Children.Add(badge);
+            if (_scale * _f >= 0.12)
+            {
+                var text = new TextBlock { Text = pet, FontSize = 10.5, Foreground = Brushes.White, Background = PetInk, Padding = new Thickness(3, 0, 3, 0), Opacity = 0.85 };
+                Canvas.SetLeft(text, cx + 11); Canvas.SetTop(text, cy - 8);
+                Overlay.Children.Add(text);
             }
         }
     }
