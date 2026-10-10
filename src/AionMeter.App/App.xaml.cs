@@ -208,6 +208,7 @@ public partial class App : Application
         _meter.Tick();
         UpdateAutoVisibility();
         if (_overlay.IsVisible) _overlay.Refresh();
+        for (var i = _extras.Count - 1; i >= 0; i--) if (_extras[i].IsVisible) _extras[i].Refresh();
         if (++_ticks % 5 == 0)
         {
             _tray?.Update(_overlay.IsVisible, _meter.Settings.ClickThrough, _meter.DemoRunning ? "demo" : _meter.CaptureStatus.Message);
@@ -361,6 +362,7 @@ public partial class App : Application
         _updateWindow?.Close();
         _tray?.ApplyTexts();
         _overlay.OnLanguageChanged();
+        foreach (var w in _extras) w.OnLanguageChanged();
     }
 
     public void ToggleLanguage() => SetLanguage(UiText.Current.Code == "ru" ? "en" : "ru");
@@ -435,6 +437,18 @@ public partial class App : Application
     private void ToggleAtlas() => ShowTab(_overlay.Tab == "atlas" ? "meter" : "atlas");
 
     public void ShowAtlas() => ShowTab("atlas");
+
+    private readonly List<OverlayWindow> _extras = new();
+
+    /// <summary>One more card showing <paramref name="tab"/>, the same size as the one it came from; closed with its own X.</summary>
+    public void PopOut(string tab, double width, double height)
+    {
+        var w = new OverlayWindow(_meter, secondary: true) { Width = width, Height = height };
+        w.Closed += (_, _) => _extras.Remove(w);
+        _extras.Add(w);
+        w.Show();
+        w.SelectTab(tab);
+    }
 
     /// <summary>Atlas, Top and Prices are tabs of the overlay card (2026-10-10): show the card and switch; "meter" switches back.</summary>
     private void ShowTab(string tab)

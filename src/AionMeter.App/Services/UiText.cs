@@ -366,6 +366,8 @@ public sealed class UiText
     public string TrayTop { get; init; } = "Top DPS per class";
     public string TopTitle { get; init; } = "Top DPS";
     public string PricesTitle { get; init; } = "Prices";
+    public string PopOut { get; init; } = "Open this tab in another card (the copy has an X to close it)";
+    public string CloseCopy { get; init; } = "Close this card";
     public string TrayPrices { get; init; } = "Price watch (aion2.exchange, once an hour)";
     public string PricesHint { get; init; } = "Items to buy below a price. aion2.exchange is read once an hour per item; a Windows notification and a chime fire while the lowest listing is at or under your maximum. The globe opens the item on the site.";
     public string PriceHit { get; init; } = "{0}: {1:N0} Kinah (≤ {2:N0}), {3} listings";
@@ -750,6 +752,8 @@ public sealed class UiText
         TrayAtlas = "Атлас (карта ресурсов)",
         AtlasTitle = "Атлас",
         PricesTitle = "Цены",
+        PopOut = "Открыть эту вкладку в отдельной карточке (у копии есть крестик)",
+        CloseCopy = "Закрыть эту карточку",
         TrayPrices = "Слежение за ценами (aion2.exchange, раз в час)",
         PricesHint = "Предметы, которые нужно купить дешевле заданной цены. aion2.exchange читается раз в час на предмет; уведомление Windows и сигнал звучат, пока минимальный лот не выше вашего максимума. Глобус открывает предмет на сайте.",
         PriceHit = "{0}: {1:N0} кинар (≤ {2:N0}), лотов: {3}",

@@ -29,10 +29,14 @@ public partial class OverlayWindow : Window
     /// <summary>The render tool's fight clock for animation frames (Unix ms); null = real time.</summary>
     internal static Func<long>? ClockOverride { get; set; }
 
-    public OverlayWindow(MeterService meter)
+    /// <summary>True for a popped-out copy: it has a close X, never writes the placement settings and is not auto-hidden.</summary>
+    public bool IsSecondary { get; }
+
+    public OverlayWindow(MeterService meter, bool secondary = false)
     {
         _meter = meter;
         _settings = meter.Settings;
+        IsSecondary = secondary;
         var opacity = _settings.BackgroundOpacity; // the slider's coercion during InitializeComponent would overwrite it
         InitializeComponent();
         _settings.BackgroundOpacity = opacity;
@@ -44,6 +48,7 @@ public partial class OverlayWindow : Window
         Height = Math.Max(MinHeight, _settings.OverlayHeight);
         EnsureOnScreen();
 
+        if (secondary) { CloseWindowButton.Visibility = Visibility.Visible; RightPanel.Margin = new Thickness(0, 0, 26, 0); Left += 40; Top += 40; }
         OpacitySlider.Value = _settings.BackgroundOpacity;
         FrameBackground.Opacity = _settings.BackgroundOpacity;
         ApplyLock();
@@ -177,6 +182,7 @@ public partial class OverlayWindow : Window
     /// <summary>Re-reads appearance settings changed in the Settings window.</summary>
     public void ApplyAppearance()
     {
+        if (secondary) { CloseWindowButton.Visibility = Visibility.Visible; RightPanel.Margin = new Thickness(0, 0, 26, 0); Left += 40; Top += 40; }
         OpacitySlider.Value = _settings.BackgroundOpacity;
         FrameBackground.Opacity = _settings.BackgroundOpacity;
         ApplyRowSize(_settings.RowSize);
@@ -313,10 +319,11 @@ public partial class OverlayWindow : Window
 
     private void SavePlacement()
     {
+        if (IsSecondary) return;
         _settings.OverlayLeft = Left;
         _settings.OverlayTop = Top;
-        if (TabActive) _settings.OverlayTabSizes[_tab] = [Width, Height];
-        else { _settings.OverlayWidth = Width; _settings.OverlayHeight = Height; }
+        _settings.OverlayWidth = Width;
+        _settings.OverlayHeight = Height;
         _settings.Save();
     }
 
@@ -658,7 +665,6 @@ public partial class OverlayWindow : Window
     private Views.AtlasView? _atlasView;
     private Views.TopDpsView? _topView;
     private Views.PriceWatchView? _pricesView;
-    private static readonly Dictionary<string, (double W, double H)> TabDefaultSize = new() { ["atlas"] = (900, 760), ["top"] = (860, 680), ["prices"] = (820, 440) };
 
     public string Tab => _tab;
     public bool TabActive => _tab != "meter";
@@ -670,18 +676,12 @@ public partial class OverlayWindow : Window
         if (sender is ToggleButton { Tag: string tab }) SelectTab(tab == _tab ? "meter" : tab);
     }
 
-    /// <summary>Shows one of the tabs: the card takes the size that tab had last time (meter: the usual overlay size).</summary>
+    /// <summary>Shows one of the tabs inside the card; the card keeps its size whatever the tab (Diego, 2026-10-10).</summary>
     public void SelectTab(string tab)
     {
         if (tab == _tab) { SyncTabChecks(); return; }
-        if (!TabActive) { _settings.OverlayWidth = Width; _settings.OverlayHeight = Height; }
-        else _settings.OverlayTabSizes[_tab] = [Width, Height];
         _tab = tab;
-        if (tab == "meter")
-        {
-            TabHost.Visibility = Visibility.Collapsed;
-            Width = Math.Max(MinWidth, _settings.OverlayWidth); Height = Math.Max(MinHeight, _settings.OverlayHeight);
-        }
+        if (tab == "meter") TabHost.Visibility = Visibility.Collapsed;
         else
         {
             TabHost.Content = tab switch
@@ -691,14 +691,17 @@ public partial class OverlayWindow : Window
                 _ => _pricesView ??= Wire(new Views.PriceWatchView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
             };
             TabHost.Visibility = Visibility.Visible;
-            var size = _settings.OverlayTabSizes.TryGetValue(tab, out var sz) && sz.Length == 2 ? (sz[0], sz[1]) : TabDefaultSize[tab];
-            Width = Math.Max(MinWidth, size.Item1); Height = Math.Max(MinHeight, size.Item2);
         }
         SyncTabChecks();
         ApplyClickThrough();
-        FitToMonitor();
-        _settings.Save();
     }
+
+    private void PopOut_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_drag.JustDragged) AppHost.Current.PopOut(_tab, Width, Height);
+    }
+
+    private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
 
     private static T Wire<T>(T view, Action<T> wire) { wire(view); return view; }
 
