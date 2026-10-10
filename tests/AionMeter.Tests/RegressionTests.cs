@@ -1,4 +1,4 @@
-using AionMeter.Core;
+using AionMeter.Core.Game;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Character;
 using AionMeter.Core.Events;
