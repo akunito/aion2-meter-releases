@@ -20,6 +20,7 @@ return args.FirstOrDefault() switch
     "live" => Live(args.Skip(1).ToArray()),
     "replay" when args.Length > 1 => Replay(args[1]),
     "dump" when args.Length > 1 => Dump(args[1], args.Length > 2 ? args[2] : null),
+    "ach" when args.Length > 1 => Ach(args[1]),
     "find" when args.Length > 2 => Find(args[1], args[2]),
     "crits" when args.Length > 1 => Crits(args[1]),
     "entities" when args.Length > 1 => Entities(args[1]),
@@ -165,6 +166,22 @@ int Dump(string path, string? opcodeHex)
     };
     replay.EventDecoded += e => Console.WriteLine($"    -> {e}");
     replay.RunToEnd();
+    return 0;
+}
+
+// Every achievement/collection list of a capture, one row per line (id state completedMs): diff two logins to map ids to names (A2M-15).
+int Ach(string path)
+{
+    var replay = new PcapReplaySource(data, path, realtime: false);
+    var lists = 0;
+    replay.EventDecoded += e =>
+    {
+        if (e is not AionMeter.Core.Events.AchievementListEvent a) return;
+        Console.WriteLine($"LIST {++lists} rows {a.Rows.Count}");
+        foreach (var r in a.Rows) Console.WriteLine($"{r.Id} {r.State} {r.CompletedMs}");
+    };
+    replay.RunToEnd();
+    Console.WriteLine($"lists {lists}");
     return 0;
 }
 
