@@ -115,7 +115,7 @@ public partial class TopDpsView : UserControl
         _tabs.Clear();
         foreach (var c in classes) _tabs.Add(new ClassTab(c, _scope == 0 ? $"{T.ClassName(c)} ({_meter.Top.For(c).Count})" : T.ClassName(c), c == _class));
         CountText.Text = _scope == 0 && _meter.Top.Count > 0 ? string.Format(T.TopCount, _meter.Top.Count) : "";
-        HintText.Text = _scope == 0 ? T.TopHint : T.TopBoardHint;
+        CountText.ToolTip = _scope == 0 ? T.TopHint : T.TopBoardHint;   // the hint lives in the tooltip now (Diego 2026-10-11: two lines of text under the tabs)
         FillRows();
     }
 
