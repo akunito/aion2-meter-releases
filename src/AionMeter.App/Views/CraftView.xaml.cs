@@ -39,8 +39,8 @@ public partial class CraftView : UserControl
     /// <summary>Craft → Load market file…: the JSON the browser-console script saved in Downloads (Prices → Copy market script).</summary>
     private void LoadMarket_Click(object sender, RoutedEventArgs e)
     {
-        var downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "aion2.exchange export (*.json)|*.json", InitialDirectory = Directory.Exists(downloads) ? downloads : "", FileName = "aion2exchange-" };
+        var downloads = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "aion2.exchange export (*.json)|*.json", InitialDirectory = System.IO.Directory.Exists(downloads) ? downloads : "", FileName = "aion2exchange-" };
         if (dlg.ShowDialog() != true) return;
         if (!_meter.ImportMarket(dlg.FileName)) StatusText.Text = T.CraftMarketBad;
         else { ProfitBox.IsChecked = true; Reload(); }
