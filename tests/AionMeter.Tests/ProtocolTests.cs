@@ -160,6 +160,19 @@ public class ProtocolTests
         Assert.Empty(Parse(Opcodes.RemainHp, "f2c9030201008fcc12070000000").OfType<LocalPlayerHintEvent>()); // boss 58610: 02 01 header
     }
 
+    // A world boss fight (2026-10-10, boss 19505): an Elementalist's hit and a Ranger's third hit of one skill — who, on
+    // what, which skill; never how much.
+    [Theory]
+    [InlineData("B48D0100B198015328F40006BFA6A64C68316C474595214700EA0547C203010000000100", 18100u, 16001107)]
+    [InlineData("EA5D00B198012815D60020E39DF34268316C474595214700EA0547C203030000000300", 12010u, 14030120)]
+    public void Hit_notices_decode(string hex, uint actor, int skill)
+    {
+        var n = Assert.IsType<HitNoticeEvent>(Assert.Single(Parse(Opcodes.HitNotice, hex)));
+        Assert.Equal(actor, n.ActorId);
+        Assert.Equal(19505u, n.TargetId);
+        Assert.Equal(skill, n.SkillCode);
+    }
+
     // Altgard's field boss list (map 1110) as the in-game map showed it at 00:30:07 on 2026-10-06 (UTC+3): 24 slots,
     // 3 alive with a position, a few with an extra byte before the time. Checked against the in-game list.
     private const string AltgardList =

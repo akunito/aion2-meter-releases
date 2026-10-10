@@ -39,6 +39,8 @@ public sealed class NpcInfo
     public bool MaxHpKnown { get; set; }
     /// <summary>-1 until an HP record arrives; 0 = dead.</summary>
     public long Hp { get; set; } = -1;
+    /// <summary>When <see cref="Hp"/> last came from the server (capture time, ms).</summary>
+    public long HpAtMs { get; set; }
     public bool InCombat { get; set; }
     public bool IsBoss { get; set; }
     public bool IsDummy { get; set; }

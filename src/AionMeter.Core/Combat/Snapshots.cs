@@ -5,7 +5,8 @@ namespace AionMeter.Core.Combat;
 /// <summary>Immutable copies handed to the UI and written to history; safe to read off the capture thread.</summary>
 /// <param name="MaxHpKnown">False when the meter never saw the boss appear: <paramref name="MaxHp"/> is then only the
 /// highest HP it saw, and the percentage means little.</param>
-/// <param name="Uncounted">HP the boss lost that no counted hit explains — mostly damage dealt before the meter started.</param>
+/// <param name="Uncounted">HP the boss had lost before the meter began watching it: a fight joined late, or the meter
+/// started mid-fight. (Fights saved before 0.2.6 took it from the damage, which in the open world is 4.5× off.)</param>
 public sealed record BossSnapshot(uint ActorId, int NpcCode, string Name, long Hp, long MaxHp, bool MaxHpKnown = true, long Uncounted = 0)
 {
     public double HpFraction => MaxHp > 0 && Hp >= 0 ? Math.Clamp((double)Hp / MaxHp, 0, 1) : 1;
@@ -49,11 +50,47 @@ public sealed record EncounterSnapshot(
     double PartyDps,
     BossSnapshot? Boss,
     IReadOnlyList<CombatantSnapshot> Combatants,
-    int TargetCode = 0)
+    int TargetCode = 0,
+    int Attackers = 0)
 {
     /// <summary>Players who took part (the unknown-summons row is not one).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public int PlayerCount => Combatants.Count(c => !c.IsUnknownSummons);
+
+    /// <summary>Players whose hits — with their damage — reached this client.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int DamageSenders => Combatants.Count(c => !c.IsUnknownSummons && c.Hits > 0);
+
+    /// <summary>Everyone seen fighting: the players listed, and those whose hit notices came without any damage.
+    /// Fights saved before the meter read hit notices know only the players listed.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int Fighting => Math.Max(Attackers, PlayerCount);
+
+    /// <summary>
+    /// The server kept most of the fight from this client: on a world boss with a crowd it sends the damage of a few
+    /// players (you among them) and, for the rest, hit notices without numbers or damage over time — so their numbers
+    /// and every share are far from the real ones. Fights saved before the hit notices tell it by their rows: almost
+    /// everyone dealt damage over time only.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool MostDamageUnsent
+    {
+        get
+        {
+            if (Boss is null) return false;
+            int withHits = 0, dotOnly = 0;
+            foreach (var c in Combatants)
+            {
+                if (c.IsUnknownSummons || c.Damage <= 0) continue;
+                if (c.Hits > 0) withHits++;
+                else dotOnly++;
+            }
+            if (withHits == 0) return false; // no hit at all came: not a crowd, a fight seen in part
+            return Attackers > 0
+                ? Attackers >= 20 && withHits * 4 <= Attackers
+                : dotOnly >= 5 && withHits * 4 <= dotOnly;
+        }
+    }
 }
 
 public sealed record SkillRow(

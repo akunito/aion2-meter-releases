@@ -42,7 +42,8 @@ public sealed class PacketPipeline
     public long GameBytes { get; private set; }
     public int GameFlows => _flows.Values.Count(f => f.IsGame);
     public IEnumerable<FlowKey> LockedFlows => _flows.Values.Where(f => f.IsGame).Select(f => f.Key);
-    public long Gaps => _flows.Values.Where(f => f.Reassembler is not null).Sum(f => f.Reassembler!.Gaps);
+    /// <summary>Holes in the game streams skipped since start (lost packets): each costs whatever the hole held.</summary>
+    public long Gaps { get; private set; }
     public long LastGameDataMs { get; private set; }
 
     public event Action<FlowKey>? FlowLocked;
@@ -105,7 +106,11 @@ public sealed class PacketPipeline
         var aligned = flow.SynNext is { } isn && isn == first.Seq;
         flow.Decoder = new FrameDecoder(Handle, aligned);
         var decoder = flow.Decoder;
-        flow.Reassembler = new TcpReassembler(d => decoder.Feed(d.Span), decoder.Reset);
+        flow.Reassembler = new TcpReassembler(d => decoder.Feed(d.Span), () =>
+        {
+            Gaps++;
+            decoder.Reset();
+        });
         flow.Reassembler.Start(first.Seq);
 
         var buffered = flow.PreLock;

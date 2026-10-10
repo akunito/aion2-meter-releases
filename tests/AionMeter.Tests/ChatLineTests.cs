@@ -39,6 +39,20 @@ public class ChatLineTests
     }
 
     [Fact]
+    public void A_world_boss_line_says_how_little_damage_was_sent()
+    {
+        // The server sent our damage only: of the crowd, hit notices (444 fighting) and some damage over time.
+        var crowd = new[] { Party5[2] }
+            .Concat(Enumerable.Range(10, 6).Select(i => Player((uint)i, $"Player{i}", 7_000) with { Hits = 0 }))
+            .ToList();
+        Assert.StartsWith("Balhash 2:40 KILL (444 attacking, damage of 1 sent) | 1.Talwyn",
+            ChatLine.Party(Fight(crowd) with { Attackers = 444 }));
+        // Saved before the meter read hit notices: the rows tell it, the listed players are all it knows.
+        Assert.StartsWith("Balhash 2:40 KILL (7 attacking, damage of 1 sent) | 1.Talwyn", ChatLine.Party(Fight(crowd)));
+        Assert.StartsWith("Balhash 2:40 KILL | 1.Sylvaen", ChatLine.Party(Fight(Party5) with { Attackers = 5 }));
+    }
+
+    [Fact]
     public void Player_line_gives_place_dps_damage_crit_and_top_hit_in_the_interface_language()
     {
         Assert.Equal(

@@ -162,6 +162,34 @@ public class EngineTests
         Assert.Equal(["Sylvaen"], second.ExportCache().Players.Select(p => p.Name));
     }
 
+    [Fact]
+    public void Dying_on_a_boss_after_a_restart_in_the_dungeon_keeps_the_fight()
+    {
+        var first = Tracker();
+        first.Process(new ZoneChangedEvent(0, 600021, "Fire Temple", true));
+        first.Process(new SelfIdentifiedEvent(0, Me, "Sylvaen", 2305, GameClass.Elementalist));
+        first.Process(new NpcSeenEvent(0, Boss, 2300218, 9_860_000));
+        var cache = first.ExportCache();
+
+        // The meter restarts inside the dungeon: its parser has seen no map load yet.
+        var t = Tracker();
+        t.ImportCache(cache);
+        t.Process(new DamageEvent(1_000, Me, Boss, 16040000, 100_000, HitFlags.None));
+        // We die and revive: the game reloads the same map, ids stay — not a new zone.
+        t.Process(new ZoneChangedEvent(20_000, 600021, "Fire Temple", true, IsTeleport: false));
+        t.Process(new DamageEvent(30_000, Me, Boss, 16040000, 100_000, HitFlags.None));
+
+        var segment = Assert.Single(t.Segments());
+        Assert.True(segment.IsActive);
+        var snap = t.Snapshot(null, 31_000)!;
+        Assert.Equal(200_000, snap.TotalDamage);
+        Assert.Equal(2300218, snap.Boss!.NpcCode);
+
+        // Another map is a real zone change.
+        t.Process(new ZoneChangedEvent(40_000, 600022, "Other Temple", true));
+        Assert.Equal(EncounterEndReason.ZoneChange, t.Segments()[0].Reason);
+    }
+
     /// <summary>A meter that saw the boss come into view, then restarted mid-fight (the button, an update, a crash).</summary>
     private static SessionState CacheWithBoss(long maxHp)
     {
@@ -225,6 +253,86 @@ public class EngineTests
 
         Assert.Equal(0, saved!.Summary.Boss!.Uncounted);
         Assert.Null(saved.Summary.Boss.CountedFrom);
+    }
+
+    [Fact]
+    public void Open_world_boss_watched_from_full_hp_was_counted_whole()
+    {
+        // In the open world an NPC loses 4.5 HP per point of damage the hits report: damage cannot measure the boss.
+        var t = Tracker();
+        Setup(t);
+        FightRecord? saved = null;
+        t.EncounterFinished += r => saved = r;
+        t.Process(new NpcHpEvent(900, Boss, 120_000_000, 120_000_000));
+        t.Process(new DamageEvent(1_000, Me, Boss, 16040000, 10_000_000, HitFlags.None));
+        t.Process(new NpcHpEvent(1_010, Boss, 75_000_000, 120_000_000));
+        t.Process(new DamageEvent(2_000, Mate, Boss, 11020000, 16_666_667, HitFlags.None));
+        t.Process(new NpcHpEvent(2_010, Boss, 0, 120_000_000));
+
+        Assert.Equal(0, saved!.Summary.Boss!.Uncounted);
+        Assert.Null(saved.Summary.Boss.CountedFrom);
+    }
+
+    [Fact]
+    public void A_boss_joined_late_is_counted_from_its_hp_at_the_first_hit()
+    {
+        var t = Tracker();
+        Setup(t);
+        t.Process(new NpcHpEvent(900, Boss, 12_000_000, 120_000_000)); // 10 % left when we arrive
+        t.Process(new DamageEvent(1_000, Me, Boss, 16040000, 300_000, HitFlags.None));
+        t.Process(new NpcHpEvent(1_010, Boss, 6_000_000, 120_000_000)); // the crowd's hits never reach us
+
+        var boss = t.Snapshot(null, 2_000)!.Boss!;
+        Assert.Equal(108_000_000, boss.Uncounted);
+        Assert.Equal(0.1, boss.CountedFrom!.Value, 6);
+    }
+
+    [Fact]
+    public void A_stale_boss_hp_is_not_where_the_count_starts()
+    {
+        var t = Tracker();
+        Setup(t);
+        t.Process(new NpcHpEvent(1_000, Boss, 60_000_000, 120_000_000)); // seen long before this fight
+        t.Process(new DamageEvent(30_000, Me, Boss, 16040000, 1_000_000, HitFlags.None));
+        t.Process(new NpcHpEvent(30_100, Boss, 20_000_000, 120_000_000)); // others fought it meanwhile
+
+        var boss = t.Snapshot(null, 31_000)!.Boss!;
+        Assert.Equal(120_000_000 - 20_000_000 - 1_000_000, boss.Uncounted);
+    }
+
+    [Fact]
+    public void A_crowd_whose_damage_the_server_kept_back_is_flagged_and_counted()
+    {
+        // A world boss: our hits arrive with their damage; of the crowd only "a hit landed" notices, and a few DoT ticks.
+        var t = Tracker();
+        Setup(t);
+        t.Process(new DamageEvent(1_000, Me, Boss, 16040000, 300_000, HitFlags.None));
+        for (uint p = 0; p < 30; p++) t.Process(new HitNoticeEvent(1_050, 300 + p, Boss, 14030120));
+        for (uint p = 0; p < 3; p++)
+        {
+            t.Process(new PlayerSeenEvent(1_000, 200 + p, $"Player{p}", 1304, GameClass.Templar));
+            t.Process(new DamageEvent(1_100, 200 + p, Boss, 12090000, 7_000, HitFlags.Dot));
+            t.Process(new HitNoticeEvent(1_100, 200 + p, Boss, 12010000)); // listed already: counted once
+        }
+        t.Process(new HitNoticeEvent(1_200, Pet, Boss, 16900000));     // our spirit: we are counted already
+        t.Process(new HitNoticeEvent(1_200, 400, Add, 14030120));      // another target
+        t.Process(new HitNoticeEvent(1_200, 401, Boss, 2_300_001));    // an NPC skill: no player
+
+        var snap = t.Snapshot(null, 2_000)!;
+        Assert.Equal(34, snap.Fighting);
+        Assert.Equal(4, snap.PlayerCount);
+        Assert.Equal(1, snap.DamageSenders);
+        Assert.True(snap.MostDamageUnsent);
+
+        // Everybody's hits arrive in a party fight, DoT-only players or not.
+        var party = Tracker();
+        Setup(party);
+        party.Process(new DamageEvent(1_000, Me, Boss, 16040000, 300_000, HitFlags.None));
+        party.Process(new DamageEvent(1_000, Mate, Boss, 11020000, 300_000, HitFlags.None));
+        party.Process(new HitNoticeEvent(1_000, Mate, Boss, 11020000));
+        var p2 = party.Snapshot(null, 2_000)!;
+        Assert.False(p2.MostDamageUnsent);
+        Assert.Equal(2, p2.Fighting);
     }
 
     [Fact]

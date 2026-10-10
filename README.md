@@ -190,7 +190,8 @@ third-party tool may be against the game's terms of service — use it at your o
 
 **Some players show as "#12345" instead of a name.**
 The game sends names on loading screens. Start the meter before entering a dungeon; players who were already around get
-their names after the next loading screen.
+their names after the next loading screen. That includes you: a meter started after you entered the zone knows your
+character (name, highlighted row) after your next teleport or loading screen.
 
 **Does it work with ExitLag or a VPN?**
 Yes with ExitLag and other ping boosters. If a VPN hides the game connection, choose the network adapter in
@@ -207,6 +208,14 @@ here: read it or build it yourself.
 **My crit rate on a crowded field boss is almost zero.**
 On busy field bosses the game reports very few critical hits for some classes; the meter shows exactly what the server
 sends. On other targets the numbers look as usual.
+
+**On a world boss with a big crowd I am first with half the damage, and most players are missing.**
+When a crowd piles onto a world boss, the game stops sending your client the damage of almost everyone: you get your
+own hits, a few others' and some damage over time; for the rest it only says that a hit landed, without the number
+(on a quieter run of the same boss every hit arrives). A recorded Watcher Kaira fight: in 3 minutes the boss lost
+200M HP, the damage that arrived added up to 3.7M. No meter on your PC can count what never reaches it, so the overlay
+counts who is fighting from those notices and says *133 attacking · damage of 3 sent* instead of the party DPS; the
+breakdown says the same under the fight, and chat lines get "(133 attacking, damage of 3 sent)".
 
 **Where are my settings and fights? How do I uninstall?**
 In `%AppData%\AionMeter`. Uninstall from *Settings → Apps*; it asks whether to delete settings and history as well.
@@ -277,7 +286,7 @@ aionmeter-cli update-check --pretend 0.0.1   # what the update check sees on Git
 
 | | |
 |---|---|
-| `--render-sample out.png` | draw the overlay with a scripted fight of every class into a PNG and exit — no window, no capture, no settings or history touched, safe while the game runs. Also `--window breakdown\|timers\|update\|overlay-update`, `--tab accuracy\|rotation`, `--lang ru`, `--backdrop game\|dark\|none`, `--width`, `--height`, `--scale` |
+| `--render-sample out.png` | draw the overlay with a scripted fight of every class into a PNG and exit — no window, no capture, no settings or history touched, safe while the game runs. Also `--window breakdown\|timers\|update\|overlay-update\|overlay-crowd`, `--tab accuracy\|rotation`, `--lang ru`, `--backdrop game\|dark\|none`, `--width`, `--height`, `--scale` |
 | `--render-sample <folder> --animate 12 --fps 10` | the overlay frame by frame through the scripted fight, for videos |
 | `--demo` | a synthetic fight (mixes with live data — not while playing) |
 | `--replay file.pcap --open-last [--tab rotation]` | run a recording through the meter and open the breakdown |

@@ -161,10 +161,21 @@ public sealed class Encounter
     public bool BossMaxHpKnown { get; set; }
     public long BossHp { get; set; } = -1;
     public long BossLowestHp { get; set; } = long.MaxValue;
+    /// <summary>The boss's HP when the meter began watching it (-1 until a fresh HP record), and the damage on the boss
+    /// counted by then: the boss lost <c>max − BossRefHp</c> before that, beyond those hits.</summary>
+    /// <remarks>
+    /// Compared in HP, never against the damage: in the open world an NPC loses 4.5 HP per point of damage the hit
+    /// reports (some 23.7, in dungeons 1), so damage cannot tell how much of a boss the meter saw.
+    /// </remarks>
+    public long BossRefHp { get; set; } = -1;
+    public long BossRefCounted { get; set; }
 
     /// <summary>Damage dealt to each NPC actor, used to pick the most relevant target as the encounter title.</summary>
     public Dictionary<uint, long> DamageByTarget { get; } = new();
     public Dictionary<uint, Combatant> Combatants { get; } = new();
+
+    /// <summary>Players seen landing hits on the fight's targets (hit notices), whether or not their damage arrived.</summary>
+    public HashSet<uint> Attackers { get; } = new();
 
     public long TotalDamage { get; set; }
 

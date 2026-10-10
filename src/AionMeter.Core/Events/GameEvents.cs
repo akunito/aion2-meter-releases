@@ -111,6 +111,12 @@ public sealed record FieldBossListEvent(long TimeMs, int MapId, int Count, IRead
 /// </summary>
 public sealed record CastEvent(long TimeMs, uint ActorId, uint TargetId, int SkillCode) : GameEvent(TimeMs);
 
+/// <summary>
+/// A hit landed (<c>03 38</c>): who hit what with which skill — no damage. On a world boss with a crowd it is all the
+/// server sends about most players' hits, so it tells who is fighting even when their damage never arrives.
+/// </summary>
+public sealed record HitNoticeEvent(long TimeMs, uint ActorId, uint TargetId, int SkillCode) : GameEvent(TimeMs);
+
 /// <summary>Server-side combat state toggle for an NPC (boss engaged / disengaged). KR only so far.</summary>
 public sealed record BattleStateEvent(long TimeMs, uint ActorId, bool InCombat) : GameEvent(TimeMs);
 

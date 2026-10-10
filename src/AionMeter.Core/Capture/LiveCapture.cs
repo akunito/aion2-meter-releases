@@ -53,6 +53,27 @@ public sealed class LiveCapture : IEventSource
         File.Exists(Path.Combine(Environment.SystemDirectory, "Npcap", "wpcap.dll")) ||
         File.Exists(Path.Combine(Environment.SystemDirectory, "wpcap.dll"));
 
+    private const int KernelBufferBytes = 16 * 1024 * 1024;
+
+    /// <summary>Packets Npcap delivered and dropped on the open adapter, and holes in the game streams; null while no
+    /// adapter is open. The adapter's counters restart when it is reopened.</summary>
+    public CaptureHealth? Health()
+    {
+        lock (_gate)
+        {
+            if (_device is null) return null;
+            try
+            {
+                var s = _device.Statistics;
+                return new CaptureHealth(s.ReceivedPackets, s.DroppedPackets + s.InterfaceDroppedPackets, _pipeline.Gaps);
+            }
+            catch (PcapException)
+            {
+                return null;
+            }
+        }
+    }
+
     public static IReadOnlyList<(string Name, string Description)> ListDevices()
     {
         return CaptureDeviceList.Instance.OfType<LibPcapLiveDevice>()
@@ -192,7 +213,9 @@ public sealed class LiveCapture : IEventSource
             if (_device is null)
             {
                 device.OnPacketArrival += OnPacketArrival;
-                device.Open(new DeviceConfiguration { Mode = DeviceModes.None, ReadTimeout = 100 });
+                // A world boss with a crowd floods the game connection: Npcap's default 1 MB kernel buffer overflows
+                // in the bursts, and every packet it drops is a hole in the stream.
+                device.Open(new DeviceConfiguration { Mode = DeviceModes.None, ReadTimeout = 100, BufferSize = KernelBufferBytes });
                 device.Filter = filter;
                 _filter = filter;
                 _device = device;
@@ -309,6 +332,8 @@ public sealed class LiveCapture : IEventSource
     private static string Describe(LibPcapLiveDevice d) =>
         IsLoopback(d) ? "Loopback" : string.IsNullOrWhiteSpace(d.Description) ? d.Name : d.Description!;
 }
+
+public readonly record struct CaptureHealth(long Received, long Dropped, long Gaps);
 
 /// <summary>Link layer → TCP segment, shared by live capture and pcap replay.</summary>
 public static class SegmentReader

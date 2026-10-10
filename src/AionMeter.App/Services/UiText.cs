@@ -171,6 +171,13 @@ public sealed class UiText
     /// <summary>"counted from 82% HP": the meter started (or restarted) after the boss had already lost the rest.</summary>
     public string CountedFrom { get; init; } = "counted from {0} HP";
     public string HpUnknown { get; init; } = "max HP unknown";
+    /// <summary>A world boss with a crowd: "444 attacking · damage of 53 sent" (see EncounterSnapshot.MostDamageUnsent).</summary>
+    public string FightingCount { get; init; } = "{0} attacking";
+    public string DamageSentBy { get; init; } = "damage of {0} sent";
+    public string DamageUnsentTip { get; init; } =
+        "On a world boss with a crowd the game sends your client the damage of only a few players, you among them. For everyone else it sends that a hit landed, without the number, or their damage over time. So their numbers and every share here are far below the real ones; a meter on this PC cannot see more.";
+    public string DamageUnsentLine(Core.Combat.EncounterSnapshot s) =>
+        $"{string.Format(FightingCount, s.Fighting)} · {string.Format(DamageSentBy, s.DamageSenders)}";
     public string TipRestart { get; init; } = "Restart the meter ({0}): the fight so far is saved, counting starts over";
     public string InProgress { get; init; } = "In progress";
     public string Kill { get; init; } = "Kill";
@@ -599,6 +606,9 @@ public sealed class UiText
         UnknownBoss = "Неизвестный босс",
         CountedFrom = "учтено с {0} HP",
         HpUnknown = "макс. HP неизвестен",
+        FightingCount = "{0} бьют босса",
+        DamageSentBy = "урон виден у {0}",
+        DamageUnsentTip = "На мировом боссе с толпой игра присылает вашему клиенту урон лишь нескольких игроков, в том числе ваш. Про остальных приходит только «удар попал» — без числа — или их периодический урон. Поэтому их цифры и все доли здесь намного ниже настоящих; метр на этом компьютере больше увидеть не может.",
         TipRestart = "Перезапустить метр ({0}): бой сохранится, подсчёт начнётся заново",
         InProgress = "Идёт бой",
         Kill = "Убит",
@@ -643,6 +653,8 @@ public sealed class UiText
             Kill = "УБИТ",
             Wipe = "ВАЙП",
             BossLeft = "босс {0}",
+            Fighting = "бьют {0}",
+            DamageSentBy = "урон виден у {0}",
             Party = "группа {0}",
             Place = "{0}-й из {1}",
             Damage = "урон {0}",

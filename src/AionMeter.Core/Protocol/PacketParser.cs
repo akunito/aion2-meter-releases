@@ -73,6 +73,9 @@ public sealed class PacketParser
             case Opcodes.BrokerPage:
                 ParseBrokerPage(body);
                 break;
+            case Opcodes.HitNotice:
+                ParseHitNotice(body);
+                break;
             case Opcodes.FieldBossList:
                 ParseFieldBossList(body);
                 break;
@@ -499,6 +502,23 @@ public sealed class PacketParser
             o++;
         }
         if (list.Count > 0) Emit(new BrokerPageEvent(TimeMs, page, list));
+    }
+
+    // ------------------------------------------------------------------ hit notices (03 38)
+
+    /// <summary>
+    /// <code>actor varint, 00, target varint, skill u32, u8, uid u32, x y z f32, varint, hit# u32, hit# u16</code>
+    /// One per hit (a multi-hit skill counts up with the same uid). No damage: a crowd's hits on a world boss come only
+    /// this way.
+    /// </summary>
+    private void ParseHitNotice(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var actor) || !IsEntityId(actor)) return;
+        if (!Wire.TryU8(b, ref o, out var zero) || zero != 0) return;
+        if (!Wire.TryVarint(b, ref o, out var target) || !IsEntityId(target) || target == actor) return;
+        if (!Wire.TryU32(b, ref o, out var skill) || skill is < 1 or > 299_999_999) return;
+        Emit(new HitNoticeEvent(TimeMs, actor, target, (int)skill));
     }
 
     // ------------------------------------------------------------------ damage (04 38)

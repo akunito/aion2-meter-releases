@@ -14,7 +14,8 @@ namespace AionMeter.App.Services;
 /// </summary>
 public static class SampleRenderer
 {
-    /// <param name="Window">overlay (default), overlay-update, breakdown, history, timers, settings, update or update-portable.</param>
+    /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
+    /// arrives), breakdown, history, timers, settings, update or update-portable.</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense.</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
@@ -26,7 +27,9 @@ public static class SampleRenderer
     {
         using var meter = CreateMeter(language, o.RowSize);
         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 20_500; // a fight that is still going
-        new SampleFight(start, 20).FeedUntil(meter.Tracker, start + 20_000);
+        var fight = new SampleFight(start, 20);
+        fight.FeedUntil(meter.Tracker, start + 20_000);
+        if (o.Window == "overlay-crowd") fight.FeedCrowd(meter.Tracker, start + 20_000, 124);
         if (o.Window == "history")
             foreach (var entry in meter.History.List().Take(20)) meter.PortraitOf(entry);
         WaitForPortraits(meter);
@@ -246,6 +249,12 @@ public static class SampleRenderer
                 }
                 _events.Add(new NpcHpEvent(start + at, Boss, Math.Max(1, BossHp - dealt), BossHp));
             }
+        }
+
+        /// <summary>Hit notices from <paramref name="players"/> made-up players whose damage the server never sends.</summary>
+        public void FeedCrowd(Core.Combat.CombatTracker tracker, long atMs, int players)
+        {
+            for (var i = 0; i < players; i++) tracker.Process(new HitNoticeEvent(atMs, 910_000 + (uint)i, Boss, 14030120));
         }
 
         /// <summary>Feeds every event up to <paramref name="untilMs"/> that has not been fed yet.</summary>
