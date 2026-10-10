@@ -91,8 +91,16 @@ public partial class App : Application
         {
             Log.Error("UI exception", ex.Exception);
             ex.Handled = true;
+            // A2M-19: keep running (as upstream does) but leave a crash file and offer the report once per run
+            var crash = BugReport.WriteCrash("UI exception", ex.Exception);
+            if (crash is not null && !_crashOffered)
+            {
+                _crashOffered = true;
+                _tray?.ShowBalloon(AppInfo.Name, UiText.Current.CrashBalloon, () => ShowBugReport(string.Format(UiText.Current.ReportCrashNote, Path.GetFileName(crash))));
+            }
         };
-        AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("Fatal exception", ex.ExceptionObject as Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) => { Log.Error("Fatal exception", ex.ExceptionObject as Exception); BugReport.WriteCrash("Fatal exception", ex.ExceptionObject as Exception); };
+        TaskScheduler.UnobservedTaskException += (_, ex) => { Log.Error("Unobserved task exception", ex.Exception); ex.SetObserved(); };
 
         var settings = AppSettings.Load();
         settings.Save(); // persist any migration done while loading
@@ -136,6 +144,7 @@ public partial class App : Application
             ToggleLanguage: ToggleLanguage,
             Update: () => ShowUpdate(),
             CheckUpdates: () => _ = CheckUpdatesFromTrayAsync(),
+            Report: () => ShowBugReport(),
             Exit: () =>
             {
                 Log.Info("Exit chosen in the tray menu");
@@ -495,6 +504,18 @@ public partial class App : Application
             _tray?.ShowBalloon(t.TimersTitle, text);
             System.Media.SystemSounds.Asterisk.Play();
         }
+    }
+
+    private bool _crashOffered;
+    private BugReportWindow? _reportWindow;
+    /// <summary>"Report a problem" (tray, settings, crash balloon): one window, the crash file name pre-filled when it comes from a crash.</summary>
+    public void ShowBugReport(string? prefill = null)
+    {
+        if (_reportWindow is { IsLoaded: true } open) { Activate(open); return; }
+        var w = new BugReportWindow(prefill);
+        w.Closed += (_, _) => { if (_reportWindow == w) _reportWindow = null; };
+        _reportWindow = w;
+        w.Show();
     }
 
     public void ShowSettings()

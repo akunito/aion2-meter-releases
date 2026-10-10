@@ -23,6 +23,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _update;
     private readonly ToolStripSeparator _updateSeparator;
     private readonly ToolStripMenuItem _checkUpdates;
+    private readonly ToolStripMenuItem _report;
     private readonly Icon _image;
     private bool _overlayVisible = true;
     private string? _updateVersion;
@@ -36,6 +37,7 @@ public sealed class TrayIcon : IDisposable
         _update.Font = new Font(_update.Font, System.Drawing.FontStyle.Bold);
         _updateSeparator = new ToolStripSeparator { Visible = false };
         _checkUpdates = new ToolStripMenuItem("", null, (_, _) => actions.CheckUpdates());
+        _report = new ToolStripMenuItem("", null, (_, _) => actions.Report());
         _toggle = new ToolStripMenuItem("", null, (_, _) => actions.ToggleOverlay());
         _clickThrough = new ToolStripMenuItem("", null, (_, _) => actions.ToggleClickThrough());
         _reset = new ToolStripMenuItem("", null, (_, _) => actions.Reset());
@@ -51,7 +53,7 @@ public sealed class TrayIcon : IDisposable
         menu.Items.AddRange([
             _update, _updateSeparator,
             _toggle, _clickThrough, _reset, new ToolStripSeparator(),
-            _history, _timers, _atlas, _top, _settings, _language, _demo, _replay, _checkUpdates, new ToolStripSeparator(),
+            _history, _timers, _atlas, _top, _settings, _language, _demo, _replay, _checkUpdates, _report, new ToolStripSeparator(),
             _exit,
         ]);
         ApplyTexts();
@@ -93,6 +95,7 @@ public sealed class TrayIcon : IDisposable
         _replay.Text = t.TrayReplay;
         _exit.Text = t.TrayExit;
         _checkUpdates.Text = t.TrayCheckUpdates;
+        _report.Text = t.TrayReport;
         if (_updateVersion is not null) _update.Text = string.Format(t.TrayUpdate, _updateVersion);
     }
 
@@ -162,4 +165,5 @@ public sealed record TrayActions(
     Action ToggleLanguage,
     Action Update,
     Action CheckUpdates,
+    Action Report,
     Action Exit);

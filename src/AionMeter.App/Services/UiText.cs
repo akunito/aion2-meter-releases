@@ -364,6 +364,16 @@ public sealed class UiText
     public string UpdatedBalloon { get; init; } = "Updated to version {0}.";
     public string TrayUpdate { get; init; } = "Update to {0}…";
     public string TrayCheckUpdates { get; init; } = "Check for updates";
+    public string TrayReport { get; init; } = "Report a problem…";
+    public string ReportTitle { get; init; } = "Report a problem";
+    public string ReportHint { get; init; } = "Describe what happened and what you expected. A zip with the last two logs, crash files, your settings (without private addresses), the state summary and the build info is created and shown in Explorer: send it to Diego on Discord.";
+    public string ReportDescribe { get; init; } = "What happened? What were you doing in the game?";
+    public string ReportIncludeState { get; init; } = "Include my character state (inventory, titles, pets) — only if the problem is about those";
+    public string ReportCreate { get; init; } = "Create report";
+    public string ReportCreated { get; init; } = "Report saved: {0}";
+    public string ReportFailed { get; init; } = "Could not create the report: {0}";
+    public string ReportCrashNote { get; init; } = "The meter hit an error (see {0} in the report).\n\nWhat was happening: ";
+    public string CrashBalloon { get; init; } = "The meter hit an error. Click here to create a report for Diego.";
     public string TrayAtlas { get; init; } = "Atlas (nodes map)";
     public string TrayTop { get; init; } = "Top DPS per class";
     public string TopTitle { get; init; } = "Top DPS";
