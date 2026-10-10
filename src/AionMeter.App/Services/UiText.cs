@@ -379,6 +379,7 @@ public sealed class UiText
     public string ReportCreate { get; init; } = "Save zip only";
     public string ReportSend { get; init; } = "Send to Diego";
     public string ReportSending { get; init; } = "Sending…";
+    public string ReportLimit { get; init; } = "Limit reached: up to 2 reports a minute, 5 an hour, 10 a day. Next send in {0}.";
     public string ReportSent { get; init; } = "Sent. Diego got it on Telegram (id {0}).";
     public string ReportSendFailed { get; init; } = "Could not send ({0}). The zip is saved and shown in Explorer: paste it on Discord.";
     public string ReportCreated { get; init; } = "Report saved: {0}";

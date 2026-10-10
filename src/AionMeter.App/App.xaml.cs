@@ -512,7 +512,7 @@ public partial class App : Application
     public void ShowBugReport(string? prefill = null)
     {
         if (_reportWindow is { IsLoaded: true } open) { Activate(open); return; }
-        var w = new BugReportWindow(prefill);
+        var w = new BugReportWindow(_meter.Settings, prefill);
         w.Closed += (_, _) => { if (_reportWindow == w) _reportWindow = null; };
         _reportWindow = w;
         w.Show();

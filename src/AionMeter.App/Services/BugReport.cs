@@ -81,8 +81,9 @@ public static class BugReport
         var build = "dev";
         try { var p = Path.Combine(AppContext.BaseDirectory, "BUILD-INFO.txt"); if (File.Exists(p)) foreach (var l in File.ReadLines(p)) { if (l.StartsWith("release ")) build = l[8..].Trim(); else if (l.StartsWith("upstream ") && build == "dev") build = "dev-" + l[9..16]; } } catch (IOException) { }
         using var form = new System.Net.Http.MultipartFormDataContent();
-        form.Add(new System.Net.Http.StringContent(note.Length > 900 ? note[..900] : note), "note");
-        form.Add(new System.Net.Http.StringContent(build), "build");
+        // StringContent carries "text/plain" and n8n then treats the field as an uploaded file (Diego's first send arrived as data0/data1): no content type
+        var noteContent = new System.Net.Http.StringContent(note.Length > 900 ? note[..900] : note); noteContent.Headers.ContentType = null; form.Add(noteContent, "note");
+        var buildContent = new System.Net.Http.StringContent(build); buildContent.Headers.ContentType = null; form.Add(buildContent, "build");
         var bytes = await File.ReadAllBytesAsync(zipPath, ct);
         var file = new System.Net.Http.ByteArrayContent(bytes);
         file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
@@ -94,6 +95,21 @@ public static class BugReport
         if (!resp.IsSuccessStatusCode) throw new System.Net.Http.HttpRequestException($"{(int)resp.StatusCode} {body}");
         try { using var doc = System.Text.Json.JsonDocument.Parse(body); return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : ""; }
         catch (System.Text.Json.JsonException) { return ""; }
+    }
+
+    /// <summary>Null when a send is allowed now, else the wait and a reason key: "gap" (10 s), "minute" (2/min), "hour" (5/h), "day" (10/day).</summary>
+    public static (TimeSpan Wait, string Reason)? SendBlock(AppSettings s, DateTimeOffset now)
+    {
+        s.ReportSends.RemoveAll(t => now - t > TimeSpan.FromHours(24));
+        if (s.ReportSends.Count == 0) return null;
+        var last = s.ReportSends.Max();
+        if (now - last < TimeSpan.FromSeconds(10)) return (TimeSpan.FromSeconds(10) - (now - last), "gap");
+        var minute = s.ReportSends.Where(t => now - t < TimeSpan.FromMinutes(1)).ToList();
+        if (minute.Count >= 2) return (TimeSpan.FromMinutes(1) - (now - minute.Min()), "minute");
+        var hour = s.ReportSends.Where(t => now - t < TimeSpan.FromHours(1)).ToList();
+        if (hour.Count >= 5) return (TimeSpan.FromHours(1) - (now - hour.Min()), "hour");
+        if (s.ReportSends.Count >= 10) return (TimeSpan.FromHours(24) - (now - s.ReportSends.Min()), "day");
+        return null;
     }
 
     public static void Reveal(string path)

@@ -32,7 +32,7 @@ public sealed class TrayIcon : IDisposable
     public TrayIcon(TrayActions actions)
     {
         _image = CreateIcon();
-        var menu = new ContextMenuStrip { ShowImageMargin = false };
+        var menu = new ContextMenuStrip { ShowImageMargin = false, Renderer = new DarkMenuRenderer(), BackColor = DarkMenuRenderer.Back, ForeColor = DarkMenuRenderer.Fore };
         _update = new ToolStripMenuItem("", null, (_, _) => actions.Update()) { Visible = false };
         _update.Font = new Font(_update.Font, System.Drawing.FontStyle.Bold);
         _updateSeparator = new ToolStripSeparator { Visible = false };
@@ -148,6 +148,40 @@ public sealed class TrayIcon : IDisposable
         _icon.Visible = false;
         _icon.Dispose();
         _image.Dispose();
+    }
+}
+
+/// <summary>The stock WinForms menu is white over the dark overlay (Diego, 2026-10-10): dark background, light text, gold-grey hover.</summary>
+internal sealed class DarkMenuRenderer : ToolStripProfessionalRenderer
+{
+    public static readonly Color Back = Color.FromArgb(0x12, 0x18, 0x26), Fore = Color.FromArgb(0xE6, 0xE9, 0xF0), Hover = Color.FromArgb(0x2A, 0x33, 0x50), Line = Color.FromArgb(0x3A, 0x40, 0x55);
+    public DarkMenuRenderer() : base(new DarkColors()) { RoundedEdges = false; }
+    protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e) { e.TextColor = e.Item.Enabled ? Fore : Color.FromArgb(0x80, 0x88, 0x98); base.OnRenderItemText(e); }
+    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+    {
+        var r = new Rectangle(e.ImageRectangle.X + 4, e.ImageRectangle.Y + 4, e.ImageRectangle.Width - 8, e.ImageRectangle.Height - 8);
+        using var pen = new Pen(Color.FromArgb(0xD9, 0xB8, 0x5C), 2f);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        e.Graphics.DrawLines(pen, [new Point(r.Left, r.Top + r.Height / 2), new Point(r.Left + r.Width / 3, r.Bottom), new Point(r.Right, r.Top)]);
+    }
+    private sealed class DarkColors : ProfessionalColorTable
+    {
+        public override Color ToolStripDropDownBackground => Back;
+        public override Color MenuBorder => Line;
+        public override Color MenuItemBorder => Hover;
+        public override Color MenuItemSelected => Hover;
+        public override Color MenuItemSelectedGradientBegin => Hover;
+        public override Color MenuItemSelectedGradientEnd => Hover;
+        public override Color MenuItemPressedGradientBegin => Hover;
+        public override Color MenuItemPressedGradientEnd => Hover;
+        public override Color ImageMarginGradientBegin => Back;
+        public override Color ImageMarginGradientMiddle => Back;
+        public override Color ImageMarginGradientEnd => Back;
+        public override Color SeparatorDark => Line;
+        public override Color SeparatorLight => Back;
+        public override Color CheckBackground => Back;
+        public override Color CheckSelectedBackground => Hover;
+        public override Color CheckPressedBackground => Hover;
     }
 }
 
