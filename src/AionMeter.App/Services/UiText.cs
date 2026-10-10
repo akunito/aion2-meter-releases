@@ -366,10 +366,14 @@ public sealed class UiText
     public string TrayCheckUpdates { get; init; } = "Check for updates";
     public string TrayReport { get; init; } = "Report a problem…";
     public string ReportTitle { get; init; } = "Report a problem";
-    public string ReportHint { get; init; } = "Describe what happened and what you expected. A zip with the last two logs, crash files, your settings (without private addresses), the state summary and the build info is created and shown in Explorer: send it to Diego on Discord.";
+    public string ReportHint { get; init; } = "Describe what happened and what you expected. A zip with the last two logs, crash files, your settings (without private addresses), the state summary and the build info is sent to Diego (he gets a Telegram message), or saved for you to paste on Discord.";
     public string ReportDescribe { get; init; } = "What happened? What were you doing in the game?";
     public string ReportIncludeState { get; init; } = "Include my character state (inventory, titles, pets) — only if the problem is about those";
-    public string ReportCreate { get; init; } = "Create report";
+    public string ReportCreate { get; init; } = "Save zip only";
+    public string ReportSend { get; init; } = "Send to Diego";
+    public string ReportSending { get; init; } = "Sending…";
+    public string ReportSent { get; init; } = "Sent. Diego got it on Telegram (id {0}).";
+    public string ReportSendFailed { get; init; } = "Could not send ({0}). The zip is saved and shown in Explorer: paste it on Discord.";
     public string ReportCreated { get; init; } = "Report saved: {0}";
     public string ReportFailed { get; init; } = "Could not create the report: {0}";
     public string ReportCrashNote { get; init; } = "The meter hit an error (see {0} in the report).\n\nWhat was happening: ";

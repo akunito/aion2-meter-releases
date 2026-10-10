@@ -70,6 +70,32 @@ public static class BugReport
         return path;
     }
 
+    // Upload to Diego's n8n webhook (A2M-19 part 2): the zip + note; the token only protects the upload endpoint (it is in the exe).
+    public const string UploadUrl = "https://example.invalid/webhook/aion2-meter-report";
+    private const string UploadToken = "REMOVED-TOKEN";
+    private static readonly System.Net.Http.HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(60) };
+
+    /// <summary>POSTs the zip; returns the server's id. Throws HttpRequestException on refusal (403 token, 413 size) or network errors.</summary>
+    public static async Task<string> UploadAsync(string zipPath, string note, CancellationToken ct)
+    {
+        var build = "dev";
+        try { var p = Path.Combine(AppContext.BaseDirectory, "BUILD-INFO.txt"); if (File.Exists(p)) foreach (var l in File.ReadLines(p)) { if (l.StartsWith("release ")) build = l[8..].Trim(); else if (l.StartsWith("upstream ") && build == "dev") build = "dev-" + l[9..16]; } } catch (IOException) { }
+        using var form = new System.Net.Http.MultipartFormDataContent();
+        form.Add(new System.Net.Http.StringContent(note.Length > 900 ? note[..900] : note), "note");
+        form.Add(new System.Net.Http.StringContent(build), "build");
+        var bytes = await File.ReadAllBytesAsync(zipPath, ct);
+        var file = new System.Net.Http.ByteArrayContent(bytes);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+        form.Add(file, "file", Path.GetFileName(zipPath));
+        using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, UploadUrl) { Content = form };
+        req.Headers.Add("X-Meter-Token", UploadToken);
+        using var resp = await Http.SendAsync(req, ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode) throw new System.Net.Http.HttpRequestException($"{(int)resp.StatusCode} {body}");
+        try { using var doc = System.Text.Json.JsonDocument.Parse(body); return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : ""; }
+        catch (System.Text.Json.JsonException) { return ""; }
+    }
+
     public static void Reveal(string path)
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); }
