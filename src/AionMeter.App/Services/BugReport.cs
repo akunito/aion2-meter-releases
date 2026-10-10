@@ -14,6 +14,7 @@ namespace AionMeter.App.Services;
 public static class BugReport
 {
     public static string ReportsDir => Path.Combine(AppSettings.AppDataDir, "reports");
+    private static string SettingsPath => Path.Combine(AppSettings.AppDataDir, "settings.json");
 
     public static string? WriteCrash(string kind, Exception? ex)
     {
@@ -51,9 +52,9 @@ public static class BugReport
         try
         {
             // settings without the private solver url (a private-network address, not for the clan)
-            if (File.Exists(AppSettings.FilePath))
+            if (File.Exists(SettingsPath))
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(AppSettings.FilePath)) ?? new();
+                var node = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(SettingsPath)) ?? new();
                 node.Remove("CloudflareSolverUrl");
                 zip.CreateEntry("settings.json").Write(JsonSerializer.Serialize(node, new JsonSerializerOptions { WriteIndented = true }));
             }
