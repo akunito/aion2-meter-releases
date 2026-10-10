@@ -449,6 +449,30 @@ public sealed class MeterService : IDisposable
         }
         missing.Sort((a, b) => { var c = TitleBook.GradeRank(a.Grade).CompareTo(TitleBook.GradeRank(b.Grade)); return c != 0 ? c : string.CompareOrdinal(a.Name, b.Name); });
         var unknown = ownedIds.Count(id => Titles.Get(id) is null);
+        // titles.txt: the same facts as prose for the AI side (Diego 2026-10-10: "informe de títulos a perseguir"): totals, then the missing
+        // titles of this faction ranked by grade and by how much permanent collection bonus they carry, with how to get them
+        try
+        {
+            var totals = Titles.CollectionTotals(ownedIds);
+            var sb = new System.Text.StringBuilder(32_768);
+            sb.Append("Titles — ").Append(_characterKey).Append(" — ").Append(faction == 'l' ? "Elyos" : faction == 'd' ? "Asmodian" : "?")
+              .Append(" — owned ").Append(ownedIds.Count).Append(", missing same-faction ").Append(missing.Count).Append(", written ").Append(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm")).Append('\n');
+            sb.Append("Collection totals (permanent, from owned titles): ");
+            var first = true;
+            foreach (var kv in totals.OrderByDescending(k => k.Value)) { if (!first) sb.Append(", "); sb.Append(kv.Key).Append(' ').Append(kv.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)); first = false; }
+            sb.Append("\n\nMissing titles worth chasing (grade, then bonus count; 'how' = aion2hub description):\n");
+            var ranked = missing.OrderBy(t => TitleBook.GradeRank(t.Grade)).ThenByDescending(t => t.Collection.Length + t.Equipped.Length).ThenBy(t => t.Name).Take(80);
+            foreach (var t in ranked)
+            {
+                sb.Append("- [").Append(t.Grade).Append("] ").Append(t.Name).Append(" (").Append(t.Category).Append(") — equipped: ")
+                  .Append(t.Equipped.Length == 0 ? "-" : string.Join(", ", t.Equipped.Select(e => e.Stat + " " + e.Value)))
+                  .Append("; collection: ").Append(t.Collection.Length == 0 ? "-" : string.Join(", ", t.Collection.Select(e => e.Stat + " " + e.Value)))
+                  .Append(" — how: ").Append(string.IsNullOrEmpty(t.Description) ? "?" : t.Description).Append('\n');
+            }
+            sb.Append("\nOwned (").Append(owned.Count).Append("): ").Append(string.Join("; ", Titles.All.Where(t => ownedIds.Contains(t.Id)).Select(t => t.Name))).Append('\n');
+            File.WriteAllText(Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "titles.txt"), sb.ToString());
+        }
+        catch (IOException) { }
         try
         {
             var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "titles.json");
