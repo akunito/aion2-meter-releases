@@ -48,6 +48,9 @@ public partial class CraftView : UserControl
         if (!_meter.Settings.CraftFavourites.Remove(output)) _meter.Settings.CraftFavourites.Add(output);
         _meter.Settings.Save(); Reload();
     }
+    // aion2hub lists 41 recipe pairs with two output ids for one name and identical materials (faction/version twins, e.g. 510716007/510716019):
+    // one row per name + materials + profession + level, so the list never shows the same craft twice (Diego, 2026-10-11)
+    private static string TwinKey(Core.GameDb.Recipe r, string name) => name + "|" + r.Profession + "|" + r.Level + "|" + string.Join(",", r.Materials.Select(m => m.Item + "x" + m.Qty));
     private static bool Match(string q, params string[] names) { foreach (var n in names) if (n.Length > 0 && ItemNames.Normalize(n).Contains(q, StringComparison.Ordinal)) return true; return false; }
     private void Profession_Checked(object sender, RoutedEventArgs e) { if (IsLoaded && sender is RadioButton { Tag: string key }) { _profession = key; Reload(); } }
 
@@ -70,10 +73,11 @@ public partial class CraftView : UserControl
         if (m.Count == 0) { List.ItemsSource = Array.Empty<Row>(); StatusText.Text = T.CraftNoMarket; return; }
         var fee = _meter.Settings.BrokerFeePercent;
         var all = _meter.Recipes.Profit(m.Price, fee, _meter.Inventory.CountOf, _profession.Length == 0 ? null : _profession);
-        var rows = new List<Row>(120); var shown = 0; var favs = _meter.Settings.CraftFavourites;
+        var rows = new List<Row>(120); var shown = 0; var favs = _meter.Settings.CraftFavourites; var seen = new HashSet<string>();
         foreach (var p in all.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
             var name = Nm(p.Recipe.Output); var (en, es) = _meter.Names.Both(p.Recipe.Output);
+            if (!seen.Add(TwinKey(p.Recipe, name))) continue;
             if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", p.Recipe.Name)) continue;
             if (++shown > 150) break;
             var mats = string.Join(", ", p.Recipe.Materials.Select(x => $"{Nm(x.Item)} ×{x.Qty}" + (m.Price(x.Item) is { } mp ? $" @{Kinah(mp)}" : " @?")));
@@ -98,10 +102,11 @@ public partial class CraftView : UserControl
         var scope = q.Length > 0 ? "all" : Scope; var favs = _meter.Settings.CraftFavourites;
         // one pass over every recipe (1,684: cheap); the scope filters, favourites bypass it and lead the list
         var opts = _meter.Recipes.Evaluate(_meter.Inventory.CountOf, 99, _profession.Length == 0 ? null : _profession);
-        var rows = new List<Row>(opts.Count); var craftable = 0;
+        var rows = new List<Row>(opts.Count); var craftable = 0; var seen = new HashSet<string>();
         foreach (var o in opts.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
             var fav = favs.Contains(o.Recipe.Output);
+            if (!seen.Add(TwinKey(o.Recipe, Nm(o.Recipe.Output)))) continue;
             if (!fav && scope == "now" && o.Times == 0) continue;
             if (!fav && scope == "near" && o.Times == 0 && o.Missing.Length > 2) continue;
             var name = Nm(o.Recipe.Output); var (en, es) = _meter.Names.Both(o.Recipe.Output);
