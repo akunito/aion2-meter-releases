@@ -4,7 +4,7 @@
         xmlns:s="clr-namespace:AionMeter.App.Services" Background="{StaticResource Bg0}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
         FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}" FontSize="12.5">
 
-    <Window.Resources>
+    <UserControl.Resources>
         <Style x:Key="Field" TargetType="TextBox">
             <Setter Property="Background" Value="#1A1F2E" />
             <Setter Property="Foreground" Value="{StaticResource Text}" />
@@ -34,7 +34,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
-    </Window.Resources>
+    </UserControl.Resources>
 
     <Border BorderBrush="{StaticResource GoldDim}" BorderThickness="1">
         <Grid>
