@@ -59,6 +59,8 @@ public sealed class PriceWatchStore : IDisposable
     public int ExchangeServerId { get; set; } = 11303;
     public int IntervalMinutes { get; set; } = 60;
     public DateTimeOffset? LastPollAt { get; private set; }
+    /// <summary>Summary of the last poll for the log: items read, through the solver, failed, elapsed ms.</summary>
+    public (int Items, int Solver, int Errors, long Ms) LastPollStats { get; private set; }
 
     public List<PriceWatch> All() { lock (_gate) return _watches.ToList(); }
     public int Count { get { lock (_gate) return _watches.Count; } }
@@ -94,6 +96,7 @@ public sealed class PriceWatchStore : IDisposable
         LastPollAt = DateTimeOffset.Now;
         var hits = new List<PriceWatch>();
         var first = true;
+        var solverBefore = Net.CloudflareHttp.SolverUses; var errors = 0; var items = 0; var sw = System.Diagnostics.Stopwatch.StartNew();
         foreach (var w in All())
         {
             if (!first) await Task.Delay(400, ct).ConfigureAwait(false);
@@ -109,9 +112,12 @@ public sealed class PriceWatchStore : IDisposable
             {
                 w.LastError = e.Message;
                 w.LastCheck = DateTimeOffset.Now;
+                errors++;
             }
+            items++;
             if (w.Hit) hits.Add(w);
         }
+        LastPollStats = (items, Net.CloudflareHttp.SolverUses - solverBefore, errors, sw.ElapsedMilliseconds);
         Save();
         Changed?.Invoke();
         return hits;

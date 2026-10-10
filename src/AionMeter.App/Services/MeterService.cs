@@ -151,7 +151,12 @@ public sealed class MeterService : IDisposable
     private async Task PollPricesAsync(long now)
     {
         if (Interlocked.Exchange(ref _pricePolling, 1) == 1) return;
-        try { foreach (var h in await Prices.PollAsync(now).ConfigureAwait(false)) _priceHits.Enqueue(h); }
+        try
+        {
+            foreach (var h in await Prices.PollAsync(now).ConfigureAwait(false)) _priceHits.Enqueue(h);
+            var st = Prices.LastPollStats;
+            if (st.Items > 0) Log.Info($"Price poll: {st.Items} items, {st.Items - st.Solver - st.Errors} direct, {st.Solver} via solver, {st.Errors} failed, {st.Ms} ms");
+        }
         catch (Exception e) { Log.Error("Price watch", e); }
         finally { _pricePolling = 0; }
     }

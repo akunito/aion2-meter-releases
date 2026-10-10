@@ -17,6 +17,18 @@ public class UpdateTests
         """;
 
     [Fact]
+    public void Dev_channel_takes_the_newest_of_the_list_prereleases_included()
+    {
+        var pre = Release.Replace("v0.2.0", "v0.3.1").Replace("\"prerelease\":false", "\"prerelease\":true");
+        var list = "[" + pre + "," + Release + "]";
+        var newest = UpdateFeed.ParseList(list)!;
+        Assert.Equal(Version.Parse("0.3.1"), newest.Version);
+        Assert.True(newest.Prerelease);
+        Assert.Null(UpdateFeed.Parse(pre));            // the stable channel never sees a pre-release
+        Assert.Null(UpdateFeed.ParseList("[" + Release.Replace("\"draft\":false", "\"draft\":true") + "]"));
+    }
+
+    [Fact]
     public void Latest_release_gives_version_installer_and_digest()
     {
         var r = UpdateFeed.Parse(Release)!;

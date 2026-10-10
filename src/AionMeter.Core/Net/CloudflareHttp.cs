@@ -59,8 +59,12 @@ public static class CloudflareHttp
         || body.Contains("Attention Required", StringComparison.Ordinal)
         || body.Contains("DDoS-Guard", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>How many requests went through the solver since start (the price poll logs the delta: direct vs solver).</summary>
+    public static int SolverUses;
+
     private static async Task<string> SolveAsync(string url, CancellationToken ct)
     {
+        Interlocked.Increment(ref SolverUses);
         var req = new SolverRequest("request.get", url, 60000);
         using var resp = await Solver.PostAsJsonAsync($"{SolverUrl!.TrimEnd('/')}/v1", req, SolverJson, ct).ConfigureAwait(false);
         resp.EnsureSuccessStatusCode();
