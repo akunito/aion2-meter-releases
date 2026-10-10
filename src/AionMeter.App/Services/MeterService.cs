@@ -38,6 +38,7 @@ public sealed class MeterService : IDisposable
         Atlas = new NodeStore(Path.Combine(AppSettings.AppDataDir, "atlas"));
         Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
         Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
+        Recipes = RecipeBook.Load(Path.Combine(DataDirectory, "gamedb", "recipes.json"));
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
         // First run with the ranking: fill it from the fights already on disk, off the UI thread.
@@ -143,6 +144,8 @@ public sealed class MeterService : IDisposable
 
     /// <summary>Offline item names (en/es) for the search boxes; data/gamedb/item-names.json, built from aion2hub + the official es-ES endpoint.</summary>
     public ItemNames Names { get; private set; } = ItemNames.Empty;
+    /// <summary>aion2hub recipes (data/gamedb/recipes.json) for the Craft tab and characters/&lt;key&gt;/craftable.json.</summary>
+    public RecipeBook Recipes { get; private set; } = RecipeBook.Empty;
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
@@ -382,6 +385,26 @@ public sealed class MeterService : IDisposable
         return list;
     }
 
+    private long _craftableInventoryMs = -1;
+
+    /// <summary>characters/&lt;key&gt;/craftable.json: recipes the stock allows now and those short by ≤ 2 materials, for the AI side; rewritten when the inventory changed.</summary>
+    private void WriteCraftable()
+    {
+        if (_characterKey.Length == 0 || Recipes.Count == 0 || Inventory.UpdatedMs == _craftableInventoryMs) return;
+        _craftableInventoryMs = Inventory.UpdatedMs;
+        var opts = Recipes.Evaluate(Inventory.CountOf, 2);
+        var rows = new List<object>(opts.Count);
+        foreach (var o in opts)
+            rows.Add(new { item = o.Recipe.Output, name = Names.Name(o.Recipe.Output) ?? o.Recipe.Name, profession = o.Recipe.Profession, level = o.Recipe.Level, grade = o.Recipe.Grade, times = o.Times,
+                           missing = o.Missing.Select(m => new { item = m.Item, name = Names.Name(m.Item), need = m.Need, have = m.Have }) });
+        try
+        {
+            var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "craftable.json");
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new { at = DateTimeOffset.Now.ToString("O"), craftable = opts.Count(x => x.Times > 0), rows }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (IOException) { }
+    }
+
     /// <summary>state/summary.json: when each store last changed, where the player is, what is loaded — rewritten only when something moved.</summary>
     private void WriteSummary()
     {
@@ -392,6 +415,7 @@ public sealed class MeterService : IDisposable
         var key = $"{_characterKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
         if (key == _lastSummary) return;
         _lastSummary = key;
+        WriteCraftable();
         var o = new
         {
             savedAt = DateTimeOffset.Now.ToString("O"),

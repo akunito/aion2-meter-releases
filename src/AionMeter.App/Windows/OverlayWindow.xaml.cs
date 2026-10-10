@@ -664,6 +664,7 @@ public partial class OverlayWindow : Window
     private Views.AtlasView? _atlasView;
     private Views.TopDpsView? _topView;
     private Views.PriceWatchView? _pricesView;
+    private Views.CraftView? _craftView;
 
     public string Tab => _tab;
     public bool TabActive => _tab != "meter";
@@ -687,6 +688,7 @@ public partial class OverlayWindow : Window
             {
                 "atlas" => _atlasView ??= Wire(new Views.AtlasView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
                 "top" => _topView ??= Wire(new Views.TopDpsView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
+                "craft" => _craftView ??= Wire(new Views.CraftView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
                 _ => _pricesView ??= Wire(new Views.PriceWatchView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
             };
             TabHost.Visibility = Visibility.Visible;
@@ -706,7 +708,7 @@ public partial class OverlayWindow : Window
 
     private void SyncTabChecks()
     {
-        TabMeter.IsChecked = _tab == "meter"; TabAtlas.IsChecked = _tab == "atlas"; TabTop.IsChecked = _tab == "top"; TabPrices.IsChecked = _tab == "prices";
+        TabMeter.IsChecked = _tab == "meter"; TabAtlas.IsChecked = _tab == "atlas"; TabTop.IsChecked = _tab == "top"; TabPrices.IsChecked = _tab == "prices"; TabCraft.IsChecked = _tab == "craft";
         if (TabPrices.IsChecked == true) TabPrices.Foreground = (Brush)FindResource("Text");
     }
 

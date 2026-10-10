@@ -413,6 +413,7 @@
                     <ToggleButton x:Name="TabAtlas" Style="{StaticResource TabPill}" Tag="atlas" Click="Tab_Click" ToolTip="{Binding T.TrayAtlas}" Content="&#xE707;" />
                     <ToggleButton x:Name="TabTop" Style="{StaticResource TabPill}" Tag="top" Click="Tab_Click" ToolTip="{Binding T.TrayTop}" Content="&#xE734;" />
                     <ToggleButton x:Name="TabPrices" Style="{StaticResource TabPill}" Tag="prices" Click="Tab_Click" ToolTip="{Binding T.TrayPrices}" Content="&#xE8EC;" />
+                    <ToggleButton x:Name="TabCraft" Style="{StaticResource TabPill}" Tag="craft" Click="Tab_Click" ToolTip="{Binding T.TrayCraft}" Content="&#xE90F;" />
                     <!-- Pop out: one more card (same tabs) so two or three views can be open at once; the copies get an X, this one never -->
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE8A7;" Click="PopOut_Click" ToolTip="{Binding T.PopOut}" Margin="4,0,0,0" />
                 </StackPanel>

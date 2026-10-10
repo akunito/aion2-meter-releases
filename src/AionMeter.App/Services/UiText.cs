@@ -366,6 +366,13 @@ public sealed class UiText
     public string TrayTop { get; init; } = "Top DPS per class";
     public string TopTitle { get; init; } = "Top DPS";
     public string PricesTitle { get; init; } = "Prices";
+    public string CraftTitle { get; init; } = "Craft";
+    public string TrayCraft { get; init; } = "What this character can craft now";
+    public string CraftSearch { get; init; } = "search a recipe…";
+    public string CraftAll { get; init; } = "All";
+    public string CraftShowNear { get; init; } = "also short by 1–2 materials";
+    public string CraftMissing { get; init; } = "missing";
+    public string CraftStatus { get; init; } = "{0} craftable now · {1} almost";
     public string PopOut { get; init; } = "Open this tab in another card (the copy has an X to close it)";
     public string CloseCopy { get; init; } = "Close this card";
     public string TrayPrices { get; init; } = "Price watch (aion2.exchange, once an hour)";
@@ -752,6 +759,13 @@ public sealed class UiText
         TrayAtlas = "Атлас (карта ресурсов)",
         AtlasTitle = "Атлас",
         PricesTitle = "Цены",
+        CraftTitle = "Крафт",
+        TrayCraft = "Что этот персонаж может скрафтить сейчас",
+        CraftSearch = "поиск рецепта…",
+        CraftAll = "Все",
+        CraftShowNear = "и те, где не хватает 1–2 материалов",
+        CraftMissing = "не хватает",
+        CraftStatus = "{0} можно скрафтить · {1} почти",
         PopOut = "Открыть эту вкладку в отдельной карточке (у копии есть крестик)",
         CloseCopy = "Закрыть эту карточку",
         TrayPrices = "Слежение за ценами (aion2.exchange, раз в час)",
