@@ -503,6 +503,7 @@ public sealed class UiText
     public string SecGame { get; init; } = "GAME";
     public string StartWithGame { get; init; } = "Start and stop with AION 2";
     public string StartWithGameHint { get; init; } = "Registers a task for your Windows user (no administrator): every 10 s it looks for AION2.exe, starts the meter when the game is running and closes it 60 s after the game ends. Uncheck to remove the task.";
+    public string CloseWithGame { get; init; } = "Also close the meter a minute after AION 2 closes";
     public string StartWithGameFailed { get; init; } = "Could not register the task: {0}";
     public string VersionDev { get; init; } = "Developer build {0} · deployed by hand (no self-update)";
     public string VersionRelease { get; init; } = "Version {0} ({1}) · updates itself";

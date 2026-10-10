@@ -108,6 +108,8 @@ public sealed class AppSettings
     public bool CheckUpstream { get; set; } = false;
     /// <summary>Scheduled task "AION2 meter autostart" registered: the meter starts with AION2.exe and closes 60 s after it.</summary>
     public bool StartWithGame { get; set; } = false;
+    /// <summary>With the task on: also close the meter 60 s after AION2.exe ends. Off by default (Diego 2026-10-11: the meter must only open by itself).</summary>
+    public bool CloseWithGame { get; set; } = false;
     /// <summary>A version the user chose to skip ("0.2.0"): not announced again, a newer one is.</summary>
     public string? SkippedUpdate { get; set; }
 

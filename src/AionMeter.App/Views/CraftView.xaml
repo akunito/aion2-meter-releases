@@ -51,8 +51,14 @@
                             ToolTip="{Binding CraftLoadMarketTip, Source={x:Static s:UiText.Current}}" />
                 </WrapPanel>
             </StackPanel>
-            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="14,0,14,10">
-                <ItemsControl x:Name="List">
+            <!-- Virtualised: "All recipes" is 1,684 rows; only the visible ones exist, and only they ask for their icon (Diego 2026-10-11: the full list lagged the PC) -->
+            <ItemsControl x:Name="List" Grid.Row="2" Margin="14,0,14,10" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True" Focusable="False"><ItemsPresenter /></ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Background="#0DFFFFFF" BorderBrush="{Binding Frame}" BorderThickness="1" CornerRadius="9" Padding="10,7" Margin="0,0,0,6">
@@ -78,7 +84,6 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </ScrollViewer>
         </Grid>
     </Border>
 </UserControl>

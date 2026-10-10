@@ -18,10 +18,16 @@ public partial class CraftView : UserControl
     private static Brush Frozen(byte r, byte g, byte b) { var br = new SolidColorBrush(Color.FromRgb(r, g, b)); br.Freeze(); return br; }
 
     public sealed class Prof(string key, string label, bool selected) { public string Key { get; } = key; public string Label { get; } = label; public bool Selected { get; set; } = selected; }
-    public sealed class Row
+    public sealed class Row : System.ComponentModel.INotifyPropertyChanged
     {
         public string Name { get; init; } = ""; public string Sub { get; init; } = ""; public string Times { get; init; } = ""; public Brush TimesBrush { get; init; } = Ok; public Brush Frame { get; init; } = CraftView.Frame;
-        public int Output { get; init; } public bool Fav { get; init; } public ImageSource? Icon { get; init; }
+        public int Output { get; init; } public bool Fav { get; init; }
+        public IconCache? Icons { get; init; }
+        private ImageSource? _icon; private bool _asked;
+        // asked only when the row is realised by the virtualised list, so a 1,684-row scope queues icons for the visible rows alone
+        public ImageSource? Icon { get { if (!_asked) { _asked = true; _icon = Icons?.Get(Output); } return _icon; } }
+        public void RefreshIcon() { if (_asked && _icon is null && Icons?.Get(Output) is { } img) { _icon = img; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Icon))); } }
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
         public string Star => Fav ? "\u2605" : "\u2606"; public Brush StarBrush => Fav ? Near : CraftView.Frame;
     }
 
@@ -34,7 +40,7 @@ public partial class CraftView : UserControl
         if (ScopeBox.SelectedItem is null) ScopeBox.SelectedIndex = 0;
         Loaded += (_, _) => { Reload(); _meter.Inventory.Changed += OnChanged; _meter.MarketChanged += OnChanged; _meter.ItemIconCache.Loaded += OnIcon; };
         Unloaded += (_, _) => { _meter.Inventory.Changed -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.ItemIconCache.Loaded -= OnIcon; _iconTick.Stop(); };
-        _iconTick.Tick += (_, _) => { _iconTick.Stop(); Reload(); };
+        _iconTick.Tick += (_, _) => { _iconTick.Stop(); if (List.ItemsSource is IEnumerable<Row> rows) foreach (var r in rows) r.RefreshIcon(); };
     }
 
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
@@ -92,7 +98,7 @@ public partial class CraftView : UserControl
                       $" → {Kinah(p.Value)} {T.CraftAfterFee} · {T.CraftCost} {Kinah(p.Cost)}" + (p.UnpricedMaterials > 0 ? $" ({p.UnpricedMaterials} {T.CraftUnpriced})" : "") +
                       (p.Times > 0 ? $" · ×{p.Times} {T.CraftNow}" : "") + "\n" + mats;
             var good = p.Profit > 0;
-            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output), Icon = _meter.ItemIconCache.Get(p.Recipe.Output) });
+            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output), Icons = _meter.ItemIconCache });
         }
         List.ItemsSource = rows;
         StatusText.Text = string.Format(T.CraftMarketFrom, m.Count, m.Server, m.CapturedAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "?", fee.ToString("0.#", CultureInfo.InvariantCulture));
@@ -119,8 +125,8 @@ public partial class CraftView : UserControl
             if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", o.Recipe.Name)) continue;
             var mats = string.Join(", ", o.Recipe.Materials.Select(m => $"{Nm(m.Item)} ×{m.Qty}"));
             var sub = $"{o.Recipe.Profession} {o.Recipe.Level} · {o.Recipe.Grade} · {mats}";
-            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icon = _meter.ItemIconCache.Get(o.Recipe.Output) }); }
-            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icon = _meter.ItemIconCache.Get(o.Recipe.Output), Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
+            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icons = _meter.ItemIconCache }); }
+            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icons = _meter.ItemIconCache, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
         }
         List.ItemsSource = rows;
         StatusText.Text = q.Length > 0 ? string.Format(T.CraftMatches, rows.Count, craftable) : string.Format(T.CraftStatus, craftable, rows.Count - craftable);

@@ -40,7 +40,7 @@ public sealed class IconCache : IDisposable
         if (_mem.TryGetValue(item, out var cached)) return cached;
         var rel = _index.Path(item);
         if (rel is null) { _mem[item] = null; return null; }
-        var file = Path.Combine(_dir, item + Path.GetExtension(rel));
+        var file = Path.Combine(_dir, item + ".png");
         if (File.Exists(file))
         {
             var img = Decode(file);
@@ -67,6 +67,19 @@ public sealed class IconCache : IDisposable
         catch (Exception ex) when (ex is NotSupportedException or IOException or FileFormatException or ArgumentException) { return null; }
     }
 
+    private static byte[]? Shrink(byte[] original)
+    {
+        try
+        {
+            using var ms = new MemoryStream(original);
+            var bmp = new BitmapImage();
+            bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.StreamSource = ms; bmp.DecodePixelWidth = 64; bmp.EndInit(); bmp.Freeze();
+            var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp));
+            using var outMs = new MemoryStream(); enc.Save(outMs); return outMs.ToArray();
+        }
+        catch (Exception ex) when (ex is NotSupportedException or IOException or FileFormatException or ArgumentException) { return null; }   // no WebP codec, broken file
+    }
+
     private async Task WorkAsync()
     {
         Directory.CreateDirectory(_dir);
@@ -74,11 +87,14 @@ public sealed class IconCache : IDisposable
         {
             if (!_queue.TryDequeue(out var item)) { await Task.Delay(500, _cts.Token).ConfigureAwait(false); continue; }
             var rel = _index.Path(item)!;
-            var file = Path.Combine(_dir, item + Path.GetExtension(rel));
+            var file = Path.Combine(_dir, item + ".png");
             try
             {
                 var bytes = await _http.GetByteArrayAsync("https://aion2hub.me/media/icons/" + rel, _cts.Token).ConfigureAwait(false);
-                await File.WriteAllBytesAsync(file, bytes, _cts.Token).ConfigureAwait(false);
+                // keep a 64 px PNG, not the 256 px original (75 KB each → ~5 KB; 1,684 recipe icons would be 126 MB otherwise)
+                var small = Shrink(bytes);
+                if (small is null) { _mem[item] = null; continue; }
+                await File.WriteAllBytesAsync(file, small, _cts.Token).ConfigureAwait(false);
                 _mem.TryRemove(item, out _);   // Get() decodes it on the UI thread next time
                 Application.Current?.Dispatcher.BeginInvoke(() => Loaded?.Invoke());
             }

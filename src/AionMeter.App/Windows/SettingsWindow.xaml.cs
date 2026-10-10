@@ -73,6 +73,7 @@ public partial class SettingsWindow : Window
         if (s.UpdateChannel == "dev") ChannelDev.IsChecked = true; else ChannelStable.IsChecked = true;
         CheckUpstreamBox.IsChecked = s.CheckUpstream;
         StartWithGameBox.IsChecked = s.StartWithGame;
+        CloseWithGameBox.IsChecked = s.CloseWithGame;
 
         CaptureState.Text = T.StatusPrefix + _meter.CaptureStatus.Message;
         var data = _meter.Data;
@@ -114,6 +115,7 @@ public partial class SettingsWindow : Window
         s.AutoInstallUpdates = AutoInstallUpdates.IsChecked == true;
         s.UpdateChannel = ChannelDev.IsChecked == true ? "dev" : "stable";
         s.CheckUpstream = CheckUpstreamBox.IsChecked == true;
+        s.CloseWithGame = CloseWithGameBox.IsChecked == true;
         var wantHook = StartWithGameBox.IsChecked == true;
         if (wantHook != s.StartWithGame)
         {

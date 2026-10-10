@@ -57,19 +57,19 @@
                        Text="{Binding PricesHint, Source={x:Static s:UiText.Current}}" />
 
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="14,0,14,6">
-                <ItemsControl x:Name="List">
+                <ItemsControl x:Name="List" Grid.IsSharedSizeScope="True">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Background="#0DFFFFFF" BorderBrush="{Binding Frame}" BorderThickness="1" CornerRadius="9" Padding="10,8" Margin="0,0,0,7">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="104" />
-                                        <ColumnDefinition Width="110" />
-                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" MinWidth="160" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Hold" />
                                         <ColumnDefinition Width="44" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Max" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Price" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Trend" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Count" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
@@ -93,9 +93,9 @@
                                     <TextBox Grid.Column="3" Style="{StaticResource Field}" Text="{Binding MaxText, Mode=OneWay}" Tag="{Binding Watch}" VerticalAlignment="Center"
                                              LostFocus="Max_LostFocus" KeyDown="Max_KeyDown" Margin="4,0" ToolTip="{Binding PricesMax, Source={x:Static s:UiText.Current}}" />
                                     <TextBlock Grid.Column="4" Text="{Binding LastText}" Foreground="{Binding PriceBrush}" FontWeight="SemiBold" FontSize="14"
-                                               VerticalAlignment="Center" HorizontalAlignment="Right" Margin="6,0" />
-                                    <TextBlock Grid.Column="5" Text="{Binding Trend}" Foreground="{Binding TrendBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                    <TextBlock Grid.Column="6" Text="{Binding Listings}" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                               VerticalAlignment="Center" HorizontalAlignment="Right" Margin="10,0,6,0" MinWidth="84" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="5" Text="{Binding Trend}" Foreground="{Binding TrendBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" MinWidth="64" TextAlignment="Center" Margin="4,0" />
+                                    <TextBlock Grid.Column="6" Text="{Binding Listings}" Foreground="{StaticResource TextMute}" VerticalAlignment="Center" HorizontalAlignment="Right" MinWidth="40" TextAlignment="Right" Margin="4,0,6,0" />
                                     <Button Grid.Column="7" Style="{StaticResource IconButton}" Content="&#xE774;" Tag="{Binding Watch}" Click="Open_Click" Margin="6,0,0,0" ToolTip="aion2.exchange" />
                                     <Button Grid.Column="8" Style="{StaticResource IconButton}" Content="&#xE74D;" Tag="{Binding Watch}" Click="Remove_Click" Margin="2,0,0,0" />
                                 </Grid>

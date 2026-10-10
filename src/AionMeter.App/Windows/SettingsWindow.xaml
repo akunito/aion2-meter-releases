@@ -209,6 +209,8 @@
                             <CheckBox x:Name="StartWithGameBox" Style="{StaticResource DarkCheck}"
                                       Content="{Binding StartWithGame, Source={x:Static s:UiText.Current}}" />
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding StartWithGameHint, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="CloseWithGameBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
+                                      Content="{Binding CloseWithGame, Source={x:Static s:UiText.Current}}" />
                             <TextBlock x:Name="StartWithGameState" Style="{StaticResource Hint}" Foreground="{StaticResource TextDim}" Visibility="Collapsed" />
                         </StackPanel>
                     </Border>
