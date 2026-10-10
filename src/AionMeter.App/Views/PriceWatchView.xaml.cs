@@ -80,10 +80,12 @@ public partial class PriceWatchView : UserControl
         if (_meter.Settings.PriceSearchLanguage == "es") LangEs.IsChecked = true; else LangEn.IsChecked = true;
         Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _meter.ItemIconCache.Loaded += OnChanged; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
         Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _meter.ItemIconCache.Loaded -= OnChanged; _cooldown.Stop(); };
+        IsVisibleChanged += (_, e) => { if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
         _cooldown.Tick += Cooldown_Tick;
     }
 
-    private void OnChanged() => Dispatcher.BeginInvoke(Reload);
+    private bool _stale;
+    private void OnChanged() { if (IsVisible) Dispatcher.BeginInvoke(Reload); else _stale = true; }
 
     private void Reload()
     {

@@ -30,6 +30,8 @@ public partial class AtlasView : UserControl
     private int _ticks;
     private bool _followZoomed;
     private double _dragTx, _dragTy;
+    // pan and scale the two drawn layers were painted at; Apply() translates them by the difference instead of redrawing
+    private double _ovTx, _ovTy, _staticTx, _staticTy, _staticScale = double.NaN;
     private static readonly Brush Live = new SolidColorBrush(Color.FromRgb(0x5E, 0xE0, 0x7A));
     private static readonly Brush Gone = new SolidColorBrush(Color.FromRgb(0x8A, 0x90, 0x9C));
     private static readonly Brush BossUp = new SolidColorBrush(Color.FromRgb(0xE0, 0x4A, 0x4A));
@@ -62,6 +64,7 @@ public partial class AtlasView : UserControl
         _clock.Tick += (_, _) => Refresh();
         Loaded += (_, _) => { Refresh(); _clock.Start(); };
         Unloaded += (_, _) => _clock.Stop();
+        IsVisibleChanged += (_, e) => { if (e.NewValue is true) Refresh(); };
     }
 
     private void Refresh()
@@ -89,8 +92,10 @@ public partial class AtlasView : UserControl
             if (FollowBox.IsChecked == true && _mapShown > 0) _followZoomed = false; else FitWholeMap();
             StaticLayer.InvalidateVisual();
         }
+        if (!IsVisible) return;   // another tab is in front: the 500 ms clock must not rebuild hundreds of elements nobody sees
         Overlay.Children.Clear();
         _labelPts.Clear();
+        _ovTx = _tx; _ovTy = _ty; OverlayPan.X = OverlayPan.Y = 0;
         if (_cal is null) return;
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         if (++_ticks % 60 == 1) Log.Info($"Atlas view: scale {_scale:0.000} pan ({_tx:0},{_ty:0}) viewport {Viewport.ActualWidth:0}x{Viewport.ActualHeight:0} image {_imgW}x{_imgH} self {atlas.SelfId} at ({atlas.SelfX:0},{atlas.SelfY:0}) age {(atlas.SelfAtMs > 0 ? (now - atlas.SelfAtMs) / 1000 : -1)}s estimate {atlas.Estimate(now)} positions {atlas.PositionsSeen}/{atlas.SelfPositions} self spots {atlas.Count(map)}");
@@ -164,7 +169,7 @@ public partial class AtlasView : UserControl
                 if (!_followZoomed) { _scale = 10; _followZoomed = true; } // ~420 px per 100 m: nodes a few metres apart stay separate (Diego's pick: closest)
                 _tx = Viewport.ActualWidth / 2 - sx * _f * _scale;
                 _ty = Viewport.ActualHeight / 2 - sy * _f * _scale;
-                Apply();
+                Apply(); _ovTx = _tx; _ovTy = _ty; OverlayPan.X = OverlayPan.Y = 0;
             }
             DrawTrail(now, wx, wy);
             var label = exact ? (age > 10 ? $"{age}s" : "") : $"~{en}";
@@ -246,7 +251,7 @@ public partial class AtlasView : UserControl
                     pts.Add(new Point(x, y));
                     if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
                 }
-                if (maxX < -300 || maxY < -300 || minX > Viewport.ActualWidth + 300 || minY > Viewport.ActualHeight + 300) continue;
+                if (maxX < -CullX - 100 || maxY < -CullY - 100 || minX > Viewport.ActualWidth + CullX + 100 || minY > Viewport.ActualHeight + CullY + 100) continue;
                 var (cx, cy) = _cal.ToPixel(z.CenterX, z.CenterY);
                 var sx = cx * _f * _scale + _tx; var sy = cy * _f * _scale + _ty;
                 var dash = rank == 1 ? null : new DoubleCollection { 6, 3 };
@@ -374,8 +379,10 @@ public partial class AtlasView : UserControl
     /// <summary>Seeded nodes and pet spawns, painted in one pass; also the pet markers the right-click uses.</summary>
     private void DrawStatic(DrawingContext dc)
     {
+        _staticTx = _tx; _staticTy = _ty; _staticScale = _scale; StaticPan.X = StaticPan.Y = 0;
         if (_cal is null) return;
         var w = Viewport.ActualWidth; var h = Viewport.ActualHeight; var k = _f * _scale;
+        var mx = CullX; var my = CullY;
         var dip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         if (!_clusterNow && _spotsCache.Count > 0)
         {
@@ -385,7 +392,7 @@ public partial class AtlasView : UserControl
                 if (!s.Seeded) continue;
                 var (px, py) = _cal.ToPixel(s.X, s.Y);
                 var x = px * k + _tx; var y = py * k + _ty;
-                if (x < -30 || y < -30 || x > w + 30 || y > h + 30) continue;
+                if (x < -mx || y < -my || x > w + mx || y > h + my) continue;
                 var icon = KindOf(s) is { } kn ? Icon(kn) : null;
                 if (icon is not null) dc.DrawImage(icon, new Rect(x - 11, y - 11, 22, 22));
                 else dc.DrawEllipse(SeededDim, null, new Point(x, y), 3, 3);
@@ -404,13 +411,13 @@ public partial class AtlasView : UserControl
                 var (px, py) = _cal.ToPixel(x0, y0);
                 var vx = px * k + _tx; var vy = py * k + _ty;
                 sx += vx; sy += vy; n++;
-                if (vx < -50 || vy < -50 || vx > w + 50 || vy > h + 50) continue;
+                if (vx < -mx || vy < -my || vx > w + mx || vy > h + my) continue;
                 dc.DrawEllipse(brush, null, new Point(vx, vy), 3.5, 3.5);
                 _petMarkers.Add((vx, vy, li));
             }
             if (n == 0) continue;
             var cx = sx / n; var cy = sy / n;
-            if (cx < -30 || cy < -30 || cx > w + 30 || cy > h + 30) continue;
+            if (cx < -mx || cy < -my || cx > w + mx || cy > h + my) continue;
             dc.DrawEllipse(brush, new Pen(PetInk, 1), new Point(cx, cy), 9, 9);
             var digit = new FormattedText(level.ToString(), System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, BadgeFace, 10, Brushes.White, dip);
             dc.DrawText(digit, new Point(cx - digit.Width / 2, cy - digit.Height / 2));
@@ -488,6 +495,9 @@ public partial class AtlasView : UserControl
     // Label anchors drawn this frame: at low zoom neighbouring nodes overprint each other's counts, so a label is skipped when
     // another sits within 14 px (A2M-8 "label clustering"; the icon/dot still draws, the count comes back when zooming in).
     private readonly List<(double X, double Y)> _labelPts = new();
+    // elements are kept half a viewport beyond each edge: panning is a translate, the layers are rebuilt only once the drift passes that
+    private double CullX => Math.Max(200, Viewport.ActualWidth / 2);
+    private double CullY => Math.Max(200, Viewport.ActualHeight / 2);
     private bool LabelRoom(double x, double y)
     {
         for (var i = 0; i < _labelPts.Count; i++) { var dx = _labelPts[i].X - x; var dy = _labelPts[i].Y - y; if (dx * dx + dy * dy < 14 * 14) return false; }
@@ -499,7 +509,7 @@ public partial class AtlasView : UserControl
         if (icon is null) { Dot(px, py, r, fill, label, textBrush, always: always); return; }
         var x = px * _f * _scale + _tx;
         var y = py * _f * _scale + _ty;
-        if (x < -200 || y < -200 || x > Viewport.ActualWidth + 200 || y > Viewport.ActualHeight + 200) return;
+        if (x < -CullX || y < -CullY || x > Viewport.ActualWidth + CullX || y > Viewport.ActualHeight + CullY) return;
         var size = 22.0;
         var image = new Image { Source = icon, Width = size, Height = size, Opacity = dim ? 0.45 : 1 };
         Canvas.SetLeft(image, x - size / 2); Canvas.SetTop(image, y - size / 2);
@@ -515,7 +525,7 @@ public partial class AtlasView : UserControl
     {
         var x = px * _f * _scale + _tx;
         var y = py * _f * _scale + _ty;
-        if (x < -200 || y < -200 || x > Viewport.ActualWidth + 200 || y > Viewport.ActualHeight + 200) return;
+        if (x < -CullX || y < -CullY || x > Viewport.ActualWidth + CullX || y > Viewport.ActualHeight + CullY) return;
         var shape = new Ellipse { Width = 2 * r, Height = 2 * r, Fill = fill, Stroke = Ink, StrokeThickness = 1.5 };
         Canvas.SetLeft(shape, x - r); Canvas.SetTop(shape, y - r);
         Overlay.Children.Add(shape);
@@ -547,7 +557,10 @@ public partial class AtlasView : UserControl
     {
         Zoom.ScaleX = Zoom.ScaleY = _scale;
         Pan.X = _tx; Pan.Y = _ty;
-        StaticLayer.InvalidateVisual();
+        var dx = _tx - _staticTx; var dy = _ty - _staticTy;
+        if (_scale != _staticScale || Math.Abs(dx) > CullX || Math.Abs(dy) > CullY) StaticLayer.InvalidateVisual();
+        else { StaticPan.X = dx; StaticPan.Y = dy; }
+        OverlayPan.X = _tx - _ovTx; OverlayPan.Y = _ty - _ovTy;
         if (!_syncingSlider) { _syncingSlider = true; ZoomSlider.Value = Math.Log(_scale); _syncingSlider = false; }
     }
 
@@ -595,8 +608,9 @@ public partial class AtlasView : UserControl
         if (_dragFrom is not { } from || e.LeftButton != MouseButtonState.Pressed) return;
         var p = e.GetPosition(Viewport);
         _tx = _dragTx + (p.X - from.X); _ty = _dragTy + (p.Y - from.Y);
-        FollowBox.IsChecked = false;
-        Apply(); RequestRefresh();
+        if (FollowBox.IsChecked == true) FollowBox.IsChecked = false;
+        Apply();
+        if (Math.Abs(_tx - _ovTx) > CullX || Math.Abs(_ty - _ovTy) > CullY) RequestRefresh();
     }
 
     /// <summary>Right-click on a node: name its kind (also the way to name a node that was in view before the meter started).</summary>
@@ -609,7 +623,7 @@ public partial class AtlasView : UserControl
             var best = -1; var bestD = 14.0 * 14.0;
             for (var i = 0; i < _petMarkers.Count; i++)
             {
-                var dx = _petMarkers[i].X - p.X; var dy = _petMarkers[i].Y - p.Y; var d = dx * dx + dy * dy;
+                var dx = _petMarkers[i].X + StaticPan.X - p.X; var dy = _petMarkers[i].Y + StaticPan.Y - p.Y; var d = dx * dx + dy * dy;
                 if (d < bestD) { bestD = d; best = _petMarkers[i].Index; }
             }
             if (best >= 0) { ShowPetInfo(best, p); e.Handled = true; return; }
@@ -663,6 +677,7 @@ public partial class AtlasView : UserControl
     {
         _dragFrom = null;
         Viewport.ReleaseMouseCapture();
+        RequestRefresh();
     }
 
     private void Fit_Click(object sender, RoutedEventArgs e)

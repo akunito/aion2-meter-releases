@@ -98,9 +98,11 @@ public partial class TopDpsView : UserControl
         Loaded += (_, _) => Reload();
         _meter.Top.Changed += OnChanged;
         Unloaded += (_, _) => _meter.Top.Changed -= OnChanged;
+        IsVisibleChanged += (_, e) => { if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
     }
 
-    private void OnChanged() => Dispatcher.BeginInvoke(Reload);
+    private bool _stale;
+    private void OnChanged() { if (IsVisible) Dispatcher.BeginInvoke(Reload); else _stale = true; }
 
     private static readonly GameClass[] AllClasses =
         [GameClass.Gladiator, GameClass.Templar, GameClass.Ranger, GameClass.Assassin, GameClass.Sorcerer, GameClass.Elementalist, GameClass.Cleric, GameClass.Chanter];

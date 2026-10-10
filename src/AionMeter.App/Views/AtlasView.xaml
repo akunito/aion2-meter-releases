@@ -81,8 +81,14 @@
                         </Image.RenderTransform>
                     </Image>
                     </Canvas>
-                    <v:AtlasStaticLayer x:Name="StaticLayer" IsHitTestVisible="False" />
-                    <Canvas x:Name="Overlay" IsHitTestVisible="False" />
+                    <!-- Panning moves these two layers with a translate (GPU composite of the retained drawing); they are only
+                         redrawn on zoom, data change or a drift past half a viewport (dragging rebuilt the whole canvas per mouse move, 2026-10-11). -->
+                    <v:AtlasStaticLayer x:Name="StaticLayer" IsHitTestVisible="False">
+                        <v:AtlasStaticLayer.RenderTransform><TranslateTransform x:Name="StaticPan" /></v:AtlasStaticLayer.RenderTransform>
+                    </v:AtlasStaticLayer>
+                    <Canvas x:Name="Overlay" IsHitTestVisible="False">
+                        <Canvas.RenderTransform><TranslateTransform x:Name="OverlayPan" /></Canvas.RenderTransform>
+                    </Canvas>
                     <!-- right-click card for a pet marker; a sibling of Overlay so Refresh() does not wipe it (Diego, 2026-10-10) -->
                     <Canvas IsHitTestVisible="False">
                         <Border x:Name="PetInfo" Visibility="Collapsed" Background="#E6121826" BorderBrush="#55FFFFFF" BorderThickness="1" CornerRadius="8" Padding="10,7" MaxWidth="360">
