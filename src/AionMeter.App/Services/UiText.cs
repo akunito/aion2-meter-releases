@@ -399,6 +399,9 @@ public sealed class UiText
     public string PricesMax { get; init; } = "max price";
     public string PricesNotChecked { get; init; } = "not checked yet";
     public string PricesLastPoll { get; init; } = "last check {0}";
+    public string PricesChecked { get; init; } = "read {0}";
+    public string PricesSampled { get; init; } = "site sample {0}";
+    public string PricesHourlyNote { get; init; } = "aion2.exchange samples each item about once an hour: Check now re-reads, it cannot force a new sample";
     public string PricesSearch { get; init; } = "search an item by name…";
     public string PricesSearchLang { get; init; } = "Search language";
     public string TopCount { get; init; } = "{0} players kept";
@@ -799,6 +802,9 @@ public sealed class UiText
         PricesMax = "макс. цена",
         PricesNotChecked = "ещё не проверялось",
         PricesLastPoll = "последняя проверка {0}",
+        PricesChecked = "прочитано {0}",
+        PricesSampled = "замер сайта {0}",
+        PricesHourlyNote = "aion2.exchange замеряет каждый предмет примерно раз в час: «Проверить» перечитывает, но новый замер не вызывает",
         PricesSearch = "поиск предмета по названию…",
         PricesSearchLang = "Язык поиска",
         AtlasNoMap = "Для зоны {0} нет откалиброванной карты. Ресурсы всё равно записываются.",

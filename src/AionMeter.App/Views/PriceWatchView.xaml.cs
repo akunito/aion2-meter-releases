@@ -24,8 +24,10 @@ public partial class PriceWatchView : UserControl
         {
             Watch = w;
             Name = string.IsNullOrEmpty(w.Name) ? catalogName : w.Name;
-            var when = w.LastCheck is { } c ? c.ToLocalTime().ToString("HH:mm") : T.PricesNotChecked;
-            Sub = w.LastError is null ? $"#{w.Item} · {when}" : $"#{w.Item} · {when} · {w.LastError}";
+            // Two clocks: the site's sample (what the price really is as of) and our read of it. They differ by up to an hour.
+            var when = w.LastCheck is { } c ? string.Format(T.PricesChecked, c.ToLocalTime().ToString("HH:mm")) : T.PricesNotChecked;
+            var sample = w.SampledAt is { } sa ? string.Format(T.PricesSampled, sa.ToLocalTime().ToString("HH:mm")) + " · " : "";
+            Sub = w.LastError is null ? $"#{w.Item} · {sample}{when}" : $"#{w.Item} · {sample}{when} · {w.LastError}";
             MaxText = w.MaxPrice.ToString("N0", CultureInfo.InvariantCulture);
             LastText = w.LastPrice is { } p ? p.ToString("N0", CultureInfo.InvariantCulture) : "—";
             Listings = w.LastListings is { } n ? n.ToString() : "";
@@ -90,7 +92,7 @@ public partial class PriceWatchView : UserControl
         }
         List.ItemsSource = rows;
         var last = _meter.Prices.LastPollAt;
-        StatusText.Text = last is { } l ? string.Format(T.PricesLastPoll, l.ToString("HH:mm")) : T.PricesNotChecked;
+        StatusText.Text = last is { } l ? string.Format(T.PricesLastPoll, l.ToString("HH:mm")) + " · " + T.PricesHourlyNote : T.PricesNotChecked;
     }
 
     /// <summary>"1200000", "1,200,000", "1.2m", "850k" → Kinah.</summary>

@@ -23,6 +23,8 @@ public sealed class PriceWatch
     public string? LastError { get; set; }
     /// <summary>Lowest listing about a day before the last point, for the trend arrow.</summary>
     public long? DayAgoPrice { get; set; }
+    /// <summary>Start of the newest hourly bucket the site returned = when it last sampled this item (the site samples every item about once an hour, 455/455 rows shared one captured_at on 2026-10-08; "Check now" cannot force a new sample).</summary>
+    public DateTimeOffset? SampledAt { get; set; }
     [JsonIgnore] public bool Hit => LastPrice is long p && p > 0 && MaxPrice > 0 && (Sell ? p >= MaxPrice : p <= MaxPrice);
 }
 
@@ -122,6 +124,7 @@ public sealed class PriceWatchStore : IDisposable
         w.LastError = null;
         if (points.Count == 0) { w.LastError = "no data"; return; }
         var last = points[^1];
+        w.SampledAt = last.Ts;
         w.LastPrice = last.Close > 0 ? last.Close : last.Low;
         w.LastListings = last.Listings;
         PricePoint? ago = null;

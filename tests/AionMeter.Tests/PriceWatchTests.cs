@@ -23,6 +23,7 @@ public class PriceWatchTests
         var pts = PriceWatchStore.ParsePrices(Fixture("exchange-prices-610511013.json"));
         var w = new PriceWatch { Item = 610511013, MaxPrice = 1_800_000 };
         PriceWatchStore.Apply(w, pts, DateTimeOffset.Now);
+        Assert.Equal(pts[^1].Ts, w.SampledAt);          // the site's own sample time, shown next to our read time
         Assert.Equal(1_799_990, w.LastPrice);
         Assert.True(w.Hit);
         Assert.NotNull(w.DayAgoPrice);
