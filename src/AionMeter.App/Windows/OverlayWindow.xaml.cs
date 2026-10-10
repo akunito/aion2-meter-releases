@@ -60,7 +60,7 @@ public partial class OverlayWindow : Window
         ShowUpdateBanner();
 
         // Drag the card by any part of it (unless locked); a click without movement still opens a breakdown.
-        _drag = DragAnywhere.Attach(this, canDrag: () => !_settings.Locked, dropped: SavePlacement);
+        _drag = DragAnywhere.Attach(this, canDrag: () => !_settings.Locked && !(_atlasView?.MapHover ?? false), dropped: SavePlacement);
 
         // The card stays clean: its buttons only appear while the mouse is over it, in place of the title and the state
         // label (the timer stays).

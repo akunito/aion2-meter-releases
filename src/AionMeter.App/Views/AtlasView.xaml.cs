@@ -597,6 +597,9 @@ public partial class AtlasView : UserControl
         Refresh();
     }
 
+    /// <summary>True while the pointer is over the map: the hosting window must not start its own drag (the map pans itself; broke again with the tab host, Diego 2026-10-10).</summary>
+    public bool MapHover => Viewport.IsMouseOver;
+
     public event Action? CloseRequested;
     private void Close_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
 }

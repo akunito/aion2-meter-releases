@@ -34,11 +34,14 @@ public class PriceWatchTests
     }
 
     [Fact]
-    public void StoreSeedsRoundTripsAndPaces()
+    public void StoreStartsEmptyRoundTripsAndPaces()
     {
         var path = Path.Combine(Path.GetTempPath(), "pw-" + Guid.NewGuid().ToString("N"), "price-watch.json");
         using var s = new PriceWatchStore(path);
-        Assert.Equal(2, s.All().Count);                       // the two seeds
+        Assert.Empty(s.All());                                // nothing seeded: the exe is shared with the clan
+        s.Add(610511013, "Wrathful Mind", 1_200_000);
+        s.Add(610530010, "Artisan's Ultimate Refining Stone", 500_000);
+        s.SetSell(610530010, true);
         Assert.True(s.All().Single(w => w.Item == 610530010).Sell);
         Assert.True(s.Due(10_000));
         s.Add(110130002, "Wisdom Greatsword", 900_000);

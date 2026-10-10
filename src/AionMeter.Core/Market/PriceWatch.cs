@@ -163,15 +163,9 @@ public sealed class PriceWatchStore : IDisposable
             }
         }
         catch (Exception) { }
-        Seed();
     }
 
-    /// <summary>Diego's watches of 2026-10-09: buy Wrathful Mind under 1.2M; sell the 26 Artisan's Ultimate Refining Stones (bought ~225k) once they reach 500k (docs/17 thesis). Idempotent, so an old file gets the new seed too.</summary>
-    private void Seed()
-    {
-        if (_watches.All(w => w.Item != 610511013)) _watches.Add(new PriceWatch { Item = 610511013, Name = "Wrathful Mind · Perversión de ira", MaxPrice = 1_200_000 });
-        if (_watches.All(w => w.Item != 610530010)) _watches.Add(new PriceWatch { Item = 610530010, Name = "Artisan's Ultimate Refining Stone · Piedra de refinamiento suprema de artesano", MaxPrice = 500_000, Sell = true, Quantity = 26 });
-    }
+    // No seeded watches: the exe is shared with the clan (2026-10-10); Diego's own list lives in his state/price-watch.json.
 
     public void Save()
     {
