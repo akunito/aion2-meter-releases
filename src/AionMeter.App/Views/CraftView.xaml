@@ -25,7 +25,7 @@
             <StackPanel Grid.Row="1" Margin="18,0,18,8">
                 <WrapPanel Orientation="Horizontal">
                     <Grid Width="250" Height="28" Margin="0,0,10,6">
-                        <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Padding="6,3,26,3" TextChanged="Filter_Changed" ToolTip="{Binding CraftSearch, Source={x:Static s:UiText.Current}}" />
+                        <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Padding="6,3,26,3" TextChanged="Filter_Changed" KeyDown="Search_KeyDown" ToolTip="{Binding CraftSearch, Source={x:Static s:UiText.Current}}" />
                         <Button x:Name="ClearSearch" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
                                 Click="ClearSearch_Click" Visibility="Collapsed" ToolTip="{Binding CraftClear, Source={x:Static s:UiText.Current}}" />
                     </Grid>

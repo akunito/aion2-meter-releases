@@ -548,19 +548,22 @@
                     <Button Grid.Column="1" Style="{StaticResource IconButton}" Content="&#xE711;" Click="UpdateBannerClose_Click" Margin="4,0,8,0"
                             VerticalAlignment="Center" ToolTip="{Binding T.UpdateLater}" />
                 </Grid>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}" Margin="0,0,10,0">
-                        <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" Margin="0,0,7,0" />
-                        <TextBlock x:Name="FooterText" FontSize="12" Foreground="#B4BCCB" TextTrimming="CharacterEllipsis"
-                                   Effect="{StaticResource TextShadow}" />
+                <!-- Footer, two lines (Diego 2026-10-11): status + fight links on the left, the timer/event pills below, wrapping -->
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}" Margin="0,0,14,0">
+                            <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" Margin="0,0,7,0" />
+                            <TextBlock x:Name="FooterText" FontSize="12" Foreground="#B4BCCB" TextTrimming="CharacterEllipsis"
+                                       Effect="{StaticResource TextShadow}" />
+                        </StackPanel>
+                        <Button Style="{StaticResource FooterLink}" Content="{Binding T.OpenFight}" Click="Details_Click" Effect="{StaticResource TextShadow}" />
+                        <Button Style="{StaticResource FooterLink}" Click="Segments_Click" Effect="{StaticResource TextShadow}">
+                            <TextBlock><Run Text="{Binding T.Fights, Mode=OneWay}" /><Run Text=" " /><Run Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" /></TextBlock>
+                        </Button>
                     </StackPanel>
-                    <WrapPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,12,0">
+                    <WrapPanel Orientation="Horizontal" Margin="0,0,12,0">
                         <!-- Boss timers: always visible, shows the next respawn; the whole strip wraps into lines on a narrow overlay (Diego, 2026-10-11) -->
-                        <Button Style="{StaticResource TimersPill}" Click="Timers_Click" ToolTip="{Binding T.TipTimers}" Margin="10,0,0,0">
+                        <Button Style="{StaticResource TimersPill}" Click="Timers_Click" ToolTip="{Binding T.TipTimers}" Margin="0,2,6,2">
                             <Button.ContextMenu>
                                 <ContextMenu Opened="BossMenu_Opened">
                                     <MenuItem x:Name="BossNotifyItem" Header="{Binding EventMenuNotify, Source={x:Static s:UiText.Current}}" IsCheckable="True" Click="BossNotify_Click" />
@@ -597,12 +600,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Button Style="{StaticResource FooterLink}" Content="{Binding T.OpenFight}" Click="Details_Click" Effect="{StaticResource TextShadow}" />
-                        <Button Style="{StaticResource FooterLink}" Click="Segments_Click" Effect="{StaticResource TextShadow}">
-                            <TextBlock><Run Text="{Binding T.Fights, Mode=OneWay}" /><Run Text=" " /><Run Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" /></TextBlock>
-                        </Button>
                     </WrapPanel>
-                </Grid>
+                </StackPanel>
             </StackPanel>
         </Grid>
 

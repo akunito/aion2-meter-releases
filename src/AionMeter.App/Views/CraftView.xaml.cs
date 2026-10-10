@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Controls;
 using System.Windows.Media;
 using AionMeter.App.Services;
@@ -38,6 +39,7 @@ public partial class CraftView : UserControl
     private void OnChanged() => Dispatcher.BeginInvoke(Reload);
     private void Filter_Changed(object sender, TextChangedEventArgs e) { ClearSearch.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; Reload(); }
     private void ClearSearch_Click(object sender, RoutedEventArgs e) { SearchBox.Text = ""; SearchBox.Focus(); }
+    private void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape && SearchBox.Text.Length > 0) { SearchBox.Text = ""; e.Handled = true; } }
     private void Filter_Click(object sender, RoutedEventArgs e) => Reload();
     private string Scope => ScopeBox.SelectedItem is ComboBoxItem { Tag: string t } ? t : "now";
     private void Scope_Changed(object sender, SelectionChangedEventArgs e) { if (!IsLoaded) return; _meter.Settings.CraftScope = Scope; _meter.Settings.Save(); Reload(); }
