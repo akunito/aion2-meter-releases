@@ -30,7 +30,7 @@ public partial class PriceWatchView : UserControl
             LastText = w.LastPrice is { } p ? p.ToString("N0", CultureInfo.InvariantCulture) : "—";
             Listings = w.LastListings is { } n ? n.ToString() : "";
             PriceBrush = w.Hit ? Down : (w.LastPrice is null ? Flat : Up);
-            Frame = w.Hit ? HitFrame : PriceWatchWindow.Frame;
+            Frame = w.Hit ? HitFrame : PriceWatchView.Frame;
             ModeText = w.Sell ? "≥" : "≤";
             QtyText = w.Quantity > 0 ? w.Quantity.ToString() : "";
             PaidText = w.PaidEach > 0 ? w.PaidEach.ToString("N0", CultureInfo.InvariantCulture) : "";
