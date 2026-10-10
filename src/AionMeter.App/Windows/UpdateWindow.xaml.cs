@@ -33,7 +33,7 @@ public partial class UpdateWindow : Window
             ? string.Format(t.UpdateReleased, current, FormatDate(at))
             : string.Format(t.UpdateYouHave, current);
         ShowNotes(release.Notes);
-        _canInstall = installed && release.Installer is not null;
+        _canInstall = installed && release.Portable is not null;   // "installed" = a published build that may replace itself
         UpdateButton.Content = _canInstall ? t.UpdateNow : t.UpdateOpenPage;
         Hint.Text = _canInstall ? t.UpdateInstalledHint : t.UpdatePortableHint;
     }

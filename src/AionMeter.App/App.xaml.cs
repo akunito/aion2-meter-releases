@@ -521,6 +521,11 @@ public partial class App : Application
         var updates = _meter.Updates;
         var available = updates.Available;
         _tray?.SetUpdate(available?.Version.ToString(3));
+        if (updates.UpstreamAvailable is { } up && up.Version != _announcedUpstream)
+        {
+            _announcedUpstream = up.Version;   // Diego only (Settings.CheckUpstream): the public project moved, time to re-audit and rebase
+            _tray?.ShowBalloon(UiText.Current.UpdateTitle, string.Format(UiText.Current.UpstreamBalloon, up.Tag), () => Updater.OpenReleasePage(up));
+        }
         if (available is null || available.Version == _announcedUpdate) return;
         var t = UiText.Current;
         if (updates.AutoInstall && !updates.DownloadFailed)
@@ -538,6 +543,7 @@ public partial class App : Application
     }
 
     private readonly long _startedAt = Environment.TickCount64;
+    private Version? _announcedUpstream;
     private bool _installing;
     private Version? _installFailed; // not retried by itself: the tray item and the update window remain
 
@@ -551,9 +557,14 @@ public partial class App : Application
         var updates = _meter.Updates;
         if (_installing || !updates.AutoInstall || updates.Downloaded is not { } ready || updates.Available?.Version != ready.Version ||
             ready.Version == _installFailed || _meter.Tracker.LiveFight() is not null) return; // turned off, skipped, failed, or a fight is on
+        var sinceStart = Environment.TickCount64 - _startedAt;
         var quiet = Environment.TickCount64 - Math.Max(_lastEngagedTick, _startedAt);
-        if (quiet < 60_000) return;
-        if (quiet < 10 * 60_000 && GameProcessLocator.FindGameProcessIds().Length > 0) return;
+        // Diego 2026-10-10: a downloaded update goes in right at start (first 3 minutes, no fight on); later only at a quiet moment.
+        if (sinceStart > 3 * 60_000)
+        {
+            if (quiet < 60_000) return;
+            if (quiet < 10 * 60_000 && GameProcessLocator.FindGameProcessIds().Length > 0) return;
+        }
         InstallUpdateNow();
     }
 
@@ -588,7 +599,7 @@ public partial class App : Application
             return;
         }
         _updateWindow?.Close();
-        var w = new UpdateWindow(_meter.Updates, release, Updater.IsInstalled);
+        var w = new UpdateWindow(_meter.Updates, release, !_meter.Updates.IsDevBuild);
         w.Closed += (_, _) =>
         {
             if (_updateWindow == w) _updateWindow = null;

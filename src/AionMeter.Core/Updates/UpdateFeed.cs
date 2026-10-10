@@ -12,7 +12,8 @@ public sealed record ReleaseInfo(
     string Notes,
     DateTimeOffset? PublishedAt,
     ReleaseAsset? Installer,
-    ReleaseAsset? Portable);
+    ReleaseAsset? Portable,
+    bool Prerelease = false);
 
 /// <summary>One file of a release. <see cref="Sha256"/> is GitHub's digest (lower-case hex) when it reports one.</summary>
 public sealed record ReleaseAsset(string Name, long Size, string Url, string? Sha256);
@@ -24,9 +25,14 @@ public sealed record ReleaseAsset(string Name, long Size, string Url, string? Sh
 /// </summary>
 public sealed class UpdateFeed : IDisposable
 {
-    public const string Repository = "cyberbadger6969/aion2-dps-meter";
+    // Our own releases (binaries only; the source stays in the private repo). "stable" = /releases/latest (GitHub skips drafts and
+    // pre-releases); "dev" = the newest of /releases including pre-releases. Upstream is only watched to know when to re-audit.
+    public const string Repository = "akunito/aion2-meter-releases";
     public const string LatestReleaseApi = "https://api.github.com/repos/" + Repository + "/releases/latest";
+    public const string ReleasesListApi = "https://api.github.com/repos/" + Repository + "/releases?per_page=10";
     public const string ReleasesPage = "https://github.com/" + Repository + "/releases/latest";
+    public const string UpstreamRepository = "cyberbadger6969/aion2-dps-meter";
+    public const string UpstreamLatestApi = "https://api.github.com/repos/" + UpstreamRepository + "/releases/latest";
 
     private static readonly TimeSpan ApiTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(30);
@@ -59,12 +65,40 @@ public sealed class UpdateFeed : IDisposable
         return Parse(await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false));
     }
 
+    /// <summary>The newest release of the list endpoint, pre-releases included (dev channel); null when none parses.</summary>
+    public async Task<ReleaseInfo?> GetNewestIncludingPrereleasesAsync(CancellationToken ct = default)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(ApiTimeout);
+        using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesListApi);
+        request.Headers.Accept.ParseAdd("application/vnd.github+json");
+        using var response = await _http.SendAsync(request, timeout.Token).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+        return ParseList(await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false));
+    }
+
+    /// <summary>GitHub's release list (newest first): the first non-draft that is a version, pre-releases allowed.</summary>
+    public static ReleaseInfo? ParseList(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
+        ReleaseInfo? best = null;
+        foreach (var r in doc.RootElement.EnumerateArray())
+            if (ParseElement(r, allowPrerelease: true) is { } info && (best is null || info.Version > best.Version)) best = info;
+        return best;
+    }
+
     /// <summary>A GitHub "release" object; null for drafts, pre-releases and tags that are not a version.</summary>
     public static ReleaseInfo? Parse(string json)
     {
         using var doc = JsonDocument.Parse(json);
-        var r = doc.RootElement;
-        if (Bool(r, "draft") || Bool(r, "prerelease")) return null;
+        return ParseElement(doc.RootElement, allowPrerelease: false);
+    }
+
+    private static ReleaseInfo? ParseElement(JsonElement r, bool allowPrerelease)
+    {
+        if (Bool(r, "draft") || (!allowPrerelease && Bool(r, "prerelease"))) return null;
         var tag = Str(r, "tag_name");
         if (ParseVersion(tag) is not { } version) return null;
 
@@ -87,7 +121,7 @@ public sealed class UpdateFeed : IDisposable
         }
         var page = Str(r, "html_url");
         return new ReleaseInfo(version, tag, page.Length > 0 ? page : ReleasesPage, Str(r, "body"),
-            DateTimeOffset.TryParse(Str(r, "published_at"), out var at) ? at : null, installer, portable);
+            DateTimeOffset.TryParse(Str(r, "published_at"), out var at) ? at : null, installer, portable, Bool(r, "prerelease"));
     }
 
     /// <summary>"v0.2.0", "0.2", "v1.0.3-beta" → 0.2.0, 0.2.0, 1.0.3; null when it is not a version.</summary>

@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
+using System.IO.Compression;
 using System.Windows.Threading;
 using AionMeter.Core.Updates;
 using Microsoft.Win32;
@@ -30,6 +31,7 @@ public sealed class Updater : IDisposable
 
     private readonly AppSettings _settings;
     private readonly UpdateFeed _feed;
+    private readonly UpdateFeed _upstream;
     private DispatcherTimer? _timer;
     private Task<UpdateCheckResult>? _running;
 
@@ -37,28 +39,58 @@ public sealed class Updater : IDisposable
     {
         _settings = settings;
         Current = UpdateFeed.Normalize(typeof(Updater).Assembly.GetName().Version ?? new Version(0, 0, 0));
+        (ReleaseTag, BuildSha) = ReadBuildInfo();
         _feed = new UpdateFeed($"AION2DpsMeter/{Current.ToString(3)}");
+        _upstream = new UpdateFeed($"AION2DpsMeter/{Current.ToString(3)}", UpdateFeed.UpstreamLatestApi);
     }
 
     /// <summary>This copy's version (major.minor.patch).</summary>
     public Version Current { get; }
+
+    /// <summary>"v0.3.0" for a published build (BUILD-INFO.txt has a "release" line); null for a developer build deployed by hand.</summary>
+    public string? ReleaseTag { get; }
+    public string? BuildSha { get; }
+    /// <summary>A hand-deployed build never updates itself from the release feed (it would overwrite work in progress).</summary>
+    public bool IsDevBuild => ReleaseTag is null;
+
+    /// <summary>The upstream project's newest release, watched only when Settings.CheckUpstream (Diego: "re-audit" signal).</summary>
+    public ReleaseInfo? UpstreamLatest { get; private set; }
+    /// <summary>The audited upstream version this build is based on (patch 0001–00xx on v0.2.5).</summary>
+    public static readonly Version UpstreamBase = new(0, 2, 5);
+    public ReleaseInfo? UpstreamAvailable => UpstreamLatest is { } u && u.Version > UpstreamBase ? u : null;
+
+    private static (string? Tag, string? Sha) ReadBuildInfo()
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "BUILD-INFO.txt");
+            if (!File.Exists(path)) return (null, null);
+            string? tag = null, sha = null;
+            foreach (var line in File.ReadLines(path))
+            {
+                if (line.StartsWith("release ", StringComparison.Ordinal)) tag = line[8..].Trim();
+                else if (line.StartsWith("upstream ", StringComparison.Ordinal)) sha = line[9..].Trim();
+            }
+            return (tag, sha is { Length: >= 7 } ? sha[..7] : sha);
+        }
+        catch (IOException) { return (null, null); }
+    }
 
     /// <summary>The newest release GitHub reported, newer or not; null before the first successful check.</summary>
     public ReleaseInfo? Latest { get; private set; }
 
     public string? LastError { get; private set; }
 
-    /// <summary>A release newer than this copy, unless the user chose to skip that version.</summary>
+    /// <summary>A release newer than this copy, unless the user chose to skip that version. Never for a developer build.</summary>
     public ReleaseInfo? Available =>
-        Latest is { } r && r.Version > Current && r.Version.ToString(3) != _settings.SkippedUpdate ? r : null;
+        !IsDevBuild && Latest is { } r && r.Version > Current && r.Version.ToString(3) != _settings.SkippedUpdate ? r : null;
 
     /// <summary>True when this copy runs from the folder the installer put it in (it can update itself).</summary>
     public static bool IsInstalled { get; } = DetectInstalled();
 
-    /// <summary>This copy fetches and installs new versions by itself (installed copies, unless turned off).</summary>
-    // akunito build: never fetch or run an installer; a new release means re-audit + rebuild from source.
-    public const bool DownloadsDisabled = true;
-    public bool AutoInstall => !DownloadsDisabled && IsInstalled && _settings.AutoInstallUpdates;
+    /// <summary>This copy fetches and applies new versions by itself: the portable zip is unpacked over this folder (clan build, 2026-10-10).</summary>
+    public const bool DownloadsDisabled = false;
+    public bool AutoInstall => !IsDevBuild && _settings.AutoInstallUpdates;
 
     /// <summary>The update whose installer is downloaded and checked, waiting for a quiet moment to be installed.</summary>
     public ReleaseInfo? Downloaded { get; private set; }
@@ -104,11 +136,16 @@ public sealed class Updater : IDisposable
     {
         try
         {
-            Latest = await _feed.GetLatestAsync();
+            Latest = _settings.UpdateChannel == "dev" ? await _feed.GetNewestIncludingPrereleasesAsync() : await _feed.GetLatestAsync();
             LastError = null;
-            Log.Info($"Update check: newest release {Latest?.Tag ?? "none"}, this copy {Current.ToString(3)}.");
-            if (Available is { Installer: not null } update && AutoInstall) _ = PrepareAsync(update);
-            return Latest is { } r && r.Version > Current ? UpdateCheckResult.Available : UpdateCheckResult.UpToDate;
+            Log.Info($"Update check ({_settings.UpdateChannel}): newest release {Latest?.Tag ?? "none"}, this copy {Current.ToString(3)} {ReleaseTag ?? "dev " + BuildSha}.");
+            if (_settings.CheckUpstream)
+            {
+                try { UpstreamLatest = await _upstream.GetLatestAsync(); Log.Info($"Upstream check: newest {UpstreamLatest?.Tag ?? "none"}, audited base {UpstreamBase.ToString(3)}."); }
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { Log.Info($"Upstream check failed: {ex.Message}"); }
+            }
+            if (Available is { Portable: not null } update && AutoInstall) _ = PrepareAsync(update);
+            return Available is not null || (!IsDevBuild && Latest is { } r && r.Version > Current) ? UpdateCheckResult.Available : UpdateCheckResult.UpToDate;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
@@ -130,12 +167,11 @@ public sealed class Updater : IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Downloads the release's installer to the temp folder, checked against GitHub's size and SHA-256.</summary>
+    /// <summary>Downloads the release's portable zip to the temp folder, checked against GitHub's size and SHA-256.</summary>
     public Task<string> DownloadInstallerAsync(ReleaseInfo release, IProgress<double>? progress, CancellationToken ct) =>
-        DownloadsDisabled ? throw new InvalidOperationException("Updates are disabled in this build: re-audit and rebuild from source") :
-        release.Installer is { } installer
-            ? _feed.DownloadAsync(installer, DownloadFolder, progress, ct)
-            : throw new InvalidOperationException($"Release {release.Tag} has no installer");
+        release.Portable is { } zip
+            ? _feed.DownloadAsync(zip, DownloadFolder, progress, ct)
+            : throw new InvalidOperationException($"Release {release.Tag} has no portable zip");
 
     /// <summary>Fetches the update in the background, so it can go in at the next quiet moment.</summary>
     private async Task PrepareAsync(ReleaseInfo release)
@@ -162,7 +198,7 @@ public sealed class Updater : IDisposable
         }
     }
 
-    /// <summary>Runs the downloaded installer without any window; the caller exits right after.</summary>
+    /// <summary>Applies the downloaded zip without any window; the caller exits right after.</summary>
     public void InstallDownloaded()
     {
         if (_downloadedPath is null) throw new InvalidOperationException("No update downloaded");
@@ -170,18 +206,32 @@ public sealed class Updater : IDisposable
     }
 
     /// <summary>
-    /// Starts the downloaded installer: <paramref name="quiet"/> with no window at all (automatic updates), otherwise
-    /// with a small progress window (the player clicked Update). It closes this copy if it is still running (Restart
-    /// Manager), installs over it and starts the new version (<c>/RELAUNCH=1</c>, see the [Run] section of the
-    /// installer). The caller exits right after.
+    /// Portable self-update: the zip is unpacked next to the temp download, the new exe's product name is checked, and a small
+    /// cmd script waits for this process to exit, copies the new files over this folder (robocopy, settings and data under
+    /// %AppData% untouched), starts the new exe and deletes the unpacked copy. The caller exits right after.
     /// </summary>
     public static void LaunchInstaller(string path, bool quiet = false)
     {
-        if (DownloadsDisabled) throw new InvalidOperationException("Updates are disabled in this build: re-audit and rebuild from source");
-        if (!UpdateFeed.IsProductName(FileVersionInfo.GetVersionInfo(path).ProductName, AppInfo.Name))
-            throw new InvalidDataException($"{Path.GetFileName(path)} is not the {AppInfo.Name} installer");
-        Process.Start(new ProcessStartInfo(path, (quiet ? "/VERYSILENT" : "/SILENT") + " /SUPPRESSMSGBOXES /NORESTART /RELAUNCH=1")
-            { UseShellExecute = true });
+        var unpacked = Path.Combine(DownloadFolder, "unpacked");
+        if (Directory.Exists(unpacked)) Directory.Delete(unpacked, true);
+        ZipFile.ExtractToDirectory(path, unpacked, overwriteFiles: true);
+        var exe = Directory.EnumerateFiles(unpacked, "AION2DpsMeter.exe", SearchOption.AllDirectories).FirstOrDefault()
+                  ?? throw new InvalidDataException($"{Path.GetFileName(path)} holds no AION2DpsMeter.exe");
+        if (!UpdateFeed.IsProductName(FileVersionInfo.GetVersionInfo(exe).ProductName, AppInfo.Name))
+            throw new InvalidDataException($"{Path.GetFileName(path)} is not an {AppInfo.Name} build");
+        var src = Path.GetDirectoryName(exe)!;
+        var app = AppContext.BaseDirectory.TrimEnd('\\');
+        var pid = Environment.ProcessId;
+        var script = Path.Combine(DownloadFolder, "apply-update.cmd");
+        File.WriteAllText(script, "@echo off\r\n" +
+            ":wait\r\n" +
+            $"tasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
+            $"robocopy \"{src}\" \"{app}\" /E /IS /IT /R:20 /W:1 /NFL /NDL /NJH /NJS >nul\r\n" +
+            $"start \"\" /D \"{app}\" \"{app}\\AION2DpsMeter.exe\"\r\n" +
+            $"rd /s /q \"{unpacked}\"\r\n" +
+            "del \"%~f0\"\r\n");
+        Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{script}\"") { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden });
+        _ = quiet;
     }
 
     public static void OpenReleasePage(ReleaseInfo? release)

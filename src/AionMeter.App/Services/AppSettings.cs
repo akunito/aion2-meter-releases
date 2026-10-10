@@ -96,9 +96,15 @@ public sealed class AppSettings
 
     // Updates
     /// <summary>Ask GitHub for a newer version shortly after start and every few hours.</summary>
-    public bool CheckUpdates { get; set; } = false;   // off for the clan build; Diego keeps it on in his settings.json (2026-10-10)
-    /// <summary>Installed copies download a new version by themselves and install it at a quiet moment.</summary>
-    public bool AutoInstallUpdates { get; set; } = false; // akunito build: see Updater.DownloadsDisabled
+    public bool CheckUpdates { get; set; } = true;    // our own release feed (akunito/aion2-meter-releases), 2026-10-10
+    /// <summary>Download a new version by itself and apply it at start or at a quiet moment (portable zip over this folder).</summary>
+    public bool AutoInstallUpdates { get; set; } = true;
+    /// <summary>"stable" (GitHub latest, no pre-releases) or "dev" (newest release including pre-releases).</summary>
+    public string UpdateChannel { get; set; } = "stable";
+    /// <summary>Also watch the upstream project's releases (a new one means re-audit + rebase); only Diego turns this on.</summary>
+    public bool CheckUpstream { get; set; } = false;
+    /// <summary>Scheduled task "AION2 meter autostart" registered: the meter starts with AION2.exe and closes 60 s after it.</summary>
+    public bool StartWithGame { get; set; } = false;
     /// <summary>A version the user chose to skip ("0.2.0"): not announced again, a newer one is.</summary>
     public string? SkippedUpdate { get; set; }
 
