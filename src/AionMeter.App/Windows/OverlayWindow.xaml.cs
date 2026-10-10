@@ -702,6 +702,9 @@ public partial class OverlayWindow : Window
         if (tab == _tab) { SyncTabChecks(); return; }
         _tab = tab;
         FooterStatusLine.Visibility = tab == "meter" ? Visibility.Visible : Visibility.Collapsed;   // DPS status + fight links belong to the meter tab only
+        // the frame is for the DPS rows; the other tabs' cards draw their own border inside the same row
+        PartyFrame.BorderThickness = tab == "meter" ? new Thickness(1) : new Thickness(0);
+        PartyFrame.Padding = tab == "meter" ? new Thickness(8, 6, 8, 6) : new Thickness(0);
         if (tab == "meter") TabHost.Visibility = Visibility.Collapsed;
         else
         {
