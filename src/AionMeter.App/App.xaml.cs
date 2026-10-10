@@ -358,7 +358,6 @@ public partial class App : Application
         foreach (var w in _breakdowns.Values.ToList()) w.Close();
         _history?.Close();
         _timersWindow?.Close();
-        _atlasWindow?.Close();
         _updateWindow?.Close();
         _tray?.ApplyTexts();
         _overlay.OnLanguageChanged();
