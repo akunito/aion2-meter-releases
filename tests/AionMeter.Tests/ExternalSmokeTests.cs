@@ -118,12 +118,12 @@ public class ExternalSmokeTests
     }
 
     [SmokeFact]
-    public async Task Aion2hub_entities_resolve_an_item_and_list_npcs_with_drops()
+    public async Task Aion2hub_entities_resolve_an_item_and_list_npcs()
     {
-        using var item = await Get("https://aion2hub.me/api/entities/items/610511013?locale=en");
+        using var item = await Get("https://aion2hub.me/api/entities/item/610511013?locale=en");
         var txt = item.RootElement.GetRawText();
         Assert.Contains("Wrathful", txt);                  // Wrathful Mind (Perversión de ira), the price-watch item
-        using var npcs = await Get("https://aion2hub.me/api/entities/npcs?locale=en&limit=5&offset=0");
+        using var npcs = await Get("https://aion2hub.me/api/entities/npc?locale=en&limit=5&offset=0");
         var arr = NamedArray(npcs.RootElement);
         Assert.NotNull(arr);
         Assert.Equal(5, arr!.Value.GetArrayLength());
