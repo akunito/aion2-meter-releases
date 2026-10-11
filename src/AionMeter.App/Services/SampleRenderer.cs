@@ -15,7 +15,7 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog).</param>
+    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected) or suggest (no build: suggestions card).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
@@ -93,6 +93,12 @@ public static class SampleRenderer
                 break;
             case "settings":
                 host = new SettingsWindow(meter) { Width = o.Width ?? 640, Height = o.Height ?? 900 };
+                refresh = () => { };
+                break;
+            case "restore":
+                var restore = new RestoreWindow(meter) { Width = o.Width ?? 520, Height = o.Height ?? 250, SizeToContent = SizeToContent.Manual };
+                restore.ShowSample("3F9C-0A12-B7E4-4D85-A6C1-E09F-2B7D-5E31", string.Format(UiText.Current.RestoreDone, 7, 5, 2) + "; " + UiText.Current.RestoreWatchRestored + "; " + UiText.Current.RestoreFavRestored + ".");
+                host = restore;
                 refresh = () => { };
                 break;
             case "update" or "update-portable":

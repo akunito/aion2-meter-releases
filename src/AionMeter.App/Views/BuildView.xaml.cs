@@ -1094,7 +1094,7 @@ public partial class BuildView : UserControl
     {
         if (_sample) return;
         var p = _meter.CurrentProfile;
-        Telemetry.QueueBuild(_meter.Settings, saved, BuildEditor.ClassIdOf(p?.ClassName) ?? _classId, p?.Level ?? 0);
+        Telemetry.QueueBuild(_meter.Settings, saved, BuildEditor.ClassIdOf(p?.ClassName) ?? _classId, p?.Level ?? 0, _meter.CharacterKey);
     }
 
     private void CopyQuestlog_Click(object sender, RoutedEventArgs e)

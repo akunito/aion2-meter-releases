@@ -73,6 +73,7 @@ public partial class SettingsWindow : Window
         if (s.UpdateChannel == "dev") ChannelDev.IsChecked = true; else ChannelStable.IsChecked = true;
         CheckUpstreamBox.IsChecked = s.CheckUpstream;
         TelemetryBox.IsChecked = s.Telemetry;
+        ShowBackupCode();
         StartWithGameBox.IsChecked = s.StartWithGame;
         CloseWithGameBox.IsChecked = s.CloseWithGame;
 
@@ -139,6 +140,28 @@ public partial class SettingsWindow : Window
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ShowBackupCode()
+    {
+        // the render tool's throw-away settings have no id: a fixed sample keeps the picture stable
+        var id = _meter.Settings.Transient ? (_meter.Settings.InstallId.Length > 0 ? _meter.Settings.InstallId : "3f9c0a12b7e44d85a6c1e09f2b7d5e31") : _meter.Settings.EnsureInstallId();
+        BackupCodeBox.Text = Core.Builds.BackupCode.Format(id);
+        BackupOffText.Visibility = TelemetryBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void Telemetry_Click(object sender, RoutedEventArgs e) => BackupOffText.Visibility = TelemetryBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
+
+    private void CopyCode_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(BackupCodeBox.Text); CopyState.Text = T.BackupCopied; }
+        catch (System.Runtime.InteropServices.COMException ex) { CopyState.Text = ex.Message; }   // clipboard held by another app
+    }
+
+    private void Restore_Click(object sender, RoutedEventArgs e)
+    {
+        new RestoreWindow(_meter) { Owner = this }.ShowDialog();
+        ShowBackupCode();
+    }
 
     /// <summary>The overlay follows the slider at once, so the size can be judged on the real rows.</summary>
     private void RowSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)

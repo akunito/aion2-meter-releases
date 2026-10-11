@@ -166,6 +166,19 @@ public sealed class AppSettings
     /// <summary>Build telemetry (A2M-21): per build id, when it was last sent and the build's UpdatedAt then (at most one send per build per 24 h, none without a change).</summary>
     public Dictionary<string, BuildSent> BuildTelemetrySent { get; set; } = new();
     public sealed record BuildSent(DateTimeOffset Sent, DateTimeOffset Updated);
+    /// <summary>2 = builds carry charhash (A2M-30): an older file has its sent marks cleared once so every build goes again with it.</summary>
+    public int BuildTelemetryVersion { get; set; }
+    public const int CurrentBuildTelemetry = 2;
+    /// <summary>A2M-30 kind "watch" (watch list + craft favourites): when it was last sent and a hash of what was sent.</summary>
+    public DateTimeOffset? StateTelemetrySent { get; set; }
+    public string StateTelemetryHash { get; set; } = "";
+
+    /// <summary>The install id doubles as the backup code (A2M-30), so it exists from the first time anything needs it.</summary>
+    public string EnsureInstallId()
+    {
+        if (InstallId.Length == 0) { InstallId = Guid.NewGuid().ToString("N"); try { Save(); } catch (IOException) { } }
+        return InstallId;
+    }
     /// <summary>Browser link of a watched item; {id} and {server} are replaced. The site is a hash-routed SPA: "/#/items/{id}" (Diego, 2026-10-09); "/item/{id}" renders blank.</summary>
     public string PriceItemUrl { get; set; } = "https://aion2.exchange/#/items/{id}";
     public double AtlasHeight { get; set; } = 760;
@@ -193,6 +206,7 @@ public sealed class AppSettings
                     // the default is now English until the user chooses.
                     s.Language = "en";
                 }
+                if (s.BuildTelemetryVersion < CurrentBuildTelemetry) { s.BuildTelemetrySent.Clear(); s.BuildTelemetryVersion = CurrentBuildTelemetry; }
                 s.Language = UiText.Normalize(s.Language);
                 s.LayoutVersion = CurrentLayout;
                 return s;
@@ -201,7 +215,7 @@ public sealed class AppSettings
         catch (Exception ex) when (ex is IOException or JsonException)
         {
         }
-        return new AppSettings { LayoutVersion = CurrentLayout };
+        return new AppSettings { LayoutVersion = CurrentLayout, BuildTelemetryVersion = CurrentBuildTelemetry };
     }
 
     /// <summary>Throw-away settings (render tool): never written to disk.</summary>

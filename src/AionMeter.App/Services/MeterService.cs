@@ -66,6 +66,7 @@ public sealed class MeterService : IDisposable
             NodeNameWanted?.Invoke(spot.Code);
         };
         Tracker.EncounterFinished += OnEncounterFinished;
+        if (!settings.Transient) Prices.Changed += () => Telemetry.QueueState(this);   // hourly polls raise it too: unchanged state is not sent
         // A recording's or the demo's bosses must not move the live respawn timers.
         Tracker.BossNoticed += n =>
         {
@@ -383,6 +384,7 @@ public sealed class MeterService : IDisposable
         _characterKey = key;
         Inventory.Bind(Path.Combine(dir, "inventory.json"), null);   // no legacy mirrors: this is a view, the live login rebinds with them
         Character.Bind(Path.Combine(dir, "character.json"), null);
+        AdoptRestoredBuilds(key);
         Builds = new BuildStore(Path.Combine(dir, "builds"));
         _lastSummary = "";
         Log.Info($"Character stores switched by hand to {key}");
@@ -401,11 +403,59 @@ public sealed class MeterService : IDisposable
         var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
         Inventory.Bind(Path.Combine(dir, "inventory.json"), Path.Combine(AppSettings.AppDataDir, "inventory.json"));
         Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
+        AdoptRestoredBuilds(key);
         Builds = new BuildStore(Path.Combine(dir, "builds"));
         Log.Info($"Character stores bound to {key}");
         _lastSummary = "";
         CharacterChanged?.Invoke();
         _ = SyncProfileAsync(key, name, server);
+    }
+
+    /// <summary>Builds restored from the backup code before this character had a folder here (builds-restored/&lt;charhash&gt;/) join it now.</summary>
+    private void AdoptRestoredBuilds(string key)
+    {
+        if (Settings.Transient || Settings.InstallId.Length == 0) return;
+        try
+        {
+            var moved = BackupPlacement.Adopt(AppSettings.AppDataDir, Settings.InstallId, key);
+            if (moved > 0) Log.Info($"Backup: {moved} restored build(s) moved to {key}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Backup: restored builds not moved", ex); }
+    }
+
+    public sealed record RestoreSummary(int Builds, int Placed, int Waiting, int KeptLocal, bool StateFound, bool WatchRestored, bool FavouritesRestored);
+
+    /// <summary>
+    /// A2M-30 restore, on the UI thread after the server answered: the code becomes this install's id (telemetry continues under it),
+    /// builds go to the character whose hash matches or wait in builds-restored/, and the watch list / craft favourites come back only
+    /// where the local ones are empty.
+    /// </summary>
+    public RestoreSummary ApplyRestore(string code, RestorePayload payload)
+    {
+        var s = Settings;
+        s.InstallId = code;
+        s.BuildTelemetrySent.Clear();
+        s.StateTelemetrySent = null; s.StateTelemetryHash = "";
+        var placed = BackupPlacement.Place(payload.Builds, AppSettings.AppDataDir, code);
+        // what came from the server is already there: no need to send it back tomorrow
+        foreach (var r in payload.Builds) s.BuildTelemetrySent[r.Build.Id] = new AppSettings.BuildSent(r.Ts, r.Build.UpdatedAt);
+        bool stateFound = false, watchRestored = false, favRestored = false;
+        foreach (var st in payload.State)
+        {
+            if (st.Kind != BackupState.Kind) continue;
+            stateFound = true;
+            var (watch, favs) = BackupState.Parse(st.Data);
+            var local = Prices.All();
+            if (BackupState.Takes(local, watch)) { Prices.AddRange(watch); watchRestored = true; }
+            if (BackupState.Takes(s.CraftFavourites, favs)) { s.CraftFavourites.AddRange(favs); favRestored = true; }
+        }
+        try { s.Save(); } catch (IOException ex) { Log.Error("Backup: settings not saved", ex); }
+        Log.Info($"Backup restored: {payload.Builds.Count} builds ({placed.Placed} placed, {placed.Waiting} waiting, {placed.KeptLocal} newer here), state {(stateFound ? "found" : "none")}, watch {(watchRestored ? "restored" : "kept")}, favourites {(favRestored ? "restored" : "kept")}");
+        if (_characterKey.Length > 0) AdoptRestoredBuilds(_characterKey);
+        Builds = new BuildStore(Builds.Directory);
+        _lastSummary = "";
+        CharacterChanged?.Invoke();
+        return new RestoreSummary(payload.Builds.Count, placed.Placed, placed.Waiting, placed.KeptLocal, stateFound, watchRestored, favRestored);
     }
 
     private long _lastProfileSync;

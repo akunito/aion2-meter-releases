@@ -77,6 +77,17 @@ public sealed class BuildStore
         return b;
     }
 
+    /// <summary>Writes the build as it is (id and UpdatedAt kept): the backup restore puts back what the server holds.</summary>
+    public bool Put(Build b)
+    {
+        if (!ValidId(b.Id)) return false;
+        System.IO.Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, b.Id + ".json");
+        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(b, Json));
+        File.Move(path + ".tmp", path, overwrite: true);
+        return true;
+    }
+
     public bool Delete(string id)
     {
         if (!ValidId(id)) return false;
@@ -106,14 +117,14 @@ public sealed class BuildStore
     public Build? Active => ActiveId is { } id ? Load(id) : null;
 
     // ids become file names: letters, digits, '-' and '_' only
-    private static bool ValidId(string? id)
+    public static bool ValidId(string? id)
     {
         if (string.IsNullOrEmpty(id) || id.Length > 64) return false;
         foreach (var c in id) if (!(char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) return false;
         return true;
     }
 
-    private static Build? Read(string path)
+    public static Build? Read(string path)
     {
         try { return File.Exists(path) ? JsonSerializer.Deserialize<Build>(File.ReadAllText(path), Json) : null; }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }

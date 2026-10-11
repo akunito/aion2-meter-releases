@@ -233,7 +233,7 @@
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding UpdateChannelHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="CheckUpstreamBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
                                       Content="{Binding CheckUpstream, Source={x:Static s:UiText.Current}}" />
-                            <CheckBox x:Name="TelemetryBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
+                            <CheckBox x:Name="TelemetryBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0" Click="Telemetry_Click"
                                       Content="{Binding TelemetryOptIn, Source={x:Static s:UiText.Current}}" />
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding TelemetryHint, Source={x:Static s:UiText.Current}}" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -243,6 +243,26 @@
                             </StackPanel>
                             <TextBlock x:Name="UpdateState" Style="{StaticResource Hint}" Margin="0,6,0,0" Foreground="{StaticResource TextDim}"
                                        Visibility="Collapsed" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Backup (A2M-30): the install id is the code; the cloud copy rides on the telemetry switch -->
+                    <Border Style="{StaticResource Section}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding SecBackup, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding BackupCodeLabel, Source={x:Static s:UiText.Current}}" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,12,0" />
+                                <TextBox x:Name="BackupCodeBox" IsReadOnly="True" Width="Auto" MinWidth="330" Height="30" VerticalContentAlignment="Center"
+                                         FontFamily="Consolas" FontSize="13.5" Foreground="{StaticResource Gold}" />
+                                <Button Style="{StaticResource GhostButton}" Click="CopyCode_Click" Margin="8,0,0,0"
+                                        Content="{Binding BackupCopy, Source={x:Static s:UiText.Current}}" />
+                                <TextBlock x:Name="CopyState" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="{StaticResource Green}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0" Text="{Binding BackupHint, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock x:Name="BackupOffText" Style="{StaticResource Hint}" Margin="0,2,0,0" Foreground="{StaticResource Red}"
+                                       Text="{Binding BackupOff, Source={x:Static s:UiText.Current}}" Visibility="Collapsed" />
+                            <Button Style="{StaticResource GhostButton}" HorizontalAlignment="Left" Margin="0,8,0,0" Click="Restore_Click"
+                                    Content="{Binding BackupRestore, Source={x:Static s:UiText.Current}}" />
                         </StackPanel>
                     </Border>
 
