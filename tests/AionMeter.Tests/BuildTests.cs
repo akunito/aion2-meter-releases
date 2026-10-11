@@ -189,4 +189,109 @@ public class BuildTests
         Assert.Equal(4, none.NotLearned);
         Assert.False(none.Skills[2].InInventory);
     }
+    [Fact]
+    public void Editor_equips_into_the_first_free_row_and_unequips()
+    {
+        var book = new SkillBook(SkillsDir());
+        var b = QuestlogBuilds.ParseBuild(Fixture("irin-build.json"))!;
+        Assert.Equal(1, BuildEditor.FirstFreeRow(b, 1));                 // Deadshot holds 1.0
+        Assert.Equal(-1, BuildEditor.FirstFreeRow(b, 10));               // 10.0–10.3 all taken
+        var trap = book.Get(14170000)!;                                   // on 3.0
+        var e = BuildEditor.Equip(b, trap, 1);
+        Assert.Equal("1.1", e.Skill(14170000)!.Slot);
+        Assert.Equal("3.0", b.Skill(14170000)!.Slot);                     // the input is untouched
+        Assert.Same(b, BuildEditor.Equip(b, trap, 10));                  // full key refused
+        Assert.Same(b, BuildEditor.Equip(b, book.Get(14740000)!, 1));    // passives never on the bar
+        var kick = book.Get(14120000)!;                                   // not in the build: added at level 1
+        var k = BuildEditor.Equip(b, kick, 4);
+        Assert.Equal((1, "4.0"), (k.Skill(14120000)!.Level, k.Skill(14120000)!.Slot));
+        Assert.Equal(25, k.Skills.Count);
+        var u = BuildEditor.Unequip(e, 14170000);
+        Assert.Null(u.Skill(14170000)!.Slot);
+        Assert.Same(u, BuildEditor.Unequip(u, 14170000));
+        Assert.Equal(14010000, BuildEditor.SkillAt(b, 1, 0));
+        Assert.Same(b, BuildEditor.MoveTo(b, trap, 1, 0));               // taken cell
+        Assert.Equal("5.3", BuildEditor.MoveTo(b, trap, 5, 3).Skill(14170000)!.Slot);
+        Assert.False(BuildEditor.TryParseSlot("13.0", out _, out _));
+        Assert.False(BuildEditor.TryParseSlot("1.4", out _, out _));
+        Assert.Equal(12, BuildEditor.KeyOf("12.2"));
+    }
+
+    [Fact]
+    public void Editor_specs_respect_level_and_cap()
+    {
+        var book = new SkillBook(SkillsDir());
+        var b = QuestlogBuilds.ParseBuild(Fixture("irin-build.json"))!;
+        var dead = book.Get(14010000)!;                                   // lv 20, specs 30/50/20 chosen
+        var full = BuildEditor.ToggleSpec(b, dead, 14010010, out var r);
+        Assert.Equal(SpecToggle.Full, r); Assert.Same(b, full);
+        var off = BuildEditor.ToggleSpec(b, dead, 14010050, out r);
+        Assert.Equal(SpecToggle.Removed, r);
+        Assert.Equal(new[] { 14010030, 14010020 }, off.Skill(14010000)!.Specs);
+        var on = BuildEditor.ToggleSpec(off, dead, 14010040, out r);
+        Assert.Equal(SpecToggle.Added, r);
+        Assert.Equal(3, on.Skill(14010000)!.Specs.Count);
+        // stigmas take four
+        var griffon = book.Get(14060000)!;
+        Assert.Equal(4, BuildEditor.SpecCap(griffon));
+        Assert.Equal(3, BuildEditor.SpecCap(dead));
+        // a spec above the skill's level is refused, and lowering the level drops the chosen ones above it
+        var low = BuildEditor.SetLevel(b, dead, 10);
+        Assert.Equal(10, low.Skill(14010000)!.Level);
+        Assert.Equal(new[] { 14010030, 14010020 }, low.Skill(14010000)!.Specs);   // 14010050 needs 16
+        BuildEditor.ToggleSpec(low, dead, 14010040, out r);               // needs 12
+        Assert.Equal(SpecToggle.Locked, r);
+        BuildEditor.ToggleSpec(b, dead, 99, out r);
+        Assert.Equal(SpecToggle.Unknown, r);
+        Assert.Equal(1, BuildEditor.SetLevel(b, dead, -5).Skill(14010000)!.Level);
+        Assert.Equal(dead.MaxLevel, BuildEditor.SetLevel(b, dead, 999).Skill(14010000)!.Level);
+        Assert.Same(b, BuildEditor.SetLevel(b, dead, 20));
+    }
+
+    [Fact]
+    public void Editor_priority_moves_within_its_category_and_removes()
+    {
+        var book = new SkillBook(SkillsDir());
+        var b = QuestlogBuilds.ParseBuild(Fixture("irin-build.json"))!;
+        string? Cat(int id) => book.Get(id)?.Sub;
+        // 14010000 14110000 14020000 14050000 14340000 14080000 | 14310000 14220000 14060000 14380000 | 14740000 14750000 14800000
+        var m = BuildEditor.MovePriority(b, 14110000, -1, Cat);
+        Assert.Equal(new[] { 14110000, 14010000 }, m.Priority.Take(2));
+        Assert.Same(b, BuildEditor.MovePriority(b, 14010000, -1, Cat));  // already first
+        Assert.Same(b, BuildEditor.MovePriority(b, 14080000, 1, Cat));   // last active: the next entry is a stigma
+        var s = BuildEditor.MovePriority(b, 14310000, 1, Cat);
+        Assert.Equal(new[] { 14220000, 14310000 }, s.Priority.Skip(6).Take(2));
+        var r = BuildEditor.RemovePriority(b, 14020000);
+        Assert.Equal(12, r.Priority.Count);
+        Assert.DoesNotContain(14020000, r.Priority);
+        Assert.Equal(14020000, BuildEditor.AddPriority(r, 14020000).Priority[^1]);
+        Assert.Same(b, BuildEditor.AddPriority(b, 14120000));            // not in the build
+        var gone = BuildEditor.RemoveSkill(b, 14130000);
+        Assert.Null(gone.Skill(14130000));
+        Assert.Empty(gone.Macros[0].Steps);
+        var mac = BuildEditor.AddMacro(b, new BuildMacro("Open", [14090000, 14010000]));
+        Assert.Equal(3, mac.Macros.Count);
+        Assert.Equal(2, BuildEditor.RemoveMacro(mac, 0).Macros.Count);
+        Assert.Same(b, BuildEditor.AddMacro(b, new BuildMacro("empty", [])));
+    }
+
+    [Fact]
+    public void Editor_new_build_from_the_profile()
+    {
+        var profile = new CharacterProfile(new CharacterRef("c", "Irin", 0, 45, 1, "Vaizel", "eu"), "Ranger", 45, 47000, null, null, null, [], 1042, [], [], null, null,
+            [new SkillLine("Active", "Deadshot", 13, true, true, 14010000), new SkillLine("Dp", "Griffon Arrow", 0, false, false, 14060000),
+             new SkillLine("Passive", "Focused Eye", 13, false, true, 14740000), new SkillLine("Active", "Basic", 1, true, true, 99000001)],
+            [], [], DateTimeOffset.UtcNow);
+        var b = BuildEditor.FromProfile(profile, "Irin now");
+        Assert.Equal("ranger", b.ClassId);
+        Assert.Equal("Irin now", b.Name);
+        Assert.Equal(new[] { 14010000, 14740000 }, b.Skills.Select(s => s.SkillId));
+        Assert.Equal(13, b.Skill(14010000)!.Level);
+        Assert.All(b.Skills, s => { Assert.Null(s.Slot); Assert.Empty(s.Specs); });
+        Assert.Empty(b.Priority);
+        Assert.Equal("elementalist", BuildEditor.ClassIdOf("Spiritmaster"));
+        Assert.Equal("chanter", BuildEditor.ClassIdOf(" CHANTER "));
+        Assert.Null(BuildEditor.ClassIdOf("Brawler"));
+        Assert.Null(BuildEditor.ClassIdOf(null));
+    }
 }

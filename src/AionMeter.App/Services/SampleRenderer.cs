@@ -15,13 +15,14 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, update or update-portable.</param>
+    /// arrives), breakdown, history, timers, settings, update, update-portable, build or build-es (the Build tab, skill texts in Spanish).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense.</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden) or tip (one tooltip).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
+    /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); nothing is downloaded.</param>
     public sealed record Options(string Window = "overlay", int? Width = null, int? Height = null, string? Tab = null,
-        string Backdrop = "game", double Scale = 1.5, int RowSize = 100);
+        string Backdrop = "game", double Scale = 1.5, int RowSize = 100, string? Icons = null);
 
     public static void Render(string path, string language, Options o)
     {
@@ -57,6 +58,18 @@ public static class SampleRenderer
                 var timers = new BossTimersWindow(meter) { Width = o.Width ?? 780, Height = o.Height ?? 640 };
                 host = timers;
                 refresh = timers.ReloadNow;
+                break;
+            case "build" or "build-es":
+                meter.Settings.SkillLanguage = o.Window == "build-es" ? "es" : "en";
+                var icons = new IconCache(Core.GameDb.ItemIcons.Empty, o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
+                var build = new Views.BuildView(meter, icons);
+                if (o.Tab == "done") build.SetShowDone(false);
+                build.ShowSample(SampleBuild(), SampleProfile(), 14170000);   // Explosion Trap selected: the detail panel shows
+                var page = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x0D));
+                // --tab tip: Explosion Trap's tooltip alone (a ToolTip never opens offscreen)
+                host = o.Tab == "tip" ? new Window { Content = new System.Windows.Controls.Grid { Background = page, Children = { build.TipPreview(14170000) } }, Width = o.Width ?? 360, Height = o.Height ?? 560, Background = page }
+                                      : new Window { Content = build, Width = o.Width ?? 1000, Height = o.Height ?? 1800, Background = page };
+                refresh = o.Tab == "tip" ? () => { } : build.RenderNow;
                 break;
             case "settings":
                 host = new SettingsWindow(meter) { Width = o.Width ?? 640, Height = o.Height ?? 900 };
@@ -178,6 +191,32 @@ public static class SampleRenderer
     }
 
     private const int SampleBossCode = 2701250; // Balhash, a field boss
+
+    /// <summary>Irin's questlog build 15969 (data/gamedb/sample-build.json, copied from the test fixture by build.sh).</summary>
+    private static Core.Builds.Build SampleBuild()
+    {
+        var path = Path.Combine(MeterService.DataDirectory, "gamedb", "sample-build.json");
+        var b = File.Exists(path) ? Core.Builds.QuestlogBuilds.ParseBuild(File.ReadAllText(path)) : null;
+        b ??= new Core.Builds.Build { Name = "sample", ClassId = "ranger" };
+        b.Notes[14170000] = "Situational (key 3). Equipped at level 1: the build's biggest gap, raise it to 12.";   // from the approved mock
+        return b with { Id = "sample" };
+    }
+
+    /// <summary>Irin's official profile of 2026-10-10 as far as skills go (Ranger 45): current levels, four build skills not acquired.</summary>
+    private static Core.Armory.CharacterProfile SampleProfile()
+    {
+        (int Id, string Cat, int Level)[] have =
+        [
+            (14010000, "Active", 13), (14020000, "Active", 12), (14050000, "Active", 12), (14070000, "Active", 11), (14080000, "Active", 12), (14090000, "Active", 8),
+            (14110000, "Active", 13), (14130000, "Active", 12), (14170000, "Active", 1), (14340000, "Active", 12), (14310000, "Dp", 10), (14380000, "Dp", 7),
+            (14740000, "Passive", 13), (14750000, "Passive", 13), (14800000, "Passive", 13), (14710000, "Passive", 1), (14720000, "Passive", 2), (14770000, "Passive", 2),
+            (14730000, "Passive", 2), (14780000, "Passive", 2),
+            (14220000, "Dp", 0), (14060000, "Dp", 0), (14360000, "Dp", 0), (14330000, "Active", 0),
+        ];
+        var skills = have.Select(h => new Core.Armory.SkillLine(h.Cat, h.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), h.Level, h.Level > 0, h.Level > 0, h.Id)).ToList();
+        return new Core.Armory.CharacterProfile(new Core.Armory.CharacterRef("sample", "Irin", 0, 45, 2305, "Vaizel", "eu"), "Ranger", 45, 47_000, null, null, null, [], 1042, [], [], null, null,
+            skills, [], [], new DateTimeOffset(2026, 10, 10, 18, 46, 0, TimeSpan.Zero));
+    }
 
     /// <summary>
     /// A scripted boss fight: every class with its own skills, crits, back attacks and perfect hits. The Elementalist

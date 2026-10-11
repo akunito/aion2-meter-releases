@@ -56,7 +56,7 @@ public partial class App : Application
         {
             Log.Enabled = false;
             // --render-sample <out.png | folder with --animate> [--lang ru] [--window …] [--width N] [--height N] [--tab …]
-            // [--backdrop game|dark|none] [--scale 1.5] [--row-size 50..100] [--animate <seconds> [--fps 10]]
+            // [--backdrop game|dark|none] [--scale 1.5] [--row-size 50..100] [--animate <seconds> [--fps 10]] [--icons <folder>]
             var options = new SampleRenderer.Options(
                 ArgValue(e.Args, "--window") ?? "overlay",
                 int.TryParse(ArgValue(e.Args, "--width"), out var width) ? width : null,
@@ -65,7 +65,8 @@ public partial class App : Application
                 ArgValue(e.Args, "--backdrop") ?? "game",
                 double.TryParse(ArgValue(e.Args, "--scale"), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var scale) ? scale : 1.5,
-                int.TryParse(ArgValue(e.Args, "--row-size"), out var rowSize) ? rowSize : 100);
+                int.TryParse(ArgValue(e.Args, "--row-size"), out var rowSize) ? rowSize : 100,
+                ArgValue(e.Args, "--icons"));
             var language = ArgValue(e.Args, "--lang") ?? "en";
             if (double.TryParse(ArgValue(e.Args, "--animate"), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var seconds))

@@ -6,6 +6,7 @@ using AionMeter.Core.Combat;
 using AionMeter.Core.Demo;
 using AionMeter.Core.Game;
 using AionMeter.Core.Armory;
+using AionMeter.Core.Builds;
 using AionMeter.Core.Character;
 using AionMeter.Core.GameDb;
 using AionMeter.Core.Inventory;
@@ -131,6 +132,10 @@ public sealed class MeterService : IDisposable
     public InventoryStore Inventory { get; } = new(Path.Combine(AppSettings.AppDataDir, "inventory.json"));
     /// <summary>Pets, titles and achievements from the login lists (private branch); saved to state\character.json for the AI side.</summary>
     public CharacterState Character { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
+    /// <summary>Skill catalogue per class for the Build tab (data/gamedb/skills, A2M-21).</summary>
+    public SkillBook Skills { get; } = new(Path.Combine(DataDirectory, "gamedb", "skills"));
+    /// <summary>The bound character's builds (characters/&lt;key&gt;/builds); a shared folder until a character is known.</summary>
+    public BuildStore Builds { get; private set; } = new(Path.Combine(AppSettings.AppDataDir, "builds"));
     /// <summary>Every broker page the player browses, as a growing price history (private branch).</summary>
     public BrokerStore Broker { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "market.json"));
     /// <summary>Items to buy below a price: aion2.exchange read once an hour per item (private branch).</summary>
@@ -376,6 +381,7 @@ public sealed class MeterService : IDisposable
         _characterKey = key;
         Inventory.Bind(Path.Combine(dir, "inventory.json"), null);   // no legacy mirrors: this is a view, the live login rebinds with them
         Character.Bind(Path.Combine(dir, "character.json"), null);
+        Builds = new BuildStore(Path.Combine(dir, "builds"));
         _lastSummary = "";
         Log.Info($"Character stores switched by hand to {key}");
         CharacterChanged?.Invoke();
@@ -393,6 +399,7 @@ public sealed class MeterService : IDisposable
         var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
         Inventory.Bind(Path.Combine(dir, "inventory.json"), Path.Combine(AppSettings.AppDataDir, "inventory.json"));
         Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
+        Builds = new BuildStore(Path.Combine(dir, "builds"));
         Log.Info($"Character stores bound to {key}");
         _lastSummary = "";
         CharacterChanged?.Invoke();
@@ -401,20 +408,56 @@ public sealed class MeterService : IDisposable
 
     private long _lastProfileSync;
     private int _profileSyncing;
+    private (string Path, DateTime Stamp, CharacterProfile? Profile) _profileCache = ("", default, null);
+
+    /// <summary>
+    /// The bound character's official profile as last synced (characters/&lt;key&gt;/profile.json, re-read only when the file changes),
+    /// else the armory cache for the logged-in name; null when neither exists.
+    /// </summary>
+    public CharacterProfile? CurrentProfile
+    {
+        get
+        {
+            if (_characterKey.Length == 0) return null;
+            var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "profile.json");
+            try
+            {
+                var stamp = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : default;
+                if (_profileCache.Path == path && _profileCache.Stamp == stamp && (stamp != default || _profileCache.Profile is not null)) return _profileCache.Profile;
+                var p = stamp != default ? System.Text.Json.JsonSerializer.Deserialize<CharacterProfile>(File.ReadAllText(path))
+                      : Tracker.SelfName is { Length: > 0 } n && Tracker.SelfServerId > 0 ? Armory.Cached(n, Tracker.SelfServerId) : null;
+                _profileCache = (path, stamp, p);
+                return p;
+            }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { return null; }
+        }
+    }
+
+    /// <summary>Fetches the bound character's official profile now, ignoring the cache's age (Build tab → refresh). False when nothing was fetched.</summary>
+    public Task<bool> RefreshProfileAsync()
+    {
+        var key = _characterKey;
+        if (key.Length == 0) return Task.FromResult(false);
+        string? name = null; var server = 0;
+        if (CurrentProfile is { } p) { name = p.Ref.Name; server = p.Ref.ServerId; }
+        else if (Tracker.SelfName is { Length: > 0 } n && Tracker.SelfServerId > 0) { name = n; server = Tracker.SelfServerId; }
+        else if (key.IndexOf('-') is > 0 and var dash && int.TryParse(key.AsSpan(0, dash), out var sv)) { name = key[(dash + 1)..]; server = sv; }
+        return name is null || server <= 0 ? Task.FromResult(false) : SyncProfileAsync(key, name, server, force: true);
+    }
 
     /// <summary>
     /// Daevanion boards, skills with levels and stigmas never travel on the wire (client data), so they come from the official
     /// character API: fetched when a character logs in and again every 6 h while playing, into characters/&lt;key&gt;/profile.json
     /// (+ profile.txt, the same text as the Top DPS profile panel). The site itself lags the game by an unknown delay.
     /// </summary>
-    private async Task SyncProfileAsync(string key, string name, int server)
+    private async Task<bool> SyncProfileAsync(string key, string name, int server, bool force = false)
     {
-        if (Interlocked.Exchange(ref _profileSyncing, 1) == 1) return;
+        if (Interlocked.Exchange(ref _profileSyncing, 1) == 1) return false;
         try
         {
-            var p = await Armory.LookupAsync(name, server, withDaevanion: true).ConfigureAwait(false);
+            var p = await Armory.LookupAsync(name, server, withDaevanion: true, force: force).ConfigureAwait(false);
             if (p is not null && DateTimeOffset.UtcNow - p.FetchedAt > TimeSpan.FromHours(6)) p = await Armory.LookupAsync(name, server, withDaevanion: true, force: true).ConfigureAwait(false);
-            if (p is null) { Log.Info($"Profile sync: {name} not found on server {server}"); return; }
+            if (p is null) { Log.Info($"Profile sync: {name} not found on server {server}"); return false; }
             var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
             Directory.CreateDirectory(dir);
             File.WriteAllText(Path.Combine(dir, "profile.json"), System.Text.Json.JsonSerializer.Serialize(p, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
@@ -422,8 +465,9 @@ public sealed class MeterService : IDisposable
             _lastProfileSync = Environment.TickCount64;
             _lastSummary = "";
             Log.Info($"Profile sync: {name} (fetched {p.FetchedAt:HH:mm}, {p.Skills.Count} skills, {p.Daevanion.Count} daevanion nodes)");
+            return true;
         }
-        catch (Exception e) { Log.Error("Profile sync", e); }
+        catch (Exception e) { Log.Error("Profile sync", e); return false; }
         finally { _profileSyncing = 0; }
     }
 

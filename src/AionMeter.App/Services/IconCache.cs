@@ -17,7 +17,7 @@ namespace AionMeter.App.Services;
 public sealed class IconCache : IDisposable
 {
     private readonly ItemIcons _index;
-    private readonly string _dir = Path.Combine(AppSettings.AppDataDir, "icons");
+    private readonly string _dir;
     // keys: item ids as decimal strings for aion2hub item icons, "<prefix>:<stem>" for URL icons (skill icons from questlog's CDN, A2M-21)
     private readonly ConcurrentDictionary<string, ImageSource?> _mem = new();
     private readonly ConcurrentQueue<(string Key, string Url)> _queue = new();
@@ -29,9 +29,11 @@ public sealed class IconCache : IDisposable
     /// <summary>Settings → "download icons": off = no network, only what is on disk already.</summary>
     public bool Enabled { get; set; } = true;
 
-    public IconCache(ItemIcons index)
+    /// <param name="dir">Where icons live (default %AppData%\AionMeter\icons); the render tool points it at a folder of its own.</param>
+    public IconCache(ItemIcons index, string? dir = null)
     {
         _index = index;
+        _dir = dir ?? Path.Combine(AppSettings.AppDataDir, "icons");
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 AION2DpsMeter/0.3 (private build; item icons on demand, one request per 400 ms)");
     }
 
