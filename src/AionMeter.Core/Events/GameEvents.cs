@@ -136,7 +136,17 @@ public sealed record InventoryEvent(long TimeMs, bool Full, IReadOnlyList<Invent
 
 public sealed record PetListEvent(long TimeMs, int EquippedPet, IReadOnlyList<Character.PetOwned> Pets) : GameEvent(TimeMs);
 public sealed record TitleListEvent(long TimeMs, IReadOnlyList<int> Titles) : GameEvent(TimeMs);
-public sealed record AchievementListEvent(long TimeMs, IReadOnlyList<Character.AchievementRow> Rows) : GameEvent(TimeMs);
+/// <summary>Every achievement row (<c>83 56</c>, login) and the window's tab reward tracks (<c>_group_reward_states</c>).</summary>
+public sealed record AchievementListEvent(long TimeMs, IReadOnlyList<Character.AchievementRow> Rows, IReadOnlyList<Character.AchievementGroup>? Groups = null) : GameEvent(TimeMs);
+
+/// <summary>Live progress (<c>84 56</c> AchievementCountUpdate_NT): rows of the same shape, sent as counters move (no claim changes).</summary>
+public sealed record AchievementUpdateEvent(long TimeMs, IReadOnlyList<Character.AchievementRow> Rows) : GameEvent(TimeMs);
+
+/// <summary>A reward claim answer (<c>8a 56</c>): per tab group, the achievement ids with their new claimed step.</summary>
+public sealed record AchievementClaimEvent(long TimeMs, IReadOnlyList<(int Group, int Id, int Step)> Claims) : GameEvent(TimeMs);
+
+/// <summary>Content tickets (<c>0b 61</c> snapshot at login = every key, <c>0c 61</c> = one changed key).</summary>
+public sealed record ContentTicketsEvent(long TimeMs, bool Snapshot, IReadOnlyList<Character.ContentTicket> Tickets) : GameEvent(TimeMs);
 
 /// <summary>A page of the Black Cloud random shop (<c>91 56</c>, 10 offers), not the player market: see <see cref="Protocol.Opcodes.ShopPage"/>.</summary>
 public sealed record ShopPageEvent(long TimeMs, int Page, IReadOnlyList<Market.Listing> Listings) : GameEvent(TimeMs);

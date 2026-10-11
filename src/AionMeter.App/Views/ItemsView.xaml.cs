@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using AionMeter.App.Controls;
 using AionMeter.App.Services;
+using AionMeter.Core.Character;
 using AionMeter.Core.GameDb;
 using AionMeter.Core.Inventory;
 using AionMeter.Core.Market;
@@ -27,7 +28,11 @@ public partial class ItemsView : UserControl
     public sealed record CharData(string Key, string Cls, InventoryFile? File);
 
     /// <summary>Everything one render needs; the live tab gathers it from the meter, the render tool builds it from a fixture.</summary>
-    public sealed record Data(string CurrentKey, string Server, string ServerName, List<CharData> Chars, AccountWarehouseView? Account, MarketSnapshot Market, DateTimeOffset Now);
+    public sealed record Data(string CurrentKey, string Server, string ServerName, List<CharData> Chars, AccountWarehouseView? Account, MarketSnapshot Market, DateTimeOffset Now,
+        ProgressData? Progress = null);
+
+    /// <summary>A2M-15 cards: the viewed character's achievement rows and content tickets (live for the bound one, its character.json otherwise).</summary>
+    public sealed record ProgressData(IReadOnlyDictionary<int, AchievementRow> Achievements, IReadOnlyDictionary<int, ContentTicket> Tickets, AchievementCatalog Catalog);
 
     private static UiText T => UiText.Current;
     private static readonly Brush Text = SkillTile.Frozen(0xFA, 0xFA, 0xFA), Dim = SkillTile.Frozen(0xAF, 0xAF, 0xAF), Mute = SkillTile.Frozen(0x7D, 0x7D, 0x7D),
@@ -45,7 +50,8 @@ public partial class ItemsView : UserControl
     private bool _sample, _stale, _syncing;
     private string _group = "all", _q = "", _lang;
     private ItemSortMode _sort = ItemSortMode.Game;
-    private readonly HashSet<string> _collapsed = ["eq", "x17"], _listMode = [];
+    private readonly HashSet<string> _collapsed = ["eq", "x17", "ach"], _listMode = [];
+    private readonly Dictionary<string, (DateTime Written, ProgressData Data)> _otherProgress = new();
     private readonly Dictionary<int, (string En, string Es)> _norm = new();
     private readonly Dictionary<string, (DateTime Written, string Cls)> _cls = new();
     private ItemsIndex _index = new();
@@ -80,11 +86,13 @@ public partial class ItemsView : UserControl
             if (_sample) return;
             Reload();
             _meter.Inventory.Changed += OnChanged; _meter.ViewInventoryChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.Account.Changed += OnChanged; _icons.Loaded += OnIcon;
+            _meter.ProgressChanged += OnChanged;
         };
         Unloaded += (_, _) =>
         {
             if (_sample) return;
             _meter.Inventory.Changed -= OnChanged; _meter.ViewInventoryChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.Account.Changed -= OnChanged; _icons.Loaded -= OnIcon;
+            _meter.ProgressChanged -= OnChanged;
             _reloadTick.Stop(); _iconTick.Stop();
         };
         // hidden tab: one reload when it comes back, not one per packet
@@ -142,7 +150,25 @@ public partial class ItemsView : UserControl
         }
         var serverName = int.TryParse(server, NumberStyles.Integer, CultureInfo.InvariantCulture, out var sid) ? _meter.Data.ServerName(sid) : server;
         if (_meter.Market.Server.Length > 0 && serverName == server) serverName = _meter.Market.Server;
-        return new Data(cur, server, serverName, chars, server.Length > 0 ? _meter.Account.View(server) : null, _meter.Market, DateTimeOffset.Now);
+        return new Data(cur, server, serverName, chars, server.Length > 0 ? _meter.Account.View(server) : null, _meter.Market, DateTimeOffset.Now, ProgressOf(cur, bound));
+    }
+
+    private ProgressData? ProgressOf(string cur, string bound)
+    {
+        if (cur.Length == 0) return null;
+        if (cur == bound) return new ProgressData(_meter.Character.Achievements, _meter.Character.Tickets, _meter.AchievementBook);
+        var path = Path.Combine(AppSettings.AppDataDir, "characters", cur, "character.json");
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var w = File.GetLastWriteTimeUtc(path);
+            if (_otherProgress.TryGetValue(cur, out var c) && c.Written == w) return c.Data;
+            var (a, t) = CharacterState.ReadProgress(path);
+            var d = new ProgressData(a, t, _meter.AchievementBook);
+            _otherProgress[cur] = (w, d);
+            return d;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>"Ranger lv45  ·  combat power …" (profile.txt, first line) → "Ranger 45"; re-read only when the file changes.</summary>
@@ -222,6 +248,7 @@ public partial class ItemsView : UserControl
         var rows = new List<FrameworkElement>(64);
         var cur = d.Chars.Find(c => c.Key == d.CurrentKey);
         var stacksSeen = 0;
+        if (d.Progress is { } prog && _q.Length == 0) { AddToday(rows, prog, d.Now); AddAchievements(rows, prog); }
         if (cur?.File is not { } file) rows.Add(Card(Hint(T.ItemsNoChar), top: true, bottom: true));
         else
         {
@@ -273,6 +300,97 @@ public partial class ItemsView : UserControl
         RenderSide(d);
         RenderFoot(d);
         StatusText.Text = cur is null ? "" : NameOf(cur.Key) + (cur.Cls.Length > 0 ? " · " + cur.Cls : "") + " · " + Stacks(stacksSeen);
+    }
+
+    // ------------------------------------------------------------------ A2M-15: Today (content tickets) and Achievements cards
+
+    private static string Span(TimeSpan t) => t.TotalHours >= 1 ? $"{(int)t.TotalHours} h {t.Minutes:00} min" : $"{Math.Max(0, t.Minutes)} min";
+
+    private void AddToday(List<FrameworkElement> rows, ProgressData p, DateTimeOffset now)
+    {
+        const string key = "today";
+        var shut = _collapsed.Contains(key);
+        var daily = GameReset.NextDaily(now); var weekly = GameReset.NextWeekly(now);
+        p.Tickets.TryGetValue(60_000_001, out var odyle); p.Tickets.TryGetValue(1, out var keys);
+        var right = (odyle is not null ? TicketBook.Of(odyle.Key).Name(_lang) + " " + odyle.Base + "+" + odyle.Bonus + " · " : "")
+                  + (keys is not null ? TicketBook.Of(keys.Key).Name(_lang) + " " + keys.Total + " · " : "") + "reset " + Span(daily - now);
+        rows.Add(Head(key, T.ItemsToday, T.ItemsTodaySub, null, Mute, right, 0, shut, toggle: false));
+        if (shut) return;
+        rows.Add(Card(Hint(string.Format(T.ItemsTodayReset, daily.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture), Span(daily - now),
+            weekly.ToLocalTime().ToString("ddd dd HH:mm", CultureInfo.InvariantCulture)))));
+        if (p.Tickets.Count == 0) { rows.Add(Card(Hint(T.ItemsTodayNone))); rows.Add(Card(new Border { Height = 6 }, bottom: true)); return; }
+        var list = new List<ContentTicket>(p.Tickets.Values);
+        list.Sort((a, b) => a.Key.CompareTo(b.Key));
+        var unnamed = new List<string>();
+        foreach (var group in new[] { TicketBook.Odyle, TicketBook.Keys, TicketBook.Raid, TicketBook.Dungeon, TicketBook.Corridor, TicketBook.Time })
+            foreach (var t in list)
+            {
+                var info = TicketBook.Of(t.Key);
+                if (info.Group != group || !TicketBook.IsNamed(t.Key) || TicketBook.IsStub(t.Key)) continue;
+                if (group == TicketBook.Corridor && t.Time == 0) continue;   // only the corridors the faction holds carry time
+                rows.Add(Card(TicketRow(t, info)));
+            }
+        foreach (var t in list)
+            if (!TicketBook.IsNamed(t.Key) && !TicketBook.IsStub(t.Key))
+                unnamed.Add(t.Key.ToString(CultureInfo.InvariantCulture) + " = " + (t.IsTime ? Span(TimeSpan.FromMilliseconds(t.Time)) : t.Base + (t.Bonus > 0 ? "+" + t.Bonus : "")));
+        if (unnamed.Count > 0) rows.Add(Card(Hint(string.Format(T.ItemsTodayUnnamed, string.Join(" · ", unnamed)))));
+        // Daeva Pass / event pass levels: the 810 rows count pass EXP and their claimed step is the reward level (A2M-15)
+        foreach (var (id, label) in new[] { (810_433_000, T.ItemsDaevaPass), (810_435_000, T.ItemsEventPass) })
+        {
+            if (!p.Achievements.TryGetValue(id, out var r) || r.Count == 0) continue;
+            var tiers = p.Catalog.Get(id)?.Tiers.Length ?? 0;
+            rows.Add(Card(Hint(string.Format(T.ItemsPassLine, label, r.Step, tiers > 0 ? tiers.ToString(CultureInfo.InvariantCulture) : "?", N(r.Count)))));
+        }
+        rows.Add(Card(new Border { Height = 6 }, bottom: true));
+    }
+
+    private FrameworkElement TicketRow(ContentTicket t, TicketInfo info)
+    {
+        var g = new Grid { Margin = new Thickness(12, 0, 12, 0), Height = 26 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+        var name = Cell(g, 0, info.Name(_lang), info.Inferred ? Dim : Text, 12.5);
+        if (info.Inferred) name.ToolTip = T.ItemsTodayInferred + " (" + t.Key.ToString(CultureInfo.InvariantCulture) + ")";
+        var value = t.IsTime ? string.Format(T.ItemsTodayLeft, Span(TimeSpan.FromMilliseconds(t.Time)))
+                  : t.Bonus > 0 ? t.Base.ToString(CultureInfo.InvariantCulture) + " + " + t.Bonus.ToString(CultureInfo.InvariantCulture) : t.Base.ToString(CultureInfo.InvariantCulture);
+        Cell(g, 1, value, t.Total == 0 && !t.IsTime || t.IsTime && t.Time == 0 ? Faint : Num, 12.5, true);
+        return new Border { BorderBrush = RowLine, BorderThickness = new Thickness(0, 0, 0, 0.8), Child = g };
+    }
+
+    private void AddAchievements(List<FrameworkElement> rows, ProgressData p)
+    {
+        const string key = "ach";
+        var shut = _collapsed.Contains(key);
+        var sum = p.Catalog.Summarise(p.Achievements.Values);
+        var right = p.Achievements.Count == 0 || p.Catalog.Count == 0 ? "" : string.Format(T.ItemsAchRight, N(sum.TiersClaimed), N(sum.TiersTotal), N(sum.Completed), N(sum.Claimable), N(sum.InProgress));
+        rows.Add(Head(key, T.ItemsAch, "", sum.Claimable > 0 ? sum.Claimable.ToString(CultureInfo.InvariantCulture) : null, Green, right, 0, shut, toggle: false));
+        if (shut) return;
+        if (p.Achievements.Count == 0) rows.Add(Card(Hint(T.ItemsAchNone)));
+        else if (p.Catalog.Count == 0) rows.Add(Card(Hint(T.ItemsAchNoCatalog)));
+        else if (sum.ClaimableList.Count == 0) rows.Add(Card(Hint(T.ItemsAchNothing)));
+        else foreach (var a in sum.ClaimableList) rows.Add(Card(AchievementRowView(a)));
+        rows.Add(Card(new Border { Height = 6 }, bottom: true));
+    }
+
+    private FrameworkElement AchievementRowView(AchievementProgress a)
+    {
+        var info = a.Info!;
+        var g = new Grid { Margin = new Thickness(12, 0, 12, 0), MinHeight = 34 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) });
+        var name = Cell(g, 0, info.Name(_lang), Text, 12.5);
+        var desc = info.Desc(_lang);
+        if (desc.Length > 0) name.ToolTip = desc;
+        var tier = string.Format(T.ItemsAchTier, a.NextTier, a.Tiers, N(a.Row.Count), N(a.Goal));
+        if (a.ClaimableTiers > 1) tier += " · " + string.Format(T.ItemsAchMore, a.ClaimableTiers);
+        Cell(g, 1, tier, Dim, 11.5);
+        var rewards = info.Tiers[a.NextTier - 1].Rewards;
+        var parts = new List<string>(rewards.Length);
+        foreach (var (item, amount) in rewards) parts.Add(Nm(item) + " ×" + N(amount));
+        var rw = Cell(g, 2, string.Join(", ", parts), Num, 11.5);
+        rw.ToolTip = string.Join("\n", parts);
+        return new Border { BorderBrush = RowLine, BorderThickness = new Thickness(0, 0, 0, 0.8), Child = g };
     }
 
     private static List<ItemStack> AccountStacks(AccountWarehouseView? a)
@@ -347,7 +465,7 @@ public partial class ItemsView : UserControl
         Child = new TextBlock { Text = text, Foreground = fg, FontSize = 11 },
     };
 
-    private FrameworkElement Head(string key, string title, string sub, string? chip, Brush chipBrush, string right, long value, bool shut)
+    private FrameworkElement Head(string key, string title, string sub, string? chip, Brush chipBrush, string right, long value, bool shut, bool toggle = true)
     {
         var dock = new DockPanel { LastChildFill = true };
         var rightPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -356,7 +474,7 @@ public partial class ItemsView : UserControl
         if (value > 0)
             rightPanel.Children.Add(new TextBlock { Text = string.Format(T.ItemsValue, ItemTile.Short(value)), Foreground = Mute, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
                 ToolTip = string.Format(T.ItemsValueTip, MarketLabel(_data!.Market)) });
-        rightPanel.Children.Add(ViewToggle(key));
+        if (toggle) rightPanel.Children.Add(ViewToggle(key));
         dock.Children.Add(rightPanel);
         var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         left.Children.Add(new TextBlock { Text = shut ? "▸" : "▾", Foreground = Mute, FontFamily = Symbol, Width = 14, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });

@@ -47,7 +47,11 @@ public class RegressionTests
         Assert.Equal(1097, character.EquippedPet);
         Assert.InRange(character.Pets.Count, 120, 130);
         Assert.InRange(character.Titles.Count, 180, 190);
-        Assert.Equal(1512, character.Achievements.Count);
+        Assert.Equal(2327, character.Achievements.Count);                    // A2M-15 (was 1,512 before the full 83 56 read)
+        Assert.Equal(23, character.AchievementGroups.Count);
+        Assert.InRange(counts.GetValueOrDefault("AchievementUpdateEvent"), 60, 67);   // 84 56 live counters (67 packets in the export)
+        Assert.Equal(73, character.Tickets.Count);                            // 0b 61 at login + 4 deltas of keys 10/12
+        Assert.Equal(30, character.Tickets[60_000_001].Base);                 // Odyle 30 (+110), docs/27
 
         // A2M-35 build lists (docs/27): the same values as the official profile of that evening
         var cap = character.Captured;

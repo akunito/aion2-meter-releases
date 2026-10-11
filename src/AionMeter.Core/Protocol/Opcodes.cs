@@ -49,7 +49,13 @@ public static class Opcodes
     // Character collections, sent once at login (same capture):
     public const ushort PetList = 0x0090;         // equipped pet u32, count varint, {pet id u32, pet id u32, level u32} × count (124 pets); more data follows
     public const ushort TitleList = 0x7956;       // count varint, title id u32 × count (182; ids = aion2hub titles, 12010061 = Through Hell and Back)
-    public const ushort AchievementList = 0x8356; // u16, then {id u32, state u32, completed u64 ms, 00} rows (1512) before another section
+    // Achievements (A2M-15, docs/27): row = {id u32, count u32, last change u64 ms, claimed step u8}; ids = questlog achievement ids.
+    public const ushort AchievementList = 0x8356;   // count varint (2,327), rows, then group reward tracks: count u8, {group u32, n u8, n bools bit-packed}
+    public const ushort AchievementUpdate = 0x8456; // count varint, rows: live counters (AchievementCountUpdate_NT)
+    public const ushort AchievementClaim = 0x8A56;  // 8-byte head, count u8, {group u32, n u8 + bools, k u8, {id u32, step u8} × k}: a reward claimed
+    // Content tickets (ContentsTickets_NT, Waffle Meter's layout): record = {mask u8, key u32, [&1 u64], [&2 u64], [&4 varint base], [&8 varint bonus]}
+    public const ushort TicketList = 0x0B61;        // count varint (73), records; consumed exactly
+    public const ushort TicketUpdate = 0x0C61;      // opt u8 (0/1), one record, reason u8, [opt&1: u32]
     // 91 56 is the Black Cloud random shop (usmap RandomShopInfo_NT, SkeeveAN), not the player market: every pet on a page costs exactly
     // 100,000 and the "level" is a 10/20/30/50 % discount tier (fixtures of 2026-10-08). The player market never crosses port 13328 (HTTPS
     // NcMarketPlaceAPI, docs/23 dimkk), so there is no market opcode to decode (docs/27).
@@ -76,6 +82,10 @@ public static class Opcodes
         PetList => "Pets",
         TitleList => "Titles",
         AchievementList => "Achievements",
+        AchievementUpdate => "AchievementUpd",
+        AchievementClaim => "AchievementClaim",
+        TicketList => "Tickets",
+        TicketUpdate => "TicketUpd",
         ShopPage => "Shop",
         DaevanionBoards => "Daevanion",
         SkillList => "Skills",

@@ -70,6 +70,20 @@ public sealed class PacketParser
             case Opcodes.AchievementList:
                 ParseAchievementList(body);
                 break;
+            // A2M-15: these four went through the default scans before and still do (replay identity results unchanged)
+            case Opcodes.AchievementUpdate:
+                ParseAchievementUpdate(body);
+                ScanDefault(body);
+                break;
+            case Opcodes.AchievementClaim:
+                ParseAchievementClaim(body);
+                ScanDefault(body);
+                break;
+            case Opcodes.TicketList:
+            case Opcodes.TicketUpdate:
+                ParseTickets(body, opcode == Opcodes.TicketList);
+                ScanDefault(body);
+                break;
             case Opcodes.ShopPage:
                 ParseShopPage(body);
                 break;
@@ -485,21 +499,165 @@ public sealed class PacketParser
         if (titles.Count > 0) Emit(new TitleListEvent(TimeMs, titles));
     }
 
-    /// <summary>Rows of 17 bytes after a u16; the packet goes on with another section (gear ids) that stops the walk.</summary>
+    // A2M-15 (docs/27). The old reader started after a "u16" and stopped at the first id outside 100–199 million: the u16 was the count
+    // varint (97 12 = 2,327) and the stop dropped every achievement (30xxxxxxx), season mission (23x), attendance (510), Daeva Pass (810/910)
+    // row — 815 of the 2,327 — leaving 1,512 rows that are not achievements at all.
+
+    /// <summary>One 17-byte row; false when a field is out of range (the whole packet is then dropped).</summary>
+    private static bool TryAchievementRow(ReadOnlySpan<byte> b, int o, out Character.AchievementRow row)
+    {
+        var id = BitConverter.ToInt32(b.Slice(o, 4));
+        var count = BitConverter.ToInt32(b.Slice(o + 4, 4));
+        var ts = BitConverter.ToInt64(b.Slice(o + 8, 8));
+        int step = b[o + 16];
+        row = new Character.AchievementRow(id, count, ts, step);
+        return id is > 0 and <= 999_999_999 && count >= 0 && (ts == 0 || ts is >= 1_600_000_000_000 and <= 2_000_000_000_000) && step <= 64;
+    }
+
+    private static List<Character.AchievementRow>? AchievementRows(ReadOnlySpan<byte> b, ref int o)
+    {
+        if (!Wire.TryVarint(b, ref o, out var count) || count is 0 or > 20_000 || o + count * 17L > b.Length) return null;
+        var rows = new List<Character.AchievementRow>((int)count);
+        for (var i = 0; i < count; i++, o += 17)
+        {
+            if (!TryAchievementRow(b, o, out var r)) return null;
+            rows.Add(r);
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// Bools of these messages are bit-packed: the first bool reserves a byte at the current position and the next seven fill it, LSB first,
+    /// across array boundaries (measured on the 83 56 tail: 23 groups, 109 flags, exactly 14 reserved bytes, 2026-10-11).
+    /// </summary>
+    private ref struct BitCursor
+    {
+        private int _byte, _left;
+        public bool TryBool(ReadOnlySpan<byte> b, ref int o, out bool v)
+        {
+            if (_left == 0)
+            {
+                if (o >= b.Length) { v = false; return false; }
+                _byte = b[o++]; _left = 8;
+            }
+            v = ((_byte >> (8 - _left)) & 1) != 0;
+            _left--;
+            return true;
+        }
+    }
+
     private void ParseAchievementList(ReadOnlySpan<byte> b)
     {
-        var o = 2;
-        var rows = new List<Character.AchievementRow>();
-        while (o + 17 <= b.Length)
+        var o = 0;
+        var rows = AchievementRows(b, ref o);
+        if (rows is null) return;
+        // the group tail is a bonus: rows stand on their own when it does not walk
+        List<Character.AchievementGroup>? groups = null;
+        if (o < b.Length)
         {
-            var id = BitConverter.ToInt32(b.Slice(o, 4));
-            var state = BitConverter.ToInt32(b.Slice(o + 4, 4));
-            var ts = BitConverter.ToInt64(b.Slice(o + 8, 8));
-            if (id is < 100_000_000 or > 199_999_999 || state is < 0 or > 100_000 || (ts != 0 && ts is < 1_600_000_000_000 or > 2_000_000_000_000)) break;
-            rows.Add(new Character.AchievementRow(id, state, ts));
-            o += 17;
+            int n = b[o++];
+            groups = new List<Character.AchievementGroup>(n);
+            var bits = new BitCursor();
+            for (var i = 0; i < n && groups is not null; i++)
+            {
+                if (o + 5 > b.Length) { groups = null; break; }
+                var id = BitConverter.ToInt32(b.Slice(o, 4));
+                int k = b[o + 4];
+                o += 5;
+                if (id is < 300_000_000 or > 499_999_999 || k > 32) { groups = null; break; }
+                var flags = new bool[k];
+                for (var j = 0; j < k; j++) if (!bits.TryBool(b, ref o, out flags[j])) { groups = null; break; }
+                groups?.Add(new Character.AchievementGroup(id, flags));
+            }
+            if (o != b.Length) groups = null;
         }
-        if (rows.Count > 0) Emit(new AchievementListEvent(TimeMs, rows));
+        Emit(new AchievementListEvent(TimeMs, rows, groups));
+    }
+
+    private void ParseAchievementUpdate(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        var rows = AchievementRows(b, ref o);
+        if (rows is not null && o == b.Length) Emit(new AchievementUpdateEvent(TimeMs, rows));
+    }
+
+    /// <summary>
+    /// <c>8a 56</c>: 8 bytes (00 00 01 00 00 00 00 00 in all five captures), group count u8, {group u32, n u8 + n packed bools, k u8,
+    /// {achievement u32, new claimed step u8} × k}, consumed exactly. claim-20261010-2106: 320101200 step 6 at 21:08:26; daily-20261010-2223:
+    /// 300100300 step 2 at 22:31:35 — both steps then came back in the next login's 83 56.
+    /// </summary>
+    private void ParseAchievementClaim(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 9) return;
+        var o = 8;
+        int groups = b[o++];
+        if (groups is 0 or > 64) return;
+        var claims = new List<(int, int, int)>(groups);
+        var bits = new BitCursor();
+        for (var g = 0; g < groups; g++)
+        {
+            if (o + 5 > b.Length) return;
+            var group = BitConverter.ToInt32(b.Slice(o, 4));
+            int n = b[o + 4];
+            o += 5;
+            if (group is < 300_000_000 or > 499_999_999 || n > 32) return;
+            for (var j = 0; j < n; j++) if (!bits.TryBool(b, ref o, out _)) return;
+            if (o >= b.Length) return;
+            int k = b[o++];
+            if (k > 64 || o + k * 5 > b.Length) return;
+            for (var j = 0; j < k; j++, o += 5)
+            {
+                var id = BitConverter.ToInt32(b.Slice(o, 4));
+                int step = b[o + 4];
+                if (id is < 100_000_000 or > 999_999_999 || step > 64) return;
+                claims.Add((group, id, step));
+            }
+        }
+        if (o == b.Length && claims.Count > 0) Emit(new AchievementClaimEvent(TimeMs, claims));
+    }
+
+    // Content tickets: record layout from Waffle Meter (MIT, github.com/Waffle-ens/waffle_meter, AbyssCorridorParser.cs L7–L40 and
+    // WeeklyContentParser.cs): mask bits 0x01/0x02 = u64, 0x04/0x08 = varint, absent = zero. Walked whole and consumed exactly, as Waffle does.
+
+    private static bool TryTicket(ReadOnlySpan<byte> b, ref int o, long now, out Character.ContentTicket t)
+    {
+        t = null!;
+        if (o + 5 > b.Length) return false;
+        var mask = b[o];
+        if ((mask & 0xF0) != 0) return false;
+        var key = BitConverter.ToInt32(b.Slice(o + 1, 4));
+        o += 5;
+        long t1 = 0, t2 = 0;
+        uint v4 = 0, v8 = 0;
+        if ((mask & 1) != 0) { if (o + 8 > b.Length) return false; t1 = BitConverter.ToInt64(b.Slice(o, 8)); o += 8; }
+        if ((mask & 2) != 0) { if (o + 8 > b.Length) return false; t2 = BitConverter.ToInt64(b.Slice(o, 8)); o += 8; }
+        if ((mask & 4) != 0 && !Wire.TryVarint(b, ref o, out v4)) return false;
+        if ((mask & 8) != 0 && !Wire.TryVarint(b, ref o, out v8)) return false;
+        if (key is <= 0 or > 999_999_999 || v4 > 1_000_000 || v8 > 1_000_000 || t1 < 0 || t2 < 0) return false;
+        t = new Character.ContentTicket(key, mask, t1, t2, (int)v4, (int)v8, now);
+        return true;
+    }
+
+    private void ParseTickets(ReadOnlySpan<byte> b, bool snapshot)
+    {
+        var o = 0;
+        if (snapshot)
+        {
+            if (!Wire.TryVarint(b, ref o, out var count) || count is 0 or > 4096) return;
+            var list = new List<Character.ContentTicket>((int)count);
+            for (var i = 0; i < count; i++)
+            {
+                if (!TryTicket(b, ref o, TimeMs, out var t)) return;
+                list.Add(t);
+            }
+            if (o == b.Length) Emit(new ContentTicketsEvent(TimeMs, true, list));
+            return;
+        }
+        if (b.Length < 7 || b[0] > 1) return;
+        var opt = b[0];
+        o = 1;
+        if (!TryTicket(b, ref o, TimeMs, out var one)) return;
+        if (b.Length - o == 1 + ((opt & 1) != 0 ? 4 : 0)) Emit(new ContentTicketsEvent(TimeMs, false, [one]));
     }
 
     // ------------------------------------------------------------------ login lists (26 e2, 00 51, 00 39, 8c e2, 49 36) — A2M-35, docs/27

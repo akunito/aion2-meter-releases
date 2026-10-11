@@ -4,13 +4,13 @@ using AionMeter.Core.Events;
 namespace AionMeter.Core.Character;
 
 public sealed record PetOwned(int Id, int Level);
-public sealed record AchievementRow(int Id, int State, long CompletedMs);
 
 /// <summary>
 /// The local character's collections as the server lists them at login (EU, 2026-10-08): pets with levels (<c>00 90</c>),
 /// owned titles (<c>79 56</c>) and the achievement/collection rows (<c>83 56</c>), plus (A2M-35) the build lists — skills
 /// (<c>00 51</c>), equipped specs (<c>00 39</c>), skill bar (<c>8c e2</c>), Daevanion nodes (<c>26 e2</c>) — and the stat sheet
-/// (<c>49 36</c>) as <see cref="Captured"/>. Saved as one JSON so the AI side can read it.
+/// (<c>49 36</c>) as <see cref="Captured"/>; (A2M-15) live achievement counters/claims (<c>84 56</c>, <c>8a 56</c>) and the content tickets
+/// (<c>0b 61</c>/<c>0c 61</c>). Saved as one JSON so the AI side can read it.
 /// </summary>
 public sealed class CharacterState
 {
@@ -32,6 +32,12 @@ public sealed class CharacterState
     public Dictionary<int, int> Pets { get; private set; } = new();           // pet id → level
     public HashSet<int> Titles { get; private set; } = new();
     public Dictionary<int, AchievementRow> Achievements { get; private set; } = new();
+    /// <summary>Achievement window tab reward tracks from the last <c>83 56</c>.</summary>
+    public List<AchievementGroup> AchievementGroups { get; private set; } = new();
+    /// <summary>Content tickets by key (<c>0b 61</c> at login, <c>0c 61</c> deltas).</summary>
+    public Dictionary<int, ContentTicket> Tickets { get; private set; } = new();
+    /// <summary>Bumped on every achievement or ticket change, live ones included (achievements.json / the Items cards refresh on it).</summary>
+    public int ProgressVersion { get; private set; }
     public long UpdatedMs { get; private set; }
     /// <summary>The build lists of the last login and the latest stat sheet, each with its packet time.</summary>
     public CapturedProfile Captured { get; private set; } = CapturedProfile.Empty;
@@ -52,7 +58,37 @@ public sealed class CharacterState
                     break;
                 case AchievementListEvent a:
                     Achievements = a.Rows.ToDictionary(r => r.Id, r => r);
+                    if (a.Groups is not null) AchievementGroups = a.Groups.ToList();
+                    ProgressVersion++;
                     break;
+                // Live changes about the character already bound: like 49 36, not login lists (no carry-over, no UpdatedMs bump)
+                // copy-on-write: readers on other threads enumerate the dictionaries without the lock (2,327 rows, ~1 copy a minute)
+                case AchievementUpdateEvent u:
+                {
+                    var d = new Dictionary<int, AchievementRow>(Achievements);
+                    foreach (var r in u.Rows) d[r.Id] = r;
+                    Achievements = d; ProgressVersion++; loginList = false;
+                    break;
+                }
+                case AchievementClaimEvent c:
+                {
+                    var d = new Dictionary<int, AchievementRow>(Achievements);
+                    foreach (var (_, id, step) in c.Claims)
+                        d[id] = d.TryGetValue(id, out var old) ? old with { Step = step } : new AchievementRow(id, 0, c.TimeMs, step);
+                    Achievements = d; ProgressVersion++; loginList = false;
+                    break;
+                }
+                case ContentTicketsEvent t when t.Snapshot:
+                    Tickets = t.Tickets.ToDictionary(x => x.Key, x => x);
+                    ProgressVersion++;
+                    break;
+                case ContentTicketsEvent t:
+                {
+                    var d = new Dictionary<int, ContentTicket>(Tickets);
+                    foreach (var x in t.Tickets) d[x.Key] = x;
+                    Tickets = d; ProgressVersion++; loginList = false;
+                    break;
+                }
                 case SkillListEvent s:
                     Captured = Captured with { SkillsMs = s.TimeMs, Skills = s.Skills.ToList() };
                     break;
@@ -99,14 +135,32 @@ public sealed class CharacterState
             _path = path; _mirror = mirror;
             // the stat sheet in memory is the previous character's (49 36 always follows the identity record, the new one comes next)
             if (keep) { _dirty = true; Captured = Captured with { AttributesMs = 0, Attributes = new() }; }
-            else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); UpdatedMs = 0; Captured = CapturedProfile.Empty; Load(); _dirty = true; }
+            else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); AchievementGroups = new(); Tickets = new(); UpdatedMs = 0; Captured = CapturedProfile.Empty; Load(); _dirty = true; }
+            ProgressVersion++;
         }
         Save();
         Changed?.Invoke();
     }
 
     private sealed record Snapshot(int EquippedPet, Dictionary<int, int> Pets, List<int> Titles, List<AchievementRow> Achievements, long UpdatedMs,
-        CapturedProfile? Captured = null);
+        CapturedProfile? Captured = null, List<AchievementGroup>? AchievementGroups = null, List<ContentTicket>? Tickets = null);
+
+    /// <summary>Achievements and tickets of another character's character.json (the Items cards for a non-bound character).</summary>
+    public static (Dictionary<int, AchievementRow> Achievements, Dictionary<int, ContentTicket> Tickets) ReadProgress(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return (new(), new());
+            var s = JsonSerializer.Deserialize<Snapshot>(File.ReadAllText(path), Json);
+            if (s is null) return (new(), new());
+            var a = new Dictionary<int, AchievementRow>(s.Achievements.Count);
+            foreach (var r in s.Achievements) a[r.Id] = r;
+            var t = new Dictionary<int, ContentTicket>();
+            if (s.Tickets is not null) foreach (var x in s.Tickets) t[x.Key] = x;
+            return (a, t);
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return (new(), new()); }
+    }
 
     /// <summary>The captured part of a character.json (another character's file, for the selector view); Empty when missing.</summary>
     public static CapturedProfile ReadCaptured(string path)
@@ -128,6 +182,8 @@ public sealed class CharacterState
             if (s is null) return;
             EquippedPet = s.EquippedPet; Pets = s.Pets; Titles = new HashSet<int>(s.Titles); Achievements = s.Achievements.ToDictionary(r => r.Id, r => r); UpdatedMs = s.UpdatedMs;
             Captured = s.Captured ?? CapturedProfile.Empty;
+            AchievementGroups = s.AchievementGroups ?? new();
+            Tickets = s.Tickets?.ToDictionary(x => x.Key, x => x) ?? new();
         }
         catch (Exception ex) when (ex is IOException or JsonException) { }
     }
@@ -142,7 +198,7 @@ public sealed class CharacterState
         lock (_gate)
         {
             if (!_dirty) return;
-            text = JsonSerializer.Serialize(new Snapshot(EquippedPet, Pets, Titles.ToList(), Achievements.Values.ToList(), UpdatedMs, Captured), Json);
+            text = JsonSerializer.Serialize(new Snapshot(EquippedPet, Pets, Titles.ToList(), Achievements.Values.ToList(), UpdatedMs, Captured, AchievementGroups, Tickets.Values.ToList()), Json);
             _dirty = false;
         }
         try

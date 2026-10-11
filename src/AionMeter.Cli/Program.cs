@@ -20,7 +20,7 @@ return args.FirstOrDefault() switch
     "live" => Live(args.Skip(1).ToArray()),
     "replay" when args.Length > 1 => Replay(args[1]),
     "dump" when args.Length > 1 => Dump(args[1], args.Length > 2 ? args[2] : null),
-    "ach" when args.Length > 1 => Ach(args[1]),
+    "ach" when args.Length > 1 => Ach(args[1], args.Length > 2 ? args[2] : null),
     "find" when args.Length > 2 => Find(args[1], args[2]),
     "crits" when args.Length > 1 => Crits(args[1]),
     "entities" when args.Length > 1 => Entities(args[1]),
@@ -175,16 +175,40 @@ int Dump(string path, string? opcodeHex)
     return 0;
 }
 
-// Every achievement/collection list of a capture, one row per line (id state completedMs): diff two logins to map ids to names (A2M-15).
-int Ach(string path)
+// A2M-15: every achievement list (id count step completedMs), live update, claim and content-ticket record of a capture; with a catalogue
+// (data/gamedb/achievements.json) each login list also prints the window summary (tiers claimed/total, completed, claimable, in progress).
+int Ach(string path, string? catalogPath)
 {
+    var catalog = catalogPath is null ? AionMeter.Core.Character.AchievementCatalog.Empty : AionMeter.Core.Character.AchievementCatalog.Load(catalogPath);
     var replay = new PcapReplaySource(data, path, realtime: false);
     var lists = 0;
+    string T(long ms) => DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("MM-dd HH:mm:ss");
     replay.EventDecoded += e =>
     {
-        if (e is not AionMeter.Core.Events.AchievementListEvent a) return;
-        Console.WriteLine($"LIST {++lists} rows {a.Rows.Count}");
-        foreach (var r in a.Rows) Console.WriteLine($"{r.Id} {r.State} {r.CompletedMs}");
+        switch (e)
+        {
+            case AionMeter.Core.Events.AchievementListEvent a:
+                Console.WriteLine($"LIST {++lists} {T(a.TimeMs)} rows {a.Rows.Count} groups {a.Groups?.Count.ToString() ?? "-"}");
+                if (catalog.Count > 0)
+                {
+                    var s = catalog.Summarise(a.Rows);
+                    Console.WriteLine($"  window: {s.Achievements} achievements, tiers {s.TiersClaimed}/{s.TiersTotal}, completed {s.Completed}, claimable {s.Claimable}, in progress {s.InProgress}, 3xx rows without catalogue {s.Unmatched}");
+                    foreach (var p in s.ClaimableList) Console.WriteLine($"  claimable {p.Row.Id} {p.Info!.NameEn} tier {p.NextTier}/{p.Tiers} {p.Row.Count}/{p.Goal}");
+                }
+                foreach (var r in a.Rows) Console.WriteLine($"{r.Id} {r.Count} {r.Step} {r.CompletedMs}");
+                break;
+            case AionMeter.Core.Events.AchievementUpdateEvent u:
+                foreach (var r in u.Rows) Console.WriteLine($"UPD {T(u.TimeMs)} {r.Id} {r.Count} {r.Step} {catalog.Get(r.Id)?.NameEn}");
+                break;
+            case AionMeter.Core.Events.AchievementClaimEvent c:
+                foreach (var (g, id, step) in c.Claims) Console.WriteLine($"CLAIM {T(c.TimeMs)} group {g} {id} step {step} {catalog.Get(id)?.NameEn}");
+                break;
+            case AionMeter.Core.Events.ContentTicketsEvent k:
+                foreach (var t in k.Tickets)
+                    if (!k.Snapshot || !AionMeter.Core.Character.TicketBook.IsStub(t.Key))
+                        Console.WriteLine($"{(k.Snapshot ? "TICKETS" : "TICKET")} {T(k.TimeMs)} {t.Key} mask {t.Mask:x} time {t.Time} base {t.Base} bonus {t.Bonus} {AionMeter.Core.Character.TicketBook.Of(t.Key).En}");
+                break;
+        }
     };
     replay.RunToEnd();
     Console.WriteLine($"lists {lists}");

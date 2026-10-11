@@ -32,14 +32,14 @@ public class CharacterTests
         Assert.Contains(12010061, titles.Titles); // Through Hell and Back (equipped)
 
         var ach = Assert.IsType<AchievementListEvent>(Assert.Single(Parse(Opcodes.AchievementList, Fixture("achievements-8356.hex"))));
-        Assert.Equal(1512, ach.Rows.Count);
-        Assert.Equal(650, ach.Rows.Count(r => r.CompletedMs > 0));
+        Assert.Equal(2327, ach.Rows.Count);                         // A2M-15: was 1,512 (the reader stopped before the 2xx–9xx million ids)
+        Assert.Equal(975, ach.Rows.Count(r => r.CompletedMs > 0));
         Assert.Equal(100030000, ach.Rows[0].Id);
 
         var state = new CharacterState(null);
         state.OnEvent(pets); state.OnEvent(titles); state.OnEvent(ach);
         Assert.Equal(3, state.Pets[1097]);
         Assert.True(state.Titles.Contains(12010061));
-        Assert.Equal(1512, state.Achievements.Count);
+        Assert.Equal(2327, state.Achievements.Count);
     }
 }

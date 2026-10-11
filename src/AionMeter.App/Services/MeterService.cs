@@ -138,6 +138,11 @@ public sealed class MeterService : IDisposable
     public InventoryStore Inventory { get; } = new(Path.Combine(AppSettings.AppDataDir, "inventory.json"));
     /// <summary>Pets, titles and achievements from the login lists (private branch); saved to state\character.json for the AI side.</summary>
     public CharacterState Character { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
+    private AchievementCatalog? _achievementBook;
+    /// <summary>Achievement catalogue (data/gamedb/achievements.json, questlog; A2M-15), read on first use.</summary>
+    public AchievementCatalog AchievementBook => _achievementBook ??= AchievementCatalog.Load(Path.Combine(DataDirectory, "gamedb", "achievements.json"));
+    /// <summary>Achievements or content tickets of the bound character changed (raised from the ≤5 s state save, so coalesced).</summary>
+    public event Action? ProgressChanged;
     /// <summary>Skill catalogue per class for the Build tab (data/gamedb/skills, A2M-21).</summary>
     public SkillBook Skills { get; } = new(Path.Combine(DataDirectory, "gamedb", "skills"));
     /// <summary>Daevanion boards per class for the Build tab's planner (data/gamedb/daevanion, A2M-21 phase 4).</summary>
@@ -394,7 +399,7 @@ public sealed class MeterService : IDisposable
         if (Prices.Due(now)) _ = PollPricesAsync(now);
         if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
         // The player state on disk is what the AI side reads: a few seconds behind the packets at most, plus a summary with the ages.
-        if (now - _lastStateSave > 5_000) { _lastStateSave = now; Inventory.Save(); AbsorbAccountWarehouse(); Character.Save(); Shop.Save(); WriteSummary(); }
+        if (now - _lastStateSave > 5_000) { _lastStateSave = now; Inventory.Save(); AbsorbAccountWarehouse(); Character.Save(); Shop.Save(); WriteSummary(); WriteAchievements(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
         SaveNames();
@@ -692,12 +697,32 @@ public sealed class MeterService : IDisposable
         catch (IOException) { }
     }
 
+    private int _achievementsVersion = -1;
+    private string _achievementsKey = "";
+    /// <summary>characters/&lt;key&gt;/achievements.json (A2M-15) when the rows or tickets moved; then tells the Items cards.</summary>
+    private void WriteAchievements()
+    {
+        if (_boundKey.Length == 0) return;
+        var v = Character.ProgressVersion;
+        if (v == _achievementsVersion && _boundKey == _achievementsKey) return;
+        _achievementsVersion = v; _achievementsKey = _boundKey;
+        if (Character.Achievements.Count > 0)
+        {
+            try
+            {
+                AchievementStore.Write(Path.Combine(AppSettings.AppDataDir, "characters", _boundKey, "achievements.json"), Character.Achievements, Character.AchievementGroups,
+                    AchievementBook, id => Names.Name(id), DateTimeOffset.Now);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+        ProgressChanged?.Invoke();
+    }
+
     private long _titlesCharacterMs = -1;
     /// <summary>
     /// characters/&lt;key&gt;/titles.json: owned titles with their bonuses, the permanent collection totals, and every title of the
     /// character's faction still missing with how it is obtained (grade-first), so the AI side can say what to chase. Rewritten when
-    /// the login lists change. Achievements stay as raw ids: their wire id space (1000x/1100x/1150x/1200x/1280x/1700x) matches no
-    /// public database (aion2hub/questlog use 23xx/34xx/73xx…), 2026-10-10.
+    /// the login lists change. Achievements: achievements.json (A2M-15).
     /// </summary>
     private void WriteTitles()
     {
@@ -758,7 +783,7 @@ public sealed class MeterService : IDisposable
         var invAge = Inventory.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Inventory.UpdatedMs).ToLocalTime().ToString("O")
                    : File.Exists(invPath) ? new DateTimeOffset(File.GetLastWriteTime(invPath)).ToString("O") : null;
         var chrAge = Character.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.UpdatedMs).ToLocalTime().ToString("O") : null;
-        var key = $"{_boundKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Shop.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
+        var key = $"{_boundKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Character.ProgressVersion}|{Shop.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
         if (key == _lastSummary) return;
         _lastSummary = key;
         WriteCraftable();
@@ -776,10 +801,11 @@ public sealed class MeterService : IDisposable
             currencies = Currencies(),
             inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
             character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count,
+                achievementWindow = AchievementWindow(), tickets = TicketSummary(),
                 capturedAt = Character.Captured.LatestMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.Captured.LatestMs).ToLocalTime().ToString("O") : null },
             shop = new { offers = Shop.Count },
             prices = new { lastPollAt = Prices.LastPollAt?.ToString("O"), watches = Prices.Count },
-            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json (login lists: pets, titles, achievements; Captured = skills, specs, skill bar, daevanion nodes, attributes from the game)", "characters/<key>/titles.json (owned titles + bonuses, collection totals, missing same-faction titles with how to get them)", "characters/<key>/profile.json (official API: gear, skills+levels, stigmas, daevanion boards; profile.txt readable)", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/shop.json (Black Cloud shop offers, 91 56)", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
+            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json (login lists: pets, titles, achievements; Captured = skills, specs, skill bar, daevanion nodes, attributes from the game)", "characters/<key>/titles.json (owned titles + bonuses, collection totals, missing same-faction titles with how to get them)", "characters/<key>/achievements.json (achievement progress + claimed step per id, window summary, claimable with rewards; tickets live in character.json Tickets)", "characters/<key>/profile.json (official API: gear, skills+levels, stigmas, daevanion boards; profile.txt readable)", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/shop.json (Black Cloud shop offers, 91 56)", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
         };
         try
         {
@@ -788,6 +814,25 @@ public sealed class MeterService : IDisposable
             File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(o, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         }
         catch (IOException) { }
+    }
+
+    private object? AchievementWindow()
+    {
+        if (Character.Achievements.Count == 0 || AchievementBook.Count == 0) return null;
+        var s = AchievementBook.Summarise(Character.Achievements.Values);
+        return new { tiersClaimed = s.TiersClaimed, tiersTotal = s.TiersTotal, completed = s.Completed, claimable = s.Claimable, inProgress = s.InProgress };
+    }
+
+    private object[] TicketSummary()
+    {
+        var l = new List<object>(24);
+        foreach (var t in Character.Tickets.Values.OrderBy(t => t.Key))
+        {
+            if (!TicketBook.IsNamed(t.Key) || TicketBook.IsStub(t.Key)) continue;
+            var info = TicketBook.Of(t.Key);
+            l.Add(t.IsTime ? new { key = t.Key, name = info.En, remainingMin = t.Time / 60_000 } : (object)new { key = t.Key, name = info.En, @base = t.Base, bonus = t.Bonus });
+        }
+        return l.ToArray();
     }
 
     private void SaveNames()
@@ -861,7 +906,8 @@ public sealed class MeterService : IDisposable
     private void InventoryOnEvent(Core.Events.GameEvent e)
     {
         if (e is Core.Events.PetListEvent or Core.Events.TitleListEvent or Core.Events.AchievementListEvent or Core.Events.SkillListEvent
-            or Core.Events.EquippedSkillsEvent or Core.Events.SkillBarEvent or Core.Events.DaevanionBoardsEvent or Core.Events.AttributesEvent)
+            or Core.Events.EquippedSkillsEvent or Core.Events.SkillBarEvent or Core.Events.DaevanionBoardsEvent or Core.Events.AttributesEvent
+            or Core.Events.AchievementUpdateEvent or Core.Events.AchievementClaimEvent or Core.Events.ContentTicketsEvent)
         {
             try { Character.OnEvent(e); } catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Character state failed", ex); }
             // a relog into the same character binds nothing new, so CharacterChanged would not tell the Build tab
