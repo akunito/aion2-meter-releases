@@ -75,6 +75,10 @@
                         <Border Width="10" Height="10" CornerRadius="2" BorderBrush="#3DDC84" BorderThickness="1.5" Margin="0,0,5,0" VerticalAlignment="Center" />
                         <TextBlock x:Name="LegendPlan" />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                        <Border Width="10" Height="10" CornerRadius="2" BorderBrush="#FF5C5C" BorderThickness="1.5" Margin="0,0,5,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="LegendOffPlan" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <Border Width="10" Height="10" CornerRadius="2" Background="#333333" Margin="0,0,5,0" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding DaevLegendOff, Source={x:Static s:UiText.Current}}" />

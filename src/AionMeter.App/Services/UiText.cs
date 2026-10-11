@@ -465,6 +465,7 @@ public sealed class UiText
     public string DaevLegendOpen { get; init; } = "open now ({0}: {1})";
     public string DaevLegendPlan { get; init; } = "in the plan ({0}; bright border = {1} still to open)";
     public string DaevPlanFrom { get; init; } = "plan: {0}";
+    public string DaevLegendOffPlan { get; init; } = "open but not in the plan ({0})";
     public string DaevLegendOff { get; init; } = "not in the plan";
     public string DaevNoBuild { get; init; } = "Pick or create a build to plan: the board shows the nodes open now";
     public string DaevNoClass { get; init; } = "No Daevanion boards for this character's class";

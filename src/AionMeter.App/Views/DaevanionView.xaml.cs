@@ -131,11 +131,13 @@ public partial class DaevanionView : UserControl
     {
         if (_class.Board(_boardId) is not { } b) return;
         var plan = new HashSet<int>(DaevanionPlan.Effective(b, RawPlan(b.Id), _open));
+        var hasPlan = _build is not null && RawPlan(b.Id).Count > 0;   // without a plan nothing is "off plan"
         foreach (var t in _tiles)
         {
             var n = t.Node;
             var open = _open.Contains(n.Id);
-            t.Set(open, plan.Contains(n.Id), open && !_showOpen && !n.Start, Sprite(n, open), _skillIcons && n.IsSkill ? SkillIcon(n) : null);
+            var planned = plan.Contains(n.Id);
+            t.Set(open, planned, hasPlan && open && !planned && !n.Start, open && !_showOpen && !n.Start, Sprite(n, open), _skillIcons && n.IsSkill ? SkillIcon(n) : null);
         }
     }
 
@@ -178,14 +180,14 @@ public partial class DaevanionView : UserControl
         var planAll = new List<int>(400);
         var nowAll = new List<int>(256);
         DaevBoard? cur = null;
-        int curOpen = 0, curPlan = 0, curMissing = 0, curPlanOpen = 0;
+        int curOpen = 0, curPlan = 0, curMissing = 0, curPlanOpen = 0, curOff = 0;
         foreach (var b in _class.Boards)
         {
             var plan = DaevanionPlan.Effective(b, RawPlan(b.Id), _open);
             var open = 0;
             foreach (var n in b.Nodes) if (!n.Start && _open.Contains(n.Id)) { open++; nowAll.Add(n.Id); }
             planAll.AddRange(plan);
-            if (b.Id == _boardId) { cur = b; curOpen = open; curPlan = plan.Count; curPlanOpen = plan.Count(id => _open.Contains(id)); curMissing = curPlan - curPlanOpen; }
+            if (b.Id == _boardId) { cur = b; curOpen = open; curPlan = plan.Count; curPlanOpen = plan.Count(id => _open.Contains(id)); curMissing = curPlan - curPlanOpen; curOff = RawPlan(b.Id).Count > 0 ? open - curPlanOpen : 0; }
             BoardRow.Children.Add(BoardButton(b, open, plan.Count));
         }
         var planCost = DaevanionPlan.Cost(_class, planAll);
@@ -195,6 +197,7 @@ public partial class DaevanionView : UserControl
         MissingText.Text = cur is not null && _build is not null && _profile is not null ? string.Format(T.DaevMissing, cur.Name(_lang), curMissing, curPlan) : "";
         LegendOpen.Text = string.Format(T.DaevLegendOpen, _profile?.Ref.Name ?? "—", curOpen);
         LegendPlan.Text = string.Format(T.DaevLegendPlan, curPlan, Math.Max(0, curPlan - curPlanOpen));
+        LegendOffPlan.Text = string.Format(T.DaevLegendOffPlan, Math.Max(0, curOff));
         RenderStats(DaevanionPlan.Summarize(_class, planAll, _lang), DaevanionPlan.Summarize(_class, nowAll, _lang));
     }
 
