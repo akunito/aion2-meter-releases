@@ -968,6 +968,7 @@ public sealed class MeterService : IDisposable
     private void OnEncounterFinished(FightRecord record)
     {
         LogBossFight(record.Summary);
+        RankOnAbyssLogs(record.Summary);
         if (!ShouldSave(record.Summary)) return;
         if (_exiting) Save(); // the process is about to end: a worker thread would not get to it
         else ThreadPool.QueueUserWorkItem(_ => Save());
@@ -1004,13 +1005,6 @@ public sealed class MeterService : IDisposable
         Updates.Dispose();
     }
 
-    /// <summary>Placeholder source that only reports why capture could not start.</summary>
-    private sealed class FailedSource(string message) : IEventSource
-    {
-        public event Action<Core.Events.GameEvent>? EventDecoded { add { } remove { } }
-        public event Action<CaptureStatus>? StatusChanged { add { } remove { } }
-        public CaptureStatus Status { get; } = new(CaptureState.Error, message);
-        public void Start() { }
     // ---------------------------------------------------------------- A2M-38: Abyss Logs percentile after a boss kill
 
     /// <summary>Abyss Logs open API (GET only, region + boss code, 400 ms pacing, 6 h cache under AppData\abysslogs).</summary>
@@ -1063,8 +1057,14 @@ public sealed class MeterService : IDisposable
         });
     }
 
+    /// <summary>Placeholder source that only reports why capture could not start.</summary>
+    private sealed class FailedSource(string message) : IEventSource
+    {
+        public event Action<Core.Events.GameEvent>? EventDecoded { add { } remove { } }
+        public event Action<CaptureStatus>? StatusChanged { add { } remove { } }
+        public CaptureStatus Status { get; } = new(CaptureState.Error, message);
+        public void Start() { }
         public void Stop() { }
         public void Dispose() { }
     }
-        RankOnAbyssLogs(record.Summary);
 }
