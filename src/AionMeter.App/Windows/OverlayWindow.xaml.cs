@@ -748,8 +748,9 @@ public partial class OverlayWindow : Window
             var keys = _meter.CharacterKeys();
             CharBox.ItemsSource = keys.Select(k => new ComboBoxItem { Content = CharLabel(k), Tag = k }).ToList();
             foreach (ComboBoxItem it in CharBox.Items) if ((string)it.Tag == _meter.CharacterKey) { CharBox.SelectedItem = it; break; }
-            var playing = Core.Capture.GameProcessLocator.FindGameProcessIds().Length > 0;
-            CharBox.IsEnabled = !playing && keys.Count > 0;
+            // Never disabled: a disabled ComboBox cannot raise DropDownOpened, so after the game closed it stayed locked until something
+            // else re-synced it (Diego 2026-10-11). The pick is refused while AION2.exe runs (SelectCharacter) and the list snaps back.
+            CharBox.IsEnabled = keys.Count > 0;
             CharBox.Visibility = keys.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         finally { _charSync = false; }
@@ -758,7 +759,8 @@ public partial class OverlayWindow : Window
     private void CharBox_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_charSync || CharBox.SelectedItem is not ComboBoxItem { Tag: string key }) return;
-        if (!_meter.SelectCharacter(key)) SyncCharBox();
+        if (!_meter.SelectCharacter(key)) { SyncCharBox(); CharBox.ToolTip = UiText.Current.CharSelectLocked; }
+        else CharBox.ToolTip = UiText.Current.CharSelectTip;
     }
 
     private void PopOut_Click(object sender, RoutedEventArgs e)

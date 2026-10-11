@@ -374,6 +374,7 @@ public sealed class UiText
     public string TrayReport { get; init; } = "Report a problem…";
     public string HelpTitle { get; init; } = "Help";
     public string CharSelectTip { get; init; } = "Character whose inventory, titles and pets the tabs show. While AION 2 runs the game decides; with it closed you can browse any saved character.";
+    public string CharSelectLocked { get; init; } = "Locked while AION 2 runs: the login decides the character";
     public string TipHelp { get; init; } = "What this tab does and how to use it";
     public string HelpMissing { get; init; } = "No help page for this tab in this build.";
     public string ReportTitle { get; init; } = "Report a problem";
