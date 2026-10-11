@@ -54,6 +54,8 @@ public partial class CraftView : UserControl
     private readonly System.Windows.Threading.DispatcherTimer _searchTick = new() { Interval = TimeSpan.FromMilliseconds(150) };
     private void Filter_Changed(object sender, TextChangedEventArgs e) { ClearSearch.Visibility = SearchBox.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed; _searchTick.Stop(); _searchTick.Start(); }
     private void ClearSearch_Click(object sender, RoutedEventArgs e) { SearchBox.Text = ""; SearchBox.Focus(); }
+    /// <summary>Items tab → "Open in Craft →": search the whole book for this recipe.</summary>
+    public void SetSearch(string text) { SearchBox.Text = text; SearchBox.CaretIndex = text.Length; }
     private void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape && SearchBox.Text.Length > 0) { SearchBox.Text = ""; e.Handled = true; } }
     private void Filter_Click(object sender, RoutedEventArgs e) => Reload();
     private string Scope => ScopeBox.SelectedItem is ComboBoxItem { Tag: string t } ? t : "now";

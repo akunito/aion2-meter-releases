@@ -20,6 +20,29 @@ public sealed class RecipeBook
     public IReadOnlyList<Recipe> All => _recipes;
     public int Count => _recipes.Length;
 
+    private Dictionary<int, Recipe[]>? _usedIn;
+    private static readonly Recipe[] None = [];
+
+    /// <summary>Recipes that take <paramref name="item"/> as a material (index built on first use).</summary>
+    public Recipe[] UsedIn(int item)
+    {
+        var idx = _usedIn;
+        if (idx is null)
+        {
+            var tmp = new Dictionary<int, List<Recipe>>(2_000);
+            foreach (var r in _recipes)
+                foreach (var (m, _) in r.Materials)
+                {
+                    if (!tmp.TryGetValue(m, out var l)) tmp[m] = l = new List<Recipe>(4);
+                    if (l.Count == 0 || !ReferenceEquals(l[^1], r)) l.Add(r);
+                }
+            idx = new Dictionary<int, Recipe[]>(tmp.Count);
+            foreach (var (k, v) in tmp) idx[k] = v.ToArray();
+            _usedIn = idx;
+        }
+        return idx.TryGetValue(item, out var a) ? a : None;
+    }
+
     public static RecipeBook Load(string path)
     {
         if (!File.Exists(path)) return Empty;

@@ -15,12 +15,12 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog).</param>
+    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off).</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
-    /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); nothing is downloaded.</param>
+    /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); items: &lt;item id&gt;.png in the same folder; nothing is downloaded.</param>
     public sealed record Options(string Window = "overlay", int? Width = null, int? Height = null, string? Tab = null,
         string Backdrop = "game", double Scale = 1.5, int RowSize = 100, string? Icons = null);
 
@@ -85,6 +85,17 @@ public static class SampleRenderer
                 else import.ShowSample("https://questlog.gg/aion-2/en/skill-builder/AXIIyLxFWMU0?build-id=15969", new Core.Builds.BuildSearchPage(all, 1, 4, 74));
                 host = import;
                 refresh = () => { };
+                break;
+            case "items":
+                // the Items tab with the three real inventories of 2026-10-11 (data/gamedb/sample-items.json); icons from <icons>\<item id>.png
+                meter.Settings.PriceSearchLanguage = o.Tab == "es" ? "es" : "en";
+                var itemIcons = new IconCache(Core.GameDb.ItemIcons.Load(Path.Combine(MeterService.DataDirectory, "gamedb", "item-icons.json")), o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
+                var itemsView = new Views.ItemsView(meter, itemIcons);
+                itemsView.ShowSample(SampleItems());
+                if (o.Tab == "search") itemsView.SampleSearch("odyle");
+                if (o.Tab == "list") itemsView.SampleListMode();
+                host = new Window { Content = itemsView, Width = o.Width ?? 1180, Height = o.Height ?? 1500, Background = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x0D)) };
+                refresh = itemsView.RenderNow;
                 break;
             case "build-daev":
                 // the Daevanion sub-tab with Irin's open nodes and questlog planner 8602; "daev:" icons come from <icons>\daev\<sprite stem>[_Disabled].png
@@ -296,6 +307,34 @@ public static class SampleRenderer
         var skills = have.Select(h => new Core.Armory.SkillLine(h.Cat, h.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), h.Level, h.Level > 0, h.Level > 0, h.Id)).ToList();
         return new Core.Armory.CharacterProfile(new Core.Armory.CharacterRef("sample", "Irin", 0, 45, 2305, "Vaizel", "eu"), "Ranger", 45, 47_000, null, null, null, [], 1042, [], [], null, null,
             skills, [], [], new DateTimeOffset(2026, 10, 10, 18, 46, 0, TimeSpan.Zero));
+    }
+
+    /// <summary>Akunita bound, Irin and Arielka on disk, their shared warehouse seeded as on first run, and the market prices they need (data/gamedb/sample-items.json, tools/items-sample.py).</summary>
+    private static Views.ItemsView.Data SampleItems()
+    {
+        var path = Path.Combine(MeterService.DataDirectory, "gamedb", "sample-items.json");
+        var chars = new List<Views.ItemsView.CharData>();
+        var market = Core.Market.MarketSnapshot.Empty;
+        var now = DateTimeOffset.Now;
+        if (File.Exists(path))
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            var latest = DateTime.MinValue;
+            foreach (var c in doc.RootElement.GetProperty("characters").EnumerateArray())
+            {
+                var stacks = new List<Core.Inventory.ItemStack>();
+                foreach (var r in c.GetProperty("stacks").EnumerateArray())
+                    stacks.Add(new Core.Inventory.ItemStack(r[0].GetUInt32(), r[1].GetInt32(), r[2].GetInt32(), (byte)r[3].GetInt32(), (byte)r[4].GetInt32(), r[5].GetInt32()));
+                var written = c.GetProperty("writtenUtc").GetDateTime().ToUniversalTime();
+                if (written > latest) latest = written;
+                chars.Add(new Views.ItemsView.CharData(c.GetProperty("key").GetString()!, c.GetProperty("cls").GetString() ?? "", new Core.Inventory.InventoryFile(stacks, new(), written)));
+            }
+            market = Core.Market.MarketSnapshot.Parse(doc.RootElement.GetProperty("market").GetRawText());
+            if (latest > DateTime.MinValue) now = new DateTimeOffset(DateTime.SpecifyKind(latest, DateTimeKind.Utc)).ToLocalTime().AddMinutes(10);
+        }
+        var account = new Core.Inventory.AccountWarehouse(null);
+        account.Seed("1303", chars.Where(c => c.File is not null).Select(c => (c.Key, c.File!)));
+        return new Views.ItemsView.Data("1303-Akunita", "1303", "Vaizel", chars, account.View("1303"), market, now);
     }
 
     /// <summary>Irin's open Daevanion nodes (profile) and questlog planner 8602 (plan) from data/gamedb/sample-daevanion.json (build.sh copies the test fixture).</summary>

@@ -46,6 +46,9 @@ public sealed class MeterService : IDisposable
         Pets = PetBook.Load(Path.Combine(DataDirectory, "gamedb", "pets.json"));
         Titles = TitleBook.Load(Path.Combine(DataDirectory, "gamedb", "titles.json"));
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
+        Grades = ItemGrades.Load(Path.Combine(DataDirectory, "gamedb", "item-grades.json"));
+        Account = new AccountWarehouse(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "account-warehouse.json"));
+        if (!settings.Transient) SeedAccountWarehouse();
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
         // First run with the ranking: fill it from the fights already on disk, off the UI thread.
@@ -184,6 +187,43 @@ public sealed class MeterService : IDisposable
     /// <summary>The last market export Diego loaded (Craft → Load market file…), kept as market\latest.json; the craft profit calculator reads it.</summary>
     public Core.Market.MarketSnapshot Market { get; private set; } = Core.Market.MarketSnapshot.Empty;
     public static string MarketPath => Path.Combine(AppSettings.AppDataDir, "market", "latest.json");
+    /// <summary>Grade and bound flag per item (data/gamedb/item-grades.json, tools/item-grades.py) for the Items tab (A2M-29).</summary>
+    public ItemGrades Grades { get; private set; } = ItemGrades.Empty;
+    /// <summary>The shared warehouse (container 2) per server, merged by slot from every character's sightings (A2M-32).</summary>
+    public AccountWarehouse Account { get; private set; } = new(null);
+    /// <summary>The other characters' inventory.json, re-read only when a file changes (Items tab).</summary>
+    public InventoryFiles OtherInventories { get; } = new();
+
+    /// <summary>First run with the shared warehouse: build it from the character files already on disk, per server.</summary>
+    private void SeedAccountWarehouse()
+    {
+        try
+        {
+            var byServer = new Dictionary<string, List<(string, InventoryFile)>>();
+            foreach (var key in CharacterKeys())
+            {
+                var dash = key.IndexOf('-');
+                if (dash <= 0 || Account.HasServer(key[..dash])) continue;
+                if (InventoryStore.ReadFile(Path.Combine(AppSettings.AppDataDir, "characters", key, "inventory.json")) is not { } f) continue;
+                if (!byServer.TryGetValue(key[..dash], out var l)) byServer[key[..dash]] = l = new();
+                l.Add((key, f));
+            }
+            foreach (var (server, list) in byServer) Account.Seed(server, list);
+            if (byServer.Count > 0) { Account.Save(); Log.Info($"Account warehouse seeded for {byServer.Count} server(s) from the character files"); }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Account warehouse seed", ex); }
+    }
+
+    /// <summary>The bound character's container 2 into the shared warehouse (every 5 s with the state save; nothing while a login list waits for its character).</summary>
+    private void AbsorbAccountWarehouse()
+    {
+        var dash = _characterKey.IndexOf('-');
+        if (dash <= 0 || Inventory.Pending) return;
+        var seen = Inventory.Seen(Containers.AccountWarehouse);
+        if (seen.SeenMs == 0) return;
+        if (Account.Absorb(_characterKey[..dash], _characterKey, seen.FullMs, Inventory.Items(Containers.AccountWarehouse), Inventory.SlotStamps(Containers.AccountWarehouse))) Account.Save();
+    }
+
     /// <summary>Item icons on demand for the Craft and Prices rows (A2M-26).</summary>
     public IconCache ItemIconCache { get; private set; } = new(ItemIcons.Empty);
     public event Action? MarketChanged;
@@ -351,7 +391,7 @@ public sealed class MeterService : IDisposable
         if (Prices.Due(now)) _ = PollPricesAsync(now);
         if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
         // The player state on disk is what the AI side reads: a few seconds behind the packets at most, plus a summary with the ages.
-        if (now - _lastStateSave > 5_000) { _lastStateSave = now; Inventory.Save(); Character.Save(); Broker.Save(); WriteSummary(); }
+        if (now - _lastStateSave > 5_000) { _lastStateSave = now; Inventory.Save(); AbsorbAccountWarehouse(); Character.Save(); Broker.Save(); WriteSummary(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
         SaveNames();
@@ -536,7 +576,7 @@ public sealed class MeterService : IDisposable
             try
             {
                 if (File.Exists(inv))
-                    foreach (var st in System.Text.Json.JsonSerializer.Deserialize<List<ItemStack>>(File.ReadAllText(inv)) ?? new()) { stacks++; if (st.Item == InventoryStore.Kinah) kinah = st.Count; }
+                    foreach (var st in InventoryStore.ReadFile(inv)?.Stacks ?? new()) { stacks++; if (st.Item == InventoryStore.Kinah) kinah = st.Count; }
             }
             catch (Exception) { }
             var prof = Path.Combine(dir, "profile.json");

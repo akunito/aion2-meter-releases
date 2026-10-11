@@ -1,0 +1,202 @@
+<UserControl x:Class="AionMeter.App.Views.ItemsView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:AionMeter.App.Services" Background="#0D0D0D" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        FontFamily="Segoe UI" Foreground="#FAFAFA" FontSize="13">
+    <!-- The approved mock is docs/mockups/items-tab/index.html in the project repo (Build tab look): colours and sizes follow its CSS -->
+    <UserControl.Resources>
+        <SolidColorBrush x:Key="IText" Color="#FAFAFA" />
+        <SolidColorBrush x:Key="IDim" Color="#AFAFAF" />
+        <SolidColorBrush x:Key="IMute" Color="#7D7D7D" />
+        <SolidColorBrush x:Key="ILine" Color="#2B2B2B" />
+        <SolidColorBrush x:Key="ILine2" Color="#373737" />
+        <SolidColorBrush x:Key="IBtn" Color="#2B2B2B" />
+        <SolidColorBrush x:Key="ICard" Color="#CC1F1F1F" />
+        <SolidColorBrush x:Key="IBand" Color="#1F1F1F" />
+
+        <!-- mock .pill: transparent, 12 px radius, #373737 frame; chosen = #2b2b2b with a #555 frame -->
+        <Style x:Key="Pill" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource IDim}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" Background="Transparent" BorderBrush="#373737" BorderThickness="0.8" CornerRadius="12" Padding="10,2">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2B2B2B" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#555555" />
+                                <Setter Property="Foreground" Value="#FAFAFA" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#FAFAFA" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Background" Value="{StaticResource IBtn}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ILine2}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+
+        <!-- item tooltip: mock .tip (300 px, #141414, #373737 frame, radius 8) -->
+        <Style x:Key="ItemTip" TargetType="ToolTip">
+            <Setter Property="Foreground" Value="#FAFAFA" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="#141414" BorderBrush="#373737" BorderThickness="0.8" CornerRadius="8" Padding="10" Width="300">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- mock input.q: #2b2b2b, #373737 frame, radius 6; the placeholder is the Tag (Theme's Field shows its ToolTip, which would also pop up) -->
+        <Style x:Key="SearchField" TargetType="TextBox">
+            <Setter Property="Background" Value="#2B2B2B" />
+            <Setter Property="Foreground" Value="#FAFAFA" />
+            <Setter Property="BorderBrush" Value="#373737" />
+            <Setter Property="BorderThickness" Value="0.8" />
+            <Setter Property="Padding" Value="6,3,26,3" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CaretBrush" Value="#FAFAFA" />
+            <Setter Property="SelectionBrush" Value="#65B0FC" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <Grid>
+                                <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Foreground="#7D7D7D" FontSize="{TemplateBinding FontSize}" Margin="9,0,26,0" VerticalAlignment="Center"
+                                           IsHitTestVisible="False" Visibility="Collapsed" TextTrimming="CharacterEllipsis" />
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Text" Value="" />
+                                    <Condition Property="IsKeyboardFocused" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
+                            </MultiTrigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#65B0FC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ControlTemplate x:Key="VirtualList" TargetType="ItemsControl">
+            <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="True" Focusable="False"><ItemsPresenter /></ScrollViewer>
+        </ControlTemplate>
+    </UserControl.Resources>
+
+    <Border BorderBrush="#2B2B2B" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- title, help, status | search, item language, close -->
+            <Grid Margin="14,10,8,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE7B8;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{StaticResource Gold}" VerticalAlignment="Center" Margin="0,2,9,0" />
+                    <TextBlock Text="{Binding ItemsTitle, Source={x:Static s:UiText.Current}}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Style="{StaticResource IconButton}" Content="&#xE897;" FontSize="13" Click="Help_Click" Tag="items" Margin="6,1,0,0" VerticalAlignment="Center" ToolTip="{Binding TipHelp, Source={x:Static s:UiText.Current}}" />
+                    <TextBlock x:Name="StatusText" FontSize="12" Foreground="{StaticResource IMute}" VerticalAlignment="Center" Margin="10,1,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Grid Width="220" Height="28" Margin="0,0,6,0">
+                        <TextBox x:Name="SearchBox" Style="{StaticResource SearchField}" TextChanged="Search_Changed" KeyDown="Search_KeyDown" Tag="{Binding ItemsSearch, Source={x:Static s:UiText.Current}}" />
+                        <Button x:Name="ClearSearch" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                                Click="ClearSearch_Click" Visibility="Collapsed" ToolTip="{Binding CraftClear, Source={x:Static s:UiText.Current}}" />
+                    </Grid>
+                    <ComboBox x:Name="LangBox" Width="130" Margin="0,0,6,0" SelectionChanged="Lang_Changed" ToolTip="{Binding ItemsLangTip, Source={x:Static s:UiText.Current}}">
+                        <ComboBoxItem Content="Items: English" Tag="en" />
+                        <ComboBoxItem Content="Items: Español" Tag="es" />
+                    </ComboBox>
+                    <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" ToolTip="{Binding TipClose, Source={x:Static s:UiText.Current}}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- mock tools card: Show pills | Sort -->
+            <Border Grid.Row="1" Background="{StaticResource ICard}" BorderBrush="{StaticResource ILine}" BorderThickness="0.8" CornerRadius="8" Margin="14,10,14,10" Padding="12,7">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ItemsSort, Source={x:Static s:UiText.Current}}" FontSize="12" Foreground="{StaticResource IDim}" VerticalAlignment="Center" Margin="10,0,6,0" />
+                        <ComboBox x:Name="SortBox" Width="130" SelectionChanged="Sort_Changed" />
+                    </StackPanel>
+                    <WrapPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ItemsShow, Source={x:Static s:UiText.Current}}" FontSize="12" Foreground="{StaticResource IDim}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <RadioButton x:Name="GroupAll" Style="{StaticResource Pill}" GroupName="ItemsGroup" Tag="all" IsChecked="True" Checked="Group_Checked" Content="{Binding ItemsAll, Source={x:Static s:UiText.Current}}" />
+                        <RadioButton Style="{StaticResource Pill}" GroupName="ItemsGroup" Tag="eq" Checked="Group_Checked" Content="{Binding ItemsEquipment, Source={x:Static s:UiText.Current}}" />
+                        <RadioButton Style="{StaticResource Pill}" GroupName="ItemsGroup" Tag="mat" Checked="Group_Checked" Content="{Binding ItemsMaterials, Source={x:Static s:UiText.Current}}" />
+                        <RadioButton Style="{StaticResource Pill}" GroupName="ItemsGroup" Tag="use" Checked="Group_Checked" Content="{Binding ItemsConsumables, Source={x:Static s:UiText.Current}}" />
+                    </WrapPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- cards of the character (virtualised rows) | Across characters -->
+            <Grid x:Name="Cols" Grid.Row="2" Margin="14,0,14,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition x:Name="GapCol" Width="10" />
+                    <ColumnDefinition x:Name="SideCol" Width="330" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition x:Name="SideRow" Height="0" />
+                </Grid.RowDefinitions>
+                <ItemsControl x:Name="MainList" Template="{StaticResource VirtualList}" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Standard"
+                              ScrollViewer.CanContentScroll="True" SizeChanged="MainList_SizeChanged">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <Border x:Name="Side" Grid.Column="2" Background="{StaticResource ICard}" BorderBrush="{StaticResource ILine}" BorderThickness="0.8" CornerRadius="8" VerticalAlignment="Stretch">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Background="{StaticResource IBand}" CornerRadius="8,8,0,0" Padding="12,8">
+                            <DockPanel>
+                                <TextBlock x:Name="SideCount" DockPanel.Dock="Right" FontSize="12" Foreground="{StaticResource IMute}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ItemsAcross, Source={x:Static s:UiText.Current}}" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <ItemsControl x:Name="SideList" Template="{StaticResource VirtualList}" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Standard" ScrollViewer.CanContentScroll="True">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <WrapPanel x:Name="Legend" Grid.Row="3" Margin="26,6,14,8" />
+
+            <Border Grid.Row="4" Background="#111111" BorderBrush="{StaticResource ILine}" BorderThickness="0,1,0,0" Padding="14,8,14,10">
+                <StackPanel>
+                    <Grid x:Name="FootGrid" />
+                    <TextBlock x:Name="FootCaption" FontSize="11" Foreground="{StaticResource IMute}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>
