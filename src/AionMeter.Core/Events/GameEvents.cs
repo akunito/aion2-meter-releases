@@ -130,8 +130,9 @@ public sealed record ObjectSeenEvent(long TimeMs, uint ActorId, byte Kind, int O
 /// <summary>An object left (<c>35 36</c>): <paramref name="Exhausted"/> after its last unit, otherwise it only left the client's view.</summary>
 public sealed record ObjectGoneEvent(long TimeMs, uint ActorId, bool Exhausted) : GameEvent(TimeMs);
 
-/// <summary>Stacks of the local character's containers: the whole set at login (Full) or a refresh of some slots/containers.</summary>
-public sealed record InventoryEvent(long TimeMs, bool Full, IReadOnlyList<Inventory.ItemStack> Stacks) : GameEvent(TimeMs);
+/// <summary>Stacks of the local character's containers: the login list (Full, <c>11 56</c>) or a refresh (<c>1b 56</c>). Whole = the refresh
+/// re-sends every slot of its containers (window opened, header flag); otherwise it only lists changed slots, Count 0 = slot emptied.</summary>
+public sealed record InventoryEvent(long TimeMs, bool Full, IReadOnlyList<Inventory.ItemStack> Stacks, bool Whole = false) : GameEvent(TimeMs);
 
 public sealed record PetListEvent(long TimeMs, int EquippedPet, IReadOnlyList<Character.PetOwned> Pets) : GameEvent(TimeMs);
 public sealed record TitleListEvent(long TimeMs, IReadOnlyList<int> Titles) : GameEvent(TimeMs);

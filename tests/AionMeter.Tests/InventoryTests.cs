@@ -33,8 +33,8 @@ public class InventoryTests
         Assert.Equal(70, bag.Count);
         Assert.Equal(49146, bag.Single(s => s.Item == 930100031).Count); // Kina
         Assert.Equal(54, bag.Single(s => s.Item == 610680047).Count);    // Conide (the Inina node's drop)
-        Assert.Equal(56, inv.Stacks.Count(s => s.Container == Containers.Bag2));
-        Assert.Equal(38, inv.Stacks.Count(s => s.Container == Containers.Warehouse));
+        Assert.Equal(56, inv.Stacks.Count(s => s.Container == Containers.AccountWarehouse));
+        Assert.Equal(38, inv.Stacks.Count(s => s.Container == Containers.CharacterWarehouse));
     }
 
     [Fact]
@@ -43,11 +43,11 @@ public class InventoryTests
         var store = new InventoryStore(null);
         var login = Parse(Opcodes.Inventory, Fixture("full-1156.hex"))[0];
         store.OnEvent(login);
-        Assert.Equal(38, store.Items(Containers.Warehouse).Count);
+        Assert.Equal(38, store.Items(Containers.CharacterWarehouse).Count);
         var wh = Assert.IsType<InventoryEvent>(Assert.Single(Parse(Opcodes.InventoryUpdate, Fixture("warehouse-1b56.hex"))));
         Assert.False(wh.Full);
         store.OnEvent(wh);
-        Assert.Equal(37, store.Items(Containers.Warehouse).Count); // the re-sent list has one slot fewer
+        Assert.Equal(37, store.Items(Containers.CharacterWarehouse).Count); // the re-sent list has one slot fewer
         var before = store.CountOf(610680047);
         var g = Assert.IsType<InventoryEvent>(Assert.Single(Parse(Opcodes.InventoryUpdate, Fixture("gather-1b56.hex"))));
         Assert.Single(g.Stacks);
@@ -62,10 +62,10 @@ public class InventoryTests
     {
         var store = new InventoryStore(null);
         store.OnEvent(new InventoryEvent(1, true, new[] { new ItemStack(7, 610511013, 3, Containers.Bag, 4, 0), new ItemStack(8, 110130002, 1, Containers.Bag, 5, 0) }));
-        store.OnEvent(new InventoryEvent(2, false, new[] { new ItemStack(7, 610511013, 3, Containers.Warehouse, 1, 0) }));   // moved to the warehouse
+        store.OnEvent(new InventoryEvent(2, false, new[] { new ItemStack(7, 610511013, 3, Containers.CharacterWarehouse, 1, 0) }));   // moved to the warehouse
         Assert.Equal(3, store.CountOf(610511013));
         Assert.DoesNotContain(store.Items(Containers.Bag), st => st.Uid == 7);
-        Assert.Single(store.Items(Containers.Warehouse));
+        Assert.Single(store.Items(Containers.CharacterWarehouse));
         store.OnEvent(new InventoryEvent(3, false, new[] { new ItemStack(8, 110130002, 0, Containers.Bag, 5, 0) }));          // sold: count 0
         Assert.Equal(0, store.CountOf(110130002));
         Assert.Empty(store.Items(Containers.Bag));

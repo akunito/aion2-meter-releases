@@ -36,8 +36,8 @@ public class RegressionTests
         Assert.InRange(inventory.All().Count, 135, 150);
         Assert.Equal(20, inventory.Items(Containers.Equipped).Count);
         Assert.InRange(inventory.Items(Containers.Bag).Count, 36, 40);
-        Assert.InRange(inventory.Items(Containers.ServerWarehouse).Count, 41, 45);
-        Assert.InRange(inventory.Items(Containers.Warehouse).Count, 36, 40);
+        Assert.InRange(inventory.Items(Containers.AccountWarehouse).Count, 41, 45);
+        Assert.InRange(inventory.Items(Containers.CharacterWarehouse).Count, 36, 40);
         Assert.InRange(inventory.CountOf(InventoryStore.Kinah), 2_169_808, 2_172_000);
         Assert.Equal(7_000, inventory.CountOf(InventoryStore.KinahBound));
         Assert.Equal(127_350, inventory.CountOf(930100003));                  // Abyss Points
