@@ -1,0 +1,98 @@
+<UserControl x:Class="AionMeter.App.Views.DaevanionView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:AionMeter.App.Services" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+    <!-- The approved mock is docs/mockups/build-tab/index.html, page #pgDaev (.dv/.boards/.bd/.board/.nd/.stats/.chk). Card, Band, Flat,
+         TextBtn and BlueCheck come from the hosting BuildView (DynamicResource), so both sub-tabs share one look. -->
+    <UserControl.Resources>
+        <Style x:Key="NodeTip" TargetType="ToolTip">
+            <Setter Property="Foreground" Value="#FAFAFA" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="#141414" BorderBrush="#373737" BorderThickness="0.8" CornerRadius="8" Padding="10" MaxWidth="300">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="250" />
+        </Grid.ColumnDefinitions>
+
+        <Border Style="{DynamicResource Card}" VerticalAlignment="Top">
+            <StackPanel>
+                <Border Style="{DynamicResource Band}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="PointsText" FontSize="12" Foreground="#7D7D7D" VerticalAlignment="Center" />
+                            <Button x:Name="ImportBtn" Style="{DynamicResource TextBtn}" Foreground="#65B0FC" Margin="10,0,0,0" Click="Import_Click"
+                                    Content="{Binding DaevImport, Source={x:Static s:UiText.Current}}" ToolTip="{Binding DaevImportTip, Source={x:Static s:UiText.Current}}" />
+                        </StackPanel>
+                        <TextBlock x:Name="TitleText" Style="{DynamicResource BandTitle}" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                </Border>
+                <WrapPanel x:Name="BoardRow" Margin="12,10,6,4" />
+                <Border x:Name="BoardFrame" Background="#111111" BorderBrush="#2B2B2B" BorderThickness="0.8" CornerRadius="8" Margin="12,0" Padding="10">
+                    <Canvas x:Name="BoardCanvas" HorizontalAlignment="Center" />
+                </Border>
+                <TextBlock x:Name="NoteText" FontSize="12.5" Foreground="#F5B544" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="12,8,12,0" Visibility="Collapsed" />
+                <TextBlock FontSize="12" FontStyle="Italic" Foreground="#7D7D7D" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="12,10,12,6"
+                           Text="{Binding DaevHint, Source={x:Static s:UiText.Current}}" />
+                <WrapPanel HorizontalAlignment="Center" Margin="12,0,12,10">
+                    <CheckBox x:Name="ShowOpen" Style="{DynamicResource BlueCheck}" FontSize="13" Margin="0,0,14,0" Click="ShowOpen_Click"
+                              Content="{Binding DaevShowOpen, Source={x:Static s:UiText.Current}}" />
+                    <CheckBox x:Name="SkillIconsBox" Style="{DynamicResource BlueCheck}" FontSize="13" Margin="0,0,14,0" Click="SkillIcons_Click"
+                              Content="{Binding DaevSkillIcons, Source={x:Static s:UiText.Current}}" />
+                    <TextBlock x:Name="MissingText" FontSize="13" Foreground="#F5B544" VerticalAlignment="Center" />
+                </WrapPanel>
+                <Grid Margin="12,0,12,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="SelectAllBtn" Style="{DynamicResource Flat}" Background="#3B8BE0" BorderBrush="#3B8BE0" FontSize="13" Padding="8" Click="SelectAll_Click"
+                            Content="{Binding DaevSelectAll, Source={x:Static s:UiText.Current}}" ToolTip="{Binding DaevSelectAllTip, Source={x:Static s:UiText.Current}}" />
+                    <Button x:Name="ResetBtn" Grid.Column="2" Style="{DynamicResource Flat}" FontSize="13" Padding="8" Click="Reset_Click"
+                            Content="{Binding DaevReset, Source={x:Static s:UiText.Current}}" ToolTip="{Binding DaevResetTip, Source={x:Static s:UiText.Current}}" />
+                </Grid>
+                <WrapPanel Margin="12,0,12,10" TextBlock.FontSize="11" TextBlock.Foreground="#7D7D7D">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                        <Border Width="10" Height="10" CornerRadius="2" Background="#99D3AD0F" Margin="0,0,5,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="LegendOpen" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                        <Border Width="10" Height="10" CornerRadius="2" BorderBrush="#3DDC84" BorderThickness="1.5" Margin="0,0,5,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="LegendPlan" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="10" Height="10" CornerRadius="2" Background="#333333" Margin="0,0,5,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding DaevLegendOff, Source={x:Static s:UiText.Current}}" />
+                    </StackPanel>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Column="2" Style="{DynamicResource Card}" VerticalAlignment="Top">
+            <StackPanel>
+                <Border Style="{DynamicResource Band}">
+                    <DockPanel>
+                        <TextBlock x:Name="StatsPts" DockPanel.Dock="Right" FontSize="12" Foreground="#7D7D7D" VerticalAlignment="Center" />
+                        <TextBlock Style="{DynamicResource BandTitle}" Text="{Binding DaevStats, Source={x:Static s:UiText.Current}}" />
+                    </DockPanel>
+                </Border>
+                <StackPanel x:Name="StatsList" Margin="0,0,0,6" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -159,6 +159,10 @@ public sealed class AppSettings
     public string SkillLanguage { get; set; } = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en";
     /// <summary>Build tab: list skills already at the build's level (off hides them from the library and dims them on the bar).</summary>
     public bool BuildShowDone { get; set; } = true;
+    /// <summary>Build tab, Daevanion: draw nodes already open at full strength (off dims them to show only what is left).</summary>
+    public bool DaevShowOpen { get; set; } = true;
+    /// <summary>Build tab, Daevanion: skill icon over the "Skill Level Up" nodes.</summary>
+    public bool DaevSkillIcons { get; set; } = true;
     /// <summary>Build telemetry (A2M-21): per build id, when it was last sent and the build's UpdatedAt then (at most one send per build per 24 h, none without a change).</summary>
     public Dictionary<string, BuildSent> BuildTelemetrySent { get; set; } = new();
     public sealed record BuildSent(DateTimeOffset Sent, DateTimeOffset Updated);

@@ -440,10 +440,7 @@
                     </StackPanel>
 
                     <!-- ===== Daevanion (phase 4) ===== -->
-                    <Border x:Name="PageDaev" Style="{StaticResource Card}" Visibility="Collapsed" MinHeight="300">
-                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14" Foreground="{StaticResource BMute}"
-                                   Text="{Binding BuildDaevanionSoon, Source={x:Static s:UiText.Current}}" />
-                    </Border>
+                    <v:DaevanionView x:Name="PageDaev" xmlns:v="clr-namespace:AionMeter.App.Views" Visibility="Collapsed" />
                 </Grid>
             </ScrollViewer>
         </Grid>

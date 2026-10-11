@@ -21,7 +21,7 @@ namespace AionMeter.App.Views;
 /// <summary>
 /// Build tab (A2M-21): the character's skill build in questlog's planner look — class skill library, 12×4 key bar, detail panel with
 /// level and specs, priority chains, macros — against the official profile (current level badge per icon, Missing summary). Edits
-/// are local and saved 500 ms after the last one through <see cref="BuildStore"/>. The Daevanion sub-tab is a placeholder (phase 4).
+/// are local and saved 500 ms after the last one through <see cref="BuildStore"/>. The Daevanion sub-tab is <see cref="DaevanionView"/>.
 /// Phase 3: questlog import (link, search dialog, suggestions card when no build is active), "Copy for questlog", build telemetry.
 /// </summary>
 public partial class BuildView : UserControl
@@ -87,6 +87,9 @@ public partial class BuildView : UserControl
         _lang = meter.Settings.SkillLanguage == "es" ? "es" : "en";
         _showDone = meter.Settings.BuildShowDone;
         InitializeComponent();
+        PageDaev.Attach(meter, _icons);
+        // Daevanion edits ride on this view's build and its 500 ms save (the page only hands over the new plan)
+        PageDaev.PlanEdited += plan => { if (_build is null) return; _build = _build with { Daevanion = plan }; _dirty = true; if (!_sample) { _saveTick.Stop(); _saveTick.Start(); } };
         _syncing = true;
         LangBox.SelectedIndex = _lang == "es" ? 1 : 0;
         ShowDone.IsChecked = _showDone;
@@ -294,6 +297,7 @@ public partial class BuildView : UserControl
         RenderMacros();
         RenderDescription();
         RenderSaved();
+        PageDaev.Show(_build, _profile, _sample);
     }
 
     private void RenderHeader(BuildProgress? progress)

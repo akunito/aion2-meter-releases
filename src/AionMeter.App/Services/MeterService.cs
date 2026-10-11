@@ -134,6 +134,8 @@ public sealed class MeterService : IDisposable
     public CharacterState Character { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
     /// <summary>Skill catalogue per class for the Build tab (data/gamedb/skills, A2M-21).</summary>
     public SkillBook Skills { get; } = new(Path.Combine(DataDirectory, "gamedb", "skills"));
+    /// <summary>Daevanion boards per class for the Build tab's planner (data/gamedb/daevanion, A2M-21 phase 4).</summary>
+    public DaevanionBook Daevanion { get; } = new(Path.Combine(DataDirectory, "gamedb", "daevanion"));
     /// <summary>The bound character's builds (characters/&lt;key&gt;/builds); a shared folder until a character is known.</summary>
     public BuildStore Builds { get; private set; } = new(Path.Combine(AppSettings.AppDataDir, "builds"));
     /// <summary>Every broker page the player browses, as a growing price history (private branch).</summary>

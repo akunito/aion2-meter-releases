@@ -15,7 +15,7 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, update, update-portable, build or build-es (the Build tab, skill texts in Spanish), import (the questlog import dialog).</param>
+    /// arrives), breakdown, history, timers, settings, update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (one tooltip) or suggest (no build: suggestions card).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
@@ -79,6 +79,17 @@ public static class SampleRenderer
                 import.ShowSample("https://questlog.gg/aion-2/en/skill-builder/AXIIyLxFWMU0?build-id=15969", new Core.Builds.BuildSearchPage(all, 1, 4, 74));
                 host = import;
                 refresh = () => { };
+                break;
+            case "build-daev":
+                // the Daevanion sub-tab with Irin's open nodes and questlog planner 8602; "daev:" icons come from <icons>\daev\<sprite stem>[_Disabled].png
+                meter.Settings.SkillLanguage = "en";
+                var daevIcons = new IconCache(Core.GameDb.ItemIcons.Empty, o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
+                var daevView = new Views.BuildView(meter, daevIcons);
+                var (daevBuild, daevProfile) = SampleDaevanion(SampleBuild(), SampleProfile());
+                daevView.ShowSample(daevBuild, daevProfile, 14170000);
+                ((System.Windows.Controls.RadioButton)daevView.FindName("SubDaev")).IsChecked = true;
+                host = new Window { Content = daevView, Width = o.Width ?? 1000, Height = o.Height ?? 900, Background = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x0D)) };
+                refresh = daevView.RenderNow;
                 break;
             case "settings":
                 host = new SettingsWindow(meter) { Width = o.Width ?? 640, Height = o.Height ?? 900 };
@@ -244,6 +255,26 @@ public static class SampleRenderer
         var skills = have.Select(h => new Core.Armory.SkillLine(h.Cat, h.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), h.Level, h.Level > 0, h.Level > 0, h.Id)).ToList();
         return new Core.Armory.CharacterProfile(new Core.Armory.CharacterRef("sample", "Irin", 0, 45, 2305, "Vaizel", "eu"), "Ranger", 45, 47_000, null, null, null, [], 1042, [], [], null, null,
             skills, [], [], new DateTimeOffset(2026, 10, 10, 18, 46, 0, TimeSpan.Zero));
+    }
+
+    /// <summary>Irin's open Daevanion nodes (profile) and questlog planner 8602 (plan) from data/gamedb/sample-daevanion.json (build.sh copies the test fixture).</summary>
+    private static (Core.Builds.Build, Core.Armory.CharacterProfile) SampleDaevanion(Core.Builds.Build b, Core.Armory.CharacterProfile p)
+    {
+        var path = Path.Combine(MeterService.DataDirectory, "gamedb", "sample-daevanion.json");
+        if (!File.Exists(path)) return (b, p);
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+        var plan = new Dictionary<int, List<int>>();
+        foreach (var board in doc.RootElement.GetProperty("selectedNodes").EnumerateObject())
+            plan[int.Parse(board.Name, System.Globalization.CultureInfo.InvariantCulture)] = board.Value.EnumerateArray().Select(x => int.Parse(x.GetString()!, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        var open = new List<Core.Armory.DaevanionNode>();
+        foreach (var board in doc.RootElement.GetProperty("irin").EnumerateObject())
+            foreach (var x in board.Value.EnumerateArray())
+            {
+                var id = int.Parse(x.GetString()!, System.Globalization.CultureInfo.InvariantCulture);
+                var cell = id % 10000 - 1;   // id = board*10000 + (row-1)*15 + col
+                open.Add(new Core.Armory.DaevanionNode(id / 10000, cell / 15 + 1, cell % 15 + 1, id, true, "", "", "", []));
+            }
+        return (b with { Daevanion = plan }, p with { Daevanion = open });
     }
 
     /// <summary>
