@@ -88,6 +88,8 @@ public sealed class AppSettings
 
     /// <summary>Fetch skill icons from the official AION 2 game-data CDN (cached locally).</summary>
     public bool DownloadIcons { get; set; } = true;
+    /// <summary>A2M-38: after a boss kill, ask Abyss Logs where the player's DPS sits among their class this week.</summary>
+    public bool AbyssLogsPercentile { get; set; } = true;
 
     /// <summary>
     /// Base url of a FlareSolverr / solvearr proxy (e.g. "http://127.0.0.1:8191"), reached over the private network,

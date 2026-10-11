@@ -57,6 +57,7 @@ public partial class App : Application
             Log.Enabled = false;
             // --render-sample <out.png | folder with --animate> [--lang ru] [--window …] [--width N] [--height N] [--tab …]
             // [--backdrop game|dark|none] [--scale 1.5] [--row-size 50..100] [--animate <seconds> [--fps 10]] [--icons <folder>]
+            // [--abysslogs] (a sample Abyss Logs percentile line on the breakdown header and the overlay)
             var options = new SampleRenderer.Options(
                 ArgValue(e.Args, "--window") ?? "overlay",
                 int.TryParse(ArgValue(e.Args, "--width"), out var width) ? width : null,
@@ -66,7 +67,8 @@ public partial class App : Application
                 double.TryParse(ArgValue(e.Args, "--scale"), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var scale) ? scale : 1.5,
                 int.TryParse(ArgValue(e.Args, "--row-size"), out var rowSize) ? rowSize : 100,
-                ArgValue(e.Args, "--icons"));
+                ArgValue(e.Args, "--icons"),
+                e.Args.Contains("--abysslogs"));
             var language = ArgValue(e.Args, "--lang") ?? "en";
             if (double.TryParse(ArgValue(e.Args, "--animate"), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var seconds))
@@ -366,7 +368,7 @@ public partial class App : Application
             Activate(existing);
             return;
         }
-        var w = new BreakdownWindow(view, actorId, _meter.Data, _meter.Icons, _meter.Portraits);
+        var w = new BreakdownWindow(view, actorId, _meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor);
         _breakdowns[key] = w;
         w.Closed += (_, _) => _breakdowns.Remove(key);
         w.Show();

@@ -965,7 +965,60 @@ public sealed class MeterService : IDisposable
         public event Action<CaptureStatus>? StatusChanged { add { } remove { } }
         public CaptureStatus Status { get; } = new(CaptureState.Error, message);
         public void Start() { }
+    // ---------------------------------------------------------------- A2M-38: Abyss Logs percentile after a boss kill
+
+    /// <summary>Abyss Logs open API (GET only, region + boss code, 400 ms pacing, 6 h cache under AppData\abysslogs).</summary>
+    public AbyssLogsClient AbyssLogs { get; } = new(Path.Combine(AppSettings.AppDataDir, "abysslogs"));
+    private AbyssLogsNotes? _fightNotes;
+    /// <summary>The Abyss Logs line of each fight by id (kept on disk except for the render tool).</summary>
+    public AbyssLogsNotes FightNotes => LazyInitializer.EnsureInitialized(ref _fightNotes,
+        () => new AbyssLogsNotes(Settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "abysslogs", "notes.json")));
+    /// <summary>Raised on a worker thread when a kill's percentile is known: (fight id, line).</summary>
+    public event Action<Guid, string>? AbyssLogsReady;
+    /// <summary>The newest line and when it came (TickCount64): the overlay shows it for 60 s.</summary>
+    public (Guid Fight, string Text, long At)? LastAbyssLogs { get; private set; }
+    public string? AbyssLogsNoteFor(Guid fight) => FightNotes.Get(fight);
+
+    /// <summary>Sets a fight's line as if it had come from Abyss Logs (render tool sample).</summary>
+    public void ShowAbyssLogs(Guid fight, string text)
+    {
+        FightNotes.Set(fight, text);
+        LastAbyssLogs = (fight, text, Environment.TickCount64);
+        AbyssLogsReady?.Invoke(fight, text);
+    }
+
+    private void RankOnAbyssLogs(EncounterSnapshot s)
+    {
+        if (_replaying || DemoRunning || Settings.Transient || !Settings.AbyssLogsPercentile) return;
+        // kills only: Abyss Logs ranks cleared fights, and a wipe's DPS is not comparable
+        if (s.Boss is not { NpcCode: > 0 } boss || s.Reason != EncounterEndReason.Kill) return;
+        CombatantSnapshot? self = null;
+        foreach (var c in s.Combatants) if (c.IsSelf) { self = c; break; }
+        if (self is not { Dps: > 0 }) return;
+        var cls = self.Class != Core.Events.GameClass.Unknown ? self.Class : Tracker.SelfClass;
+        var region = Core.Ranking.AbyssLogs.RegionOf(self.ServerId != 0 ? self.ServerId : Tracker.SelfServerId);
+        var (id, code, name, dps, power) = (s.Id, boss.NpcCode, boss.Name, self.Dps, self.CombatPower);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var stats = await AbyssLogs.StatsAsync(region, code).ConfigureAwait(false);
+                if (stats is null || Core.Ranking.AbyssLogs.Pick(stats, cls, power) is not { } cell)
+                {
+                    Log.Info($"Abyss Logs: no {cls} statistics for {code} ({region})");
+                    return;
+                }
+                var est = Core.Ranking.AbyssLogs.Estimate(cell, dps);
+                var text = UiText.Current.AbyssLogsLine(est, cls, name);
+                Log.Info($"Abyss Logs: {code} {cls} {Format.Compact(dps)}/s CP {power} -> p{est.Percentile} of {cell.Samples} logs ({region})");
+                ShowAbyssLogs(id, text);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Abyss Logs percentile failed", ex); }
+        });
+    }
+
         public void Stop() { }
         public void Dispose() { }
     }
+        RankOnAbyssLogs(record.Summary);
 }

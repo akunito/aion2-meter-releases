@@ -86,6 +86,9 @@
                                            TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
                                 <TextBlock x:Name="FightMeta" FontFamily="{StaticResource NumberFont}" FontSize="10.5"
                                            Foreground="{StaticResource TextMute}" TextWrapping="Wrap" />
+                                <!-- A2M-38: where your DPS sits among your class on this boss this week (Abyss Logs) -->
+                                <TextBlock x:Name="FightRank" FontSize="10.5" Foreground="{StaticResource Gold}" TextWrapping="Wrap"
+                                           Margin="0,3,0,0" Visibility="Collapsed" ToolTip="abysslogs.com" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>

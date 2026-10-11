@@ -20,9 +20,10 @@ public static class SampleRenderer
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
+    /// <param name="AbyssLogs">Inject a sample Abyss Logs percentile line (A2M-38) for the sample fight: breakdown header, overlay status line.</param>
     /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); items: &lt;item id&gt;.png in the same folder; nothing is downloaded.</param>
     public sealed record Options(string Window = "overlay", int? Width = null, int? Height = null, string? Tab = null,
-        string Backdrop = "game", double Scale = 1.5, int RowSize = 100, string? Icons = null);
+        string Backdrop = "game", double Scale = 1.5, int RowSize = 100, string? Icons = null, bool AbyssLogs = false);
 
     public static void Render(string path, string language, Options o)
     {
@@ -34,6 +35,12 @@ public static class SampleRenderer
         if (o.Window == "history")
             foreach (var entry in meter.History.List().Take(20)) meter.PortraitOf(entry);
         WaitForPortraits(meter);
+        if (o.AbyssLogs && meter.Tracker.Snapshot(null, start + 20_000) is { } shown)
+        {
+            // a made-up Elementalist cell of the 100–150K CP bracket, through the real template and interpolation
+            var cell = new Core.Ranking.AbyssLogsCell("Elementalist", 100_000, 150_000, 4210, 1180, 1_250_000, 1_020_000, 410_000, 300_000, 90_000, 2_400_000, null);
+            meter.ShowAbyssLogs(shown.Id, UiText.Current.AbyssLogsLine(Core.Ranking.AbyssLogs.Estimate(cell, 560_000), Core.Events.GameClass.Elementalist, shown.Title));
+        }
 
         Window host;
         Action refresh;
@@ -41,7 +48,7 @@ public static class SampleRenderer
         {
             case "breakdown":
                 var segment = meter.Tracker.Segments()[0].Id;
-                var breakdown = new BreakdownWindow(new ViewModels.LiveFightView(meter.Tracker, segment), 2, meter.Data, meter.Icons, meter.Portraits)
+                var breakdown = new BreakdownWindow(new ViewModels.LiveFightView(meter.Tracker, segment), 2, meter.Data, meter.Icons, meter.Portraits, meter.AbyssLogsNoteFor)
                     { Width = o.Width ?? 900, Height = o.Height ?? 680 };
                 if (o.Tab is { } tab) breakdown.ShowTab(tab);
                 host = breakdown;

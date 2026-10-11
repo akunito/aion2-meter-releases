@@ -65,6 +65,7 @@ public partial class SettingsWindow : Window
 
         LanguageBox.SelectedIndex = UiText.Normalize(s.Language) == "ru" ? 1 : 0;
         Icons.IsChecked = s.DownloadIcons;
+        AbyssLogs.IsChecked = s.AbyssLogsPercentile;
         CheckUpdates.IsChecked = s.CheckUpdates;
         AutoInstallUpdates.IsChecked = s.AutoInstallUpdates;
         AutoInstallUpdates.IsEnabled = !_meter.Updates.IsDevBuild; // a hand-deployed developer build never replaces itself
@@ -113,6 +114,7 @@ public partial class SettingsWindow : Window
 
         var language = (LanguageBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "en";
         s.DownloadIcons = Icons.IsChecked == true;
+        s.AbyssLogsPercentile = AbyssLogs.IsChecked == true;
         s.CheckUpdates = CheckUpdates.IsChecked == true;
         s.AutoInstallUpdates = AutoInstallUpdates.IsChecked == true;
         s.UpdateChannel = ChannelDev.IsChecked == true ? "dev" : "stable";

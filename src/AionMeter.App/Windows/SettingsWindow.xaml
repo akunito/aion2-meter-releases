@@ -273,6 +273,9 @@
                             <CheckBox x:Name="Icons" Style="{StaticResource DarkCheck}"
                                       Content="{Binding DownloadIcons, Source={x:Static s:UiText.Current}}" />
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding IconsHint, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="AbyssLogs" Style="{StaticResource DarkCheck}" Margin="0,8,0,0"
+                                      Content="{Binding AbyssLogsSetting, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding AbyssLogsHint, Source={x:Static s:UiText.Current}}" />
                             <TextBlock x:Name="DataInfo" TextWrapping="Wrap" Foreground="{StaticResource TextDim}" Margin="0,6,0,0" />
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button Style="{StaticResource GhostButton}" Content="{Binding OpenDataFolder, Source={x:Static s:UiText.Current}}"

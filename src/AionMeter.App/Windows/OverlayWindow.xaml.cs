@@ -135,6 +135,10 @@ public partial class OverlayWindow : Window
         FooterText.Text = status.State is CaptureState.Capturing && _vm.HasData
             ? (unnamed ? _vm.Footer + " · " + UiText.Current.NamesLater : _vm.Footer)
             : _vm.Status;
+        // A2M-38: the last kill's Abyss Logs line for 60 s, under the status line (meter tab only)
+        var rank = _meter.LastAbyssLogs is { } al && Environment.TickCount64 - al.At < 60_000 && FooterStatusLine.Visibility == Visibility.Visible ? al.Text : null;
+        if (rank is not null && !ReferenceEquals(AbyssLogsLine.Text, rank)) AbyssLogsLine.Text = rank;
+        AbyssLogsLine.Visibility = rank is null ? Visibility.Collapsed : Visibility.Visible;
         _vm.StatusBrush = status.State switch
         {
             CaptureState.Capturing => (Brush)FindResource("Green"),

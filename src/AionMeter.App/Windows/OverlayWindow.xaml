@@ -573,6 +573,9 @@
                         </Button>
                         </StackPanel>
                     </Grid>
+                    <!-- A2M-38: Abyss Logs percentile of the last kill, for 60 s (meter tab only) -->
+                    <TextBlock x:Name="AbyssLogsLine" FontSize="12" Foreground="{StaticResource GoldBright}" TextTrimming="CharacterEllipsis"
+                               Margin="13,0,12,4" Effect="{StaticResource TextShadow}" Visibility="Collapsed" ToolTip="abysslogs.com" />
                     <WrapPanel Orientation="Horizontal" Margin="0,0,12,0">
                         <!-- Boss timers: always visible, shows the next respawn; the whole strip wraps into lines on a narrow overlay (Diego, 2026-10-11) -->
                         <Button Style="{StaticResource TimersPill}" Click="Timers_Click" ToolTip="{Binding T.TipTimers}" Margin="0,2,6,2">

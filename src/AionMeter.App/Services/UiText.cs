@@ -341,6 +341,22 @@ public sealed class UiText
     public string SecData { get; init; } = "DATA";
     public string DownloadIcons { get; init; } = "Download skill icons and boss portraits";
     public string IconsHint { get; init; } = "Skill icons: official AION 2 CDN (assets.playnccdn.com). Boss portraits: MetaBot.GG (metabot.gg). Each picture is fetched once, then cached.";
+    // A2M-38: Abyss Logs percentile after a boss kill. {0} percentile, {1} class group, {2} boss, {3} median DPS.
+    public string AbyssLogsSetting { get; init; } = "After a boss kill, show where your DPS sits among your class this week (Abyss Logs)";
+    public string AbyssLogsHint { get; init; } = "Asks api.abysslogs.com for that boss's weekly statistics: only the region and the boss are sent, nothing about you. Cached 6 h.";
+    public string AbyssLogsTemplate { get; init; } = "p{0} of {1} on {2} this week · median {3}/s";
+    public string AbyssLogsAboveTemplate { get; init; } = "Above every {1} logged on {2} this week · median {3}/s";
+    /// <summary>{0} class name: "Templars".</summary>
+    public string AbyssLogsClassGroup { get; init; } = "{0}s";
+    /// <summary>{0} class group, {1} CP bracket: "Templars 100–150K CP".</summary>
+    public string AbyssLogsBracket { get; init; } = "{0} {1} CP";
+
+    public string AbyssLogsLine(Core.Ranking.AbyssLogsPercentile p, Core.Events.GameClass cls, string boss)
+    {
+        var group = string.Format(AbyssLogsClassGroup, ClassName(cls));
+        if (!p.Cell.AllPower) group = string.Format(AbyssLogsBracket, group, $"{Core.Format.Compact(p.Cell.BracketFloor)}–{Core.Format.Compact(p.Cell.BracketCeil)}");
+        return string.Format(p.AboveBest ? AbyssLogsAboveTemplate : AbyssLogsTemplate, p.Percentile, group, boss, Core.Format.Compact(p.Median));
+    }
     public string DataInfo { get; init; } = "Skill names: {0:#,0} · NPCs: {1:#,0} ({2:#,0} bosses) · DoT list: {3:#,0} · Maps: {4:#,0}\nTables come from GPL-3.0 projects (see data/NOTICE.md). skills.json / npcs.json in the data folder override them.";
     public string OpenDataFolder { get; init; } = "Open data folder";
     public string OpenAppFolder { get; init; } = "Open app folder";
@@ -1122,6 +1138,12 @@ public sealed class UiText
         UpdateNow = "Обновить",
         UpdateOpenPage = "Открыть страницу загрузки",
         UpdateLater = "Позже",
+        AbyssLogsSetting = "После убийства босса показывать место вашего DPS среди класса за неделю (Abyss Logs)",
+        AbyssLogsHint = "Запрашивает у api.abysslogs.com недельную статистику босса: отправляются только регион и босс, ничего о вас. Кэш 6 ч.",
+        AbyssLogsTemplate = "p{0} среди {1} · {2} · неделя · медиана {3}/s",
+        AbyssLogsAboveTemplate = "Выше всех {1} · {2} · неделя · медиана {3}/s",
+        AbyssLogsClassGroup = "«{0}»",
+        AbyssLogsBracket = "{0} {1} CP",
         UpdateSkip = "Пропустить эту версию",
         UpdateDownloading = "Скачивание установщика… {0:0}%",
         UpdateStarting = "Запуск установщика…",

@@ -49,9 +49,13 @@ public partial class BreakdownWindow : Window
     private bool _iconRefreshQueued;
 
     private readonly BossPortraits? _portraits;
+    private readonly Func<Guid, string?>? _fightNote; // A2M-38 Abyss Logs line by fight id
+    private int _noteWaits;
+    private Guid _fightId;
 
-    public BreakdownWindow(IFightView view, uint actorId, GameData data, SkillIcons icons, BossPortraits? portraits = null)
+    public BreakdownWindow(IFightView view, uint actorId, GameData data, SkillIcons icons, BossPortraits? portraits = null, Func<Guid, string?>? fightNote = null)
     {
+        _fightNote = fightNote;
         _view = view;
         _actor = actorId;
         _skillName = data.SkillName;
@@ -65,12 +69,14 @@ public partial class BreakdownWindow : Window
         _timer.Tick += (_, _) =>
         {
             if (_view.IsLive) Reload();
+            // the Abyss Logs line arrives a second or two after the kill: keep looking for up to 30 s
+            else if (_fightNote is not null && FightRank.Visibility != Visibility.Visible && ++_noteWaits <= 30) ShowRank(_fightNote(_fightId));
             else _timer.Stop();
         };
         Loaded += (_, _) =>
         {
             Reload();
-            if (_view.IsLive) _timer.Start();
+            if (_view.IsLive || _fightNote is not null) _timer.Start();
         };
         _icons.IconReady += OnIconReady;
         if (_portraits is not null) _portraits.PortraitReady += OnIconReady;
@@ -116,6 +122,12 @@ public partial class BreakdownWindow : Window
         Reload();
     }
 
+    private void ShowRank(string? rank)
+    {
+        FightRank.Text = rank ?? "";
+        FightRank.Visibility = rank is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     /// <summary>Fills the window without it being shown (offscreen render tool).</summary>
     public void ReloadNow() => Reload();
 
@@ -130,6 +142,8 @@ public partial class BreakdownWindow : Window
                          + (summary.MostDamageUnsent ? $"\n{T.DamageUnsentLine(summary)}" : "")
                          + (summary.Zone is { } z ? $"\n{z}" : "");
         FightMeta.ToolTip = summary.MostDamageUnsent ? T.DamageUnsentTip : null;
+        _fightId = summary.Id;
+        ShowRank(_fightNote?.Invoke(summary.Id));
 
         _syncingList = true;
         PartyList.ItemsSource = summary.Combatants
