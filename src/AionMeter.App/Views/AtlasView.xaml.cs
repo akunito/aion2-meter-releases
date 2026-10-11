@@ -376,15 +376,8 @@ public partial class AtlasView : UserControl
                 var level = pets.GetValueOrDefault(pet.Id, 0);
                 if (level >= 3 || pet.Souls.Length == 0) continue;   // no soul item = not farmable from monsters (shop/event pet)
                 below++;
-                // Diego 2026-10-10: word matching ("Spider", "Slime", "Swarm"...) painted mobs that drop nothing → only aion2hub droppers of the soul item.
-                // Pets with a soul but no hub drop data (Coradon, Young Tog…) fall back to the species as the LAST word(s) of the template name.
                 foreach (var t in _monsters)
-                {
-                    var hit = false;
-                    if (pet.Droppers.Length > 0) { for (var i = 0; i < pet.Droppers.Length && !hit; i++) hit = pet.Droppers[i].Equals(t.Name, StringComparison.OrdinalIgnoreCase); }
-                    else hit = t.Name.EndsWith(pet.Name, StringComparison.OrdinalIgnoreCase) && (t.Name.Length == pet.Name.Length || t.Name[t.Name.Length - pet.Name.Length - 1] == ' ');
-                    if (hit) _petLayer.Add((pet, level, t));
-                }
+                    if (Core.Atlas.MonsterSpawns.Drops(pet, t)) _petLayer.Add((pet, level, t));
             }
             PetsBox.ToolTip = string.Format(T.AtlasPetsTip, below, _petLayer.Select(x => x.Pet.Id).Distinct().Count());
             StaticLayer.InvalidateVisual();
@@ -677,7 +670,7 @@ public partial class AtlasView : UserControl
         var others = new System.Text.StringBuilder(); var n = 0;
         for (var i = 0; i < pet.Droppers.Length; i++)
         {
-            if (pet.Droppers[i].Equals(t.Name, StringComparison.OrdinalIgnoreCase)) continue;
+            if (pet.Droppers[i].Equals(t.Name, StringComparison.OrdinalIgnoreCase) || (i < pet.DropperIds.Length && t.HasId(pet.DropperIds[i]))) continue;
             if (n > 0) others.Append(", ");
             others.Append(pet.Droppers[i]);
             if (++n == 6) { others.Append('…'); break; }
