@@ -36,6 +36,9 @@ return args.FirstOrDefault() switch
     "market" when args.Length > 1 => Market(args[1]).GetAwaiter().GetResult(),
     "lag" when args.Length > 1 => Lag(args[1]),
     "leaderboard" => Leaderboard(args.Length > 1 ? args[1] : "eu", args.Length > 2 ? args[2] : null, args.Length > 3 ? args[3] : null).GetAwaiter().GetResult(),
+    "opcodes" when args.Length > 1 => OpcodeHistogram(args[1]),
+    "grep" when args.Length > 2 => Grep(args[1], args[2]),
+    "export" when args.Length > 2 => Export(args[1], args[2]),
     "hex" when args.Length > 2 => HexDump(args[1], Convert.ToUInt16(args[2], 16), args.Length > 3 ? int.Parse(args[3]) : 5),
     "update-check" => UpdateCheck(args.Skip(1).ToArray()),
     _ => Usage(),
@@ -53,6 +56,9 @@ int Usage()
         aionmeter-cli crits <file.pcap>             damage-type / modifier statistics per class (crit check)
         aionmeter-cli entities <file.pcap>          damage dealers that are not announced players, by spawn kind
         aionmeter-cli casts <file.pcap>             tie ownerless skill effects to the casts that made them
+        aionmeter-cli opcodes <file.pcap>           histogram: opcode, count, min/max/avg length, first seen, first 48 bytes of 3 packets
+        aionmeter-cli grep <file.pcap> <pattern>    packets holding hex bytes (aabbcc), a u32 (u32:14010000) or a u32 range (u32:310000-319999)
+        aionmeter-cli export <file.pcap> <out.gz>   every packet as "unixMs opcode hexbody" lines, gzip (offline analysis)
         aionmeter-cli update-check [--pretend 0.0.1] [--download <dir>]
                                                     what the meter's update check sees on GitHub; download + verify the installer
         """);
@@ -278,10 +284,10 @@ async Task<int> Inventory(string path)
     return 0;
 }
 
-// Broker pages in a recording: every listing with both prices, names from the item catalogue.
+// Black Cloud shop pages (91 56) in a recording: every offer with both prices, names from the item catalogue.
 async Task<int> Market(string path)
 {
-    var store = new AionMeter.Core.Market.BrokerStore(null);
+    var store = new AionMeter.Core.Market.ShopStore(null);
     var replay = new PcapReplaySource(data, path, realtime: false);
     replay.EventDecoded += store.OnEvent;
     replay.RunToEnd();
@@ -727,6 +733,86 @@ int FieldBosses(string path)
 }
 
 // Full bodies of one opcode (first N packets), 32 bytes per line.
+int OpcodeHistogram(string path)
+{
+    var stats = new Dictionary<ushort, (int N, int Min, int Max, long Sum, long First, List<string> Heads)>();
+    var replay = new PcapReplaySource(data, path, realtime: false);
+    replay.Pipeline.Parser.Tap = (t, op, body) =>
+    {
+        if (!stats.TryGetValue(op, out var s)) s = (0, int.MaxValue, 0, 0, t, new List<string>(3));
+        if (s.Heads.Count < 3) s.Heads.Add(Wire.Hex(body, 48));
+        stats[op] = (s.N + 1, Math.Min(s.Min, body.Length), Math.Max(s.Max, body.Length), s.Sum + body.Length, s.First, s.Heads);
+    };
+    replay.RunToEnd();
+    foreach (var (op, s) in stats.OrderByDescending(kv => kv.Value.N))
+    {
+        Console.WriteLine($"{op >> 8:x2} {op & 0xFF:x2} {Opcodes.Name(op),-12} n={s.N,7} len={s.Min}..{s.Max} avg={s.Sum / s.N} first={DateTimeOffset.FromUnixTimeMilliseconds(s.First).ToLocalTime():HH:mm:ss.fff}");
+        foreach (var h in s.Heads) Console.WriteLine($"      {h}");
+    }
+    return 0;
+}
+
+// Pattern: hex bytes, "u32:N" (little-endian u32) or "u32:A-B" (any aligned-or-not u32 in the range; first hit per packet printed with context).
+int Grep(string path, string pattern)
+{
+    byte[]? needle = null;
+    uint lo = 0, hi = 0;
+    if (pattern.StartsWith("u32:"))
+    {
+        var r = pattern[4..].Split('-');
+        lo = uint.Parse(r[0]);
+        hi = r.Length > 1 ? uint.Parse(r[1]) : lo;
+        if (lo == hi) needle = BitConverter.GetBytes(lo);
+    }
+    else needle = Wire.FromHex(pattern);
+    var replay = new PcapReplaySource(data, path, realtime: false);
+    var hits = 0;
+    replay.Pipeline.Parser.Tap = (t, op, body) =>
+    {
+        var at = -1;
+        if (needle is not null) at = body.IndexOf(needle);
+        else
+            for (var i = 0; i + 4 <= body.Length; i++)
+            {
+                var v = Wire.U32(body, i);
+                if (v >= lo && v <= hi) { at = i; break; }
+            }
+        if (at < 0) return;
+        hits++;
+        var from = Math.Max(0, at - 16);
+        Console.WriteLine($"{DateTimeOffset.FromUnixTimeMilliseconds(t).ToLocalTime():HH:mm:ss.fff} {op >> 8:x2} {op & 0xFF:x2} [{body.Length,5}] @{at}: {Wire.Hex(body[from..Math.Min(body.Length, at + 32)], 48)}");
+    };
+    replay.RunToEnd();
+    Console.WriteLine($"{hits} packets");
+    return 0;
+}
+
+int Export(string path, string outPath)
+{
+    using var file = File.Create(outPath);
+    using var gz = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionLevel.Fastest);
+    using var w = new StreamWriter(gz);
+    var n = 0;
+    replay(path);
+    void replay(string p)
+    {
+        var r = new PcapReplaySource(data, p, realtime: false);
+        r.Pipeline.Parser.Tap = (t, op, body) =>
+        {
+            if (op == Opcodes.Heartbeat) return;
+            n++;
+            w.Write(t);
+            w.Write(' ');
+            w.Write(op.ToString("x4"));
+            w.Write(' ');
+            w.WriteLine(Convert.ToHexString(body));
+        };
+        r.RunToEnd();
+    }
+    Console.WriteLine($"{n} packets -> {outPath}");
+    return 0;
+}
+
 int HexDump(string path, ushort opcode, int max)
 {
     var replay = new PcapReplaySource(data, path, realtime: false);

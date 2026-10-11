@@ -138,8 +138,27 @@ public sealed record PetListEvent(long TimeMs, int EquippedPet, IReadOnlyList<Ch
 public sealed record TitleListEvent(long TimeMs, IReadOnlyList<int> Titles) : GameEvent(TimeMs);
 public sealed record AchievementListEvent(long TimeMs, IReadOnlyList<Character.AchievementRow> Rows) : GameEvent(TimeMs);
 
-/// <summary>A page of the broker as the player browses it (10 listings).</summary>
-public sealed record BrokerPageEvent(long TimeMs, int Page, IReadOnlyList<Market.Listing> Listings) : GameEvent(TimeMs);
+/// <summary>A page of the Black Cloud random shop (<c>91 56</c>, 10 offers), not the player market: see <see cref="Protocol.Opcodes.ShopPage"/>.</summary>
+public sealed record ShopPageEvent(long TimeMs, int Page, IReadOnlyList<Market.Listing> Listings) : GameEvent(TimeMs);
+
+// Login lists of the local character (A2M-35, verified against the official profile in docs/27). None carries a character id:
+// they belong to whoever logs in next (CharacterState carries them over on Bind, like the pet/title lists).
+
+/// <summary>Open Daevanion nodes per board (<c>26 e2</c>); every board's start node (board×10000+113) is included, the official API leaves it closed.</summary>
+public sealed record DaevanionBoardsEvent(long TimeMs, IReadOnlyList<Character.DaevanionBoard> Boards) : GameEvent(TimeMs);
+
+/// <summary>Every learned skill (<c>00 51</c>): base ids and their chosen-spec variants (id + spec digits), level = base + bonus.</summary>
+public sealed record SkillListEvent(long TimeMs, IReadOnlyList<Character.LearnedSkill> Skills) : GameEvent(TimeMs);
+
+/// <summary>The equipped skills with the spec chosen in each slot (<c>00 39</c>); a stigma (Dp skill) has 5 slots, the rest 3.</summary>
+public sealed record EquippedSkillsEvent(long TimeMs, IReadOnlyList<Character.EquippedSkill> Skills) : GameEvent(TimeMs);
+
+/// <summary>The skill bar (<c>8c e2</c>): the filled keys of the three macro pages; page 1 is what the skill window shows.</summary>
+public sealed record SkillBarEvent(long TimeMs, IReadOnlyList<Character.BarKey> Keys) : GameEvent(TimeMs);
+
+/// <summary>The local character's full stat sheet (<c>49 36</c>, after every identity record): stat id → value. Ids 1–17 are the
+/// primary and deity attributes of the official profile (see <see cref="Character.CapturedProfile.StatTypes"/>).</summary>
+public sealed record AttributesEvent(long TimeMs, IReadOnlyDictionary<int, int> Stats) : GameEvent(TimeMs);
 
 /// <summary>Gathering on a node by any player in view: a start (<c>38 36</c>, <paramref name="Count"/> = 0) or a
 /// result (<c>3a 36</c>, <paramref name="Count"/> = units taken from the node so far, shared by all gatherers).</summary>

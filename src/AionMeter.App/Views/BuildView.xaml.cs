@@ -118,13 +118,13 @@ public partial class BuildView : UserControl
         {
             if (_sample) return;
             Reload();
-            _meter.CharacterChanged += OnCharacterChanged; _icons.Loaded += OnIcon;
+            _meter.CharacterChanged += OnCharacterChanged; _meter.ProfileChanged += OnCharacterChanged; _icons.Loaded += OnIcon;
         };
         Unloaded += (_, _) =>
         {
             if (_sample) return;
             FlushSave();
-            _meter.CharacterChanged -= OnCharacterChanged; _icons.Loaded -= OnIcon; _iconTick.Stop();
+            _meter.CharacterChanged -= OnCharacterChanged; _meter.ProfileChanged -= OnCharacterChanged; _icons.Loaded -= OnIcon; _iconTick.Stop();
         };
         // hidden tab: nothing redraws; coming back re-reads the store and the profile (a sync may have landed meanwhile)
         IsVisibleChanged += (_, e) =>

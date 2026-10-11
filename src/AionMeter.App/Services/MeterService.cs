@@ -144,8 +144,8 @@ public sealed class MeterService : IDisposable
     public DaevanionBook Daevanion { get; } = new(Path.Combine(DataDirectory, "gamedb", "daevanion"));
     /// <summary>The bound character's builds (characters/&lt;key&gt;/builds); a shared folder until a character is known.</summary>
     public BuildStore Builds { get; private set; } = new(Path.Combine(AppSettings.AppDataDir, "builds"));
-    /// <summary>Every broker page the player browses, as a growing price history (private branch).</summary>
-    public BrokerStore Broker { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "market.json"));
+    /// <summary>Black Cloud shop offers (91 56; was "broker"/state/market.json until A2M-35 showed it is not the player market).</summary>
+    public ShopStore Shop { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "shop.json"));
     /// <summary>Items to buy below a price: aion2.exchange read once an hour per item (private branch).</summary>
     public PriceWatchStore Prices { get; } = new(Path.Combine(AppSettings.AppDataDir, "state", "price-watch.json"));
     private readonly System.Collections.Concurrent.ConcurrentQueue<PriceWatch> _priceHits = new();
@@ -394,7 +394,7 @@ public sealed class MeterService : IDisposable
         if (Prices.Due(now)) _ = PollPricesAsync(now);
         if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
         // The player state on disk is what the AI side reads: a few seconds behind the packets at most, plus a summary with the ages.
-        if (now - _lastStateSave > 5_000) { _lastStateSave = now; Inventory.Save(); AbsorbAccountWarehouse(); Character.Save(); Broker.Save(); WriteSummary(); }
+        if (now - _lastStateSave > 5_000) { _lastStateSave = now; Inventory.Save(); AbsorbAccountWarehouse(); Character.Save(); Shop.Save(); WriteSummary(); }
         if (now - _lastNamesCheck < 5_000) return;
         _lastNamesCheck = now;
         SaveNames();
@@ -425,6 +425,8 @@ public sealed class MeterService : IDisposable
     public event Action? ViewInventoryChanged;
     /// <summary>The bound or the viewed character changed (login, or a pick in the selector): tabs re-read their stores.</summary>
     public event Action? CharacterChanged;
+    /// <summary>A login sent new skills or Daevanion nodes (A2M-35): <see cref="CurrentProfile"/> may have moved.</summary>
+    public event Action? ProfileChanged;
     public List<string> CharacterKeys()
     {
         var dir = Path.Combine(AppSettings.AppDataDir, "characters");
@@ -554,7 +556,19 @@ public sealed class MeterService : IDisposable
 
     private long _lastProfileSync;
     private int _profileSyncing;
-    private (string Path, DateTime Stamp, CharacterProfile? Profile) _profileCache = ("", default, null);
+    private (string Path, DateTime Stamp, CharacterProfile? Profile, CapturedProfile? Captured) _profileCache = ("", default, null, null);
+    private (string Path, DateTime Stamp, CapturedProfile Captured) _capturedCache = ("", default, CapturedProfile.Empty);
+
+    /// <summary>The captured login lists in another character's character.json, re-read only when the file changes.</summary>
+    private CapturedProfile CapturedFor(string key)
+    {
+        var path = Path.Combine(AppSettings.AppDataDir, "characters", key, "character.json");
+        var stamp = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : default;
+        if (_capturedCache.Path == path && _capturedCache.Stamp == stamp) return _capturedCache.Captured;
+        var c = stamp == default ? CapturedProfile.Empty : CharacterState.ReadCaptured(path);
+        _capturedCache = (path, stamp, c);
+        return c;
+    }
 
     /// <summary>
     /// The viewed character's official profile as last synced (characters/&lt;key&gt;/profile.json, re-read only when the file changes),
@@ -571,11 +585,16 @@ public sealed class MeterService : IDisposable
             try
             {
                 var stamp = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : default;
-                if (_profileCache.Path == path && _profileCache.Stamp == stamp && (stamp != default || _profileCache.Profile is not null)) return _profileCache.Profile;
+                // A2M-35: what the game sent at the last login wins over the official cache when newer (live store for the bound
+                // character, its character.json for another one); the API stays the base (names, gear, nodes' effects) and fallback.
+                var captured = live ? Character.Captured : CapturedFor(key);
+                if (_profileCache.Path == path && _profileCache.Stamp == stamp && ReferenceEquals(_profileCache.Captured, captured)
+                    && (stamp != default || _profileCache.Profile is not null)) return _profileCache.Profile;
                 var p = stamp != default ? System.Text.Json.JsonSerializer.Deserialize<CharacterProfile>(File.ReadAllText(path))
                       : live && Tracker.SelfName is { Length: > 0 } n && Tracker.SelfServerId > 0 ? Armory.Cached(n, Tracker.SelfServerId) : null;
-                _profileCache = (path, stamp, p);
-                return p;
+                var merged = p is null ? null : captured.Apply(p);
+                _profileCache = (path, stamp, merged, captured);
+                return merged;
             }
             catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { return null; }
         }
@@ -594,9 +613,10 @@ public sealed class MeterService : IDisposable
     }
 
     /// <summary>
-    /// Daevanion boards, skills with levels and stigmas never travel on the wire (client data), so they come from the official
-    /// character API: fetched when a character logs in and again every 6 h while playing, into characters/&lt;key&gt;/profile.json
-    /// (+ profile.txt, the same text as the Top DPS profile panel). The site itself lags the game by an unknown delay.
+    /// The official character API: fetched when a character logs in and again every 6 h while playing, into
+    /// characters/&lt;key&gt;/profile.json (+ profile.txt, the same text as the Top DPS profile panel). The site lags the game by an
+    /// unknown delay; since A2M-35 skills, specs, bar, Daevanion nodes and attributes also come from the login packets
+    /// (CharacterState.Captured) and <see cref="CurrentProfile"/> lays them over this file when newer.
     /// </summary>
     private async Task<bool> SyncProfileAsync(string key, string name, int server, bool force = false)
     {
@@ -738,7 +758,7 @@ public sealed class MeterService : IDisposable
         var invAge = Inventory.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Inventory.UpdatedMs).ToLocalTime().ToString("O")
                    : File.Exists(invPath) ? new DateTimeOffset(File.GetLastWriteTime(invPath)).ToString("O") : null;
         var chrAge = Character.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.UpdatedMs).ToLocalTime().ToString("O") : null;
-        var key = $"{_boundKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
+        var key = $"{_boundKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Shop.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
         if (key == _lastSummary) return;
         _lastSummary = key;
         WriteCraftable();
@@ -755,10 +775,11 @@ public sealed class MeterService : IDisposable
             characters = CharacterFolders(),
             currencies = Currencies(),
             inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
-            character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count },
-            broker = new { listings = Broker.Count },
+            character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count,
+                capturedAt = Character.Captured.LatestMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.Captured.LatestMs).ToLocalTime().ToString("O") : null },
+            shop = new { offers = Shop.Count },
             prices = new { lastPollAt = Prices.LastPollAt?.ToString("O"), watches = Prices.Count },
-            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json", "characters/<key>/titles.json (owned titles + bonuses, collection totals, missing same-faction titles with how to get them)", "characters/<key>/profile.json (official API: gear, skills+levels, stigmas, daevanion boards; profile.txt readable)", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/market.json", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
+            files = new[] { "characters/<key>/inventory.json", "characters/<key>/character.json (login lists: pets, titles, achievements; Captured = skills, specs, skill bar, daevanion nodes, attributes from the game)", "characters/<key>/titles.json (owned titles + bonuses, collection totals, missing same-faction titles with how to get them)", "characters/<key>/profile.json (official API: gear, skills+levels, stigmas, daevanion boards; profile.txt readable)", "inventory.json (mirror of the current character)", "state/character.json (mirror)", "state/shop.json (Black Cloud shop offers, 91 56)", "state/price-watch.json", "state/price-watch.json.history.jsonl", "names-cache.json" },
         };
         try
         {
@@ -839,8 +860,15 @@ public sealed class MeterService : IDisposable
 
     private void InventoryOnEvent(Core.Events.GameEvent e)
     {
-        if (e is Core.Events.PetListEvent or Core.Events.TitleListEvent or Core.Events.AchievementListEvent) { try { Character.OnEvent(e); } catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Character state failed", ex); } return; }
-        if (e is Core.Events.BrokerPageEvent) { try { Broker.OnEvent(e); } catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Broker store failed", ex); } return; }
+        if (e is Core.Events.PetListEvent or Core.Events.TitleListEvent or Core.Events.AchievementListEvent or Core.Events.SkillListEvent
+            or Core.Events.EquippedSkillsEvent or Core.Events.SkillBarEvent or Core.Events.DaevanionBoardsEvent or Core.Events.AttributesEvent)
+        {
+            try { Character.OnEvent(e); } catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Character state failed", ex); }
+            // a relog into the same character binds nothing new, so CharacterChanged would not tell the Build tab
+            if (e is Core.Events.SkillListEvent or Core.Events.DaevanionBoardsEvent) ProfileChanged?.Invoke();
+            return;
+        }
+        if (e is Core.Events.ShopPageEvent) { try { Shop.OnEvent(e); } catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Shop store failed", ex); } return; }
         if (e is not Core.Events.InventoryEvent) return;
         try { Inventory.OnEvent(e); }
         catch (Exception ex) when (ex is not OutOfMemoryException)

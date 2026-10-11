@@ -50,7 +50,16 @@ public static class Opcodes
     public const ushort PetList = 0x0090;         // equipped pet u32, count varint, {pet id u32, pet id u32, level u32} × count (124 pets); more data follows
     public const ushort TitleList = 0x7956;       // count varint, title id u32 × count (182; ids = aion2hub titles, 12010061 = Through Hell and Back)
     public const ushort AchievementList = 0x8356; // u16, then {id u32, state u32, completed u64 ms, 00} rows (1512) before another section
-    public const ushort BrokerPage = 0x9156;      // one broker (Mercado) page: u16 list id, u32, then 10 × {item u32, qty u32, u32 0, level u8, 5d, price u64, current u64, u32}
+    // 91 56 is the Black Cloud random shop (usmap RandomShopInfo_NT, SkeeveAN), not the player market: every pet on a page costs exactly
+    // 100,000 and the "level" is a 10/20/30/50 % discount tier (fixtures of 2026-10-08). The player market never crosses port 13328 (HTTPS
+    // NcMarketPlaceAPI, docs/23 dimkk), so there is no market opcode to decode (docs/27).
+    public const ushort ShopPage = 0x9156;        // one shop page: u16 list id, u32, then 10 × {item u32, qty u32, u32 0, discount tier u8, 5d, price u64, current u64, u32}
+    // Login lists (A2M-35, docs/27): sent at character select, before the identity record; verified against the official profile.
+    public const ushort DaevanionBoards = 0x26E2; // board count u8, {board u32, node count u8, node u32 × count} × boards; exact length
+    public const ushort SkillList = 0x0051;       // MySkillList_NT: count varint, {mask u8, id u32, level u8, base u8, bonus u8 × 5, [mask&1 cooldown varint], 3 × 00, [mask&2 varint], [mask&4 u8], [mask&8 varint]}
+    public const ushort EquippedSkills = 0x0039;  // count u8, {skill u32, slot count u8 (3, stigma 5), {slot u8, spec id u32} × slots}
+    public const ushort SkillBar = 0x8CE2;        // 189-byte key block, count u8 (36), {03 page slot main u32 04 u32×4 | 02 page slot 04 u32×4} × count, 131-byte tail
+    public const ushort Attributes = 0x4936;      // 00 00, count varint, {stat u16, value i32} × count, 8 bytes; after every 33 36
 
     public static string Name(ushort op) => op switch
     {
@@ -67,7 +76,12 @@ public static class Opcodes
         PetList => "Pets",
         TitleList => "Titles",
         AchievementList => "Achievements",
-        BrokerPage => "Broker",
+        ShopPage => "Shop",
+        DaevanionBoards => "Daevanion",
+        SkillList => "Skills",
+        EquippedSkills => "SkillSpecs",
+        SkillBar => "SkillBar",
+        Attributes => "Attributes",
         InventoryUpdate => "InventoryUpd",
         Damage => "Damage",
         Dot => "Dot",

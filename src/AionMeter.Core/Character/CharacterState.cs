@@ -8,7 +8,9 @@ public sealed record AchievementRow(int Id, int State, long CompletedMs);
 
 /// <summary>
 /// The local character's collections as the server lists them at login (EU, 2026-10-08): pets with levels (<c>00 90</c>),
-/// owned titles (<c>79 56</c>) and the achievement/collection rows (<c>83 56</c>). Saved as one JSON so the AI side can read it.
+/// owned titles (<c>79 56</c>) and the achievement/collection rows (<c>83 56</c>), plus (A2M-35) the build lists — skills
+/// (<c>00 51</c>), equipped specs (<c>00 39</c>), skill bar (<c>8c e2</c>), Daevanion nodes (<c>26 e2</c>) — and the stat sheet
+/// (<c>49 36</c>) as <see cref="Captured"/>. Saved as one JSON so the AI side can read it.
 /// </summary>
 public sealed class CharacterState
 {
@@ -31,11 +33,14 @@ public sealed class CharacterState
     public HashSet<int> Titles { get; private set; } = new();
     public Dictionary<int, AchievementRow> Achievements { get; private set; } = new();
     public long UpdatedMs { get; private set; }
+    /// <summary>The build lists of the last login and the latest stat sheet, each with its packet time.</summary>
+    public CapturedProfile Captured { get; private set; } = CapturedProfile.Empty;
 
     public void OnEvent(GameEvent e)
     {
         lock (_gate)
         {
+            var loginList = true;
             switch (e)
             {
                 case PetListEvent p:
@@ -48,11 +53,33 @@ public sealed class CharacterState
                 case AchievementListEvent a:
                     Achievements = a.Rows.ToDictionary(r => r.Id, r => r);
                     break;
+                case SkillListEvent s:
+                    Captured = Captured with { SkillsMs = s.TimeMs, Skills = s.Skills.ToList() };
+                    break;
+                case EquippedSkillsEvent q:
+                    Captured = Captured with { EquippedMs = q.TimeMs, Equipped = q.Skills.ToList() };
+                    break;
+                case SkillBarEvent k:
+                    Captured = Captured with { BarMs = k.TimeMs, Bar = k.Keys.ToList() };
+                    break;
+                case DaevanionBoardsEvent d:
+                    Captured = Captured with { DaevanionMs = d.TimeMs, Boards = d.Boards.ToList() };
+                    break;
+                case AttributesEvent at:
+                    // Sent after every identity record (each zone load), always about the character already bound: it neither
+                    // bumps UpdatedMs (titles/summary refresh on that) nor counts as a pending login list (it would carry the old
+                    // character's lists over to the next one on a switch within 60 s).
+                    Captured = Captured with { AttributesMs = at.TimeMs, Attributes = new Dictionary<int, int>(at.Stats) };
+                    loginList = false;
+                    break;
                 default:
                     return;
             }
-            UpdatedMs = e.TimeMs;
-            _lastListMs = Environment.TickCount64;
+            if (loginList)
+            {
+                UpdatedMs = e.TimeMs;
+                _lastListMs = Environment.TickCount64;
+            }
             _dirty = true;
         }
         Changed?.Invoke();
@@ -70,14 +97,27 @@ public sealed class CharacterState
         lock (_gate)
         {
             _path = path; _mirror = mirror;
-            if (keep) _dirty = true;
-            else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); UpdatedMs = 0; Load(); _dirty = true; }
+            // the stat sheet in memory is the previous character's (49 36 always follows the identity record, the new one comes next)
+            if (keep) { _dirty = true; Captured = Captured with { AttributesMs = 0, Attributes = new() }; }
+            else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); UpdatedMs = 0; Captured = CapturedProfile.Empty; Load(); _dirty = true; }
         }
         Save();
         Changed?.Invoke();
     }
 
-    private sealed record Snapshot(int EquippedPet, Dictionary<int, int> Pets, List<int> Titles, List<AchievementRow> Achievements, long UpdatedMs);
+    private sealed record Snapshot(int EquippedPet, Dictionary<int, int> Pets, List<int> Titles, List<AchievementRow> Achievements, long UpdatedMs,
+        CapturedProfile? Captured = null);
+
+    /// <summary>The captured part of a character.json (another character's file, for the selector view); Empty when missing.</summary>
+    public static CapturedProfile ReadCaptured(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return CapturedProfile.Empty;
+            return JsonSerializer.Deserialize<Snapshot>(File.ReadAllText(path), Json)?.Captured ?? CapturedProfile.Empty;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return CapturedProfile.Empty; }
+    }
 
     private void Load()
     {
@@ -87,6 +127,7 @@ public sealed class CharacterState
             var s = JsonSerializer.Deserialize<Snapshot>(File.ReadAllText(_path), Json);
             if (s is null) return;
             EquippedPet = s.EquippedPet; Pets = s.Pets; Titles = new HashSet<int>(s.Titles); Achievements = s.Achievements.ToDictionary(r => r.Id, r => r); UpdatedMs = s.UpdatedMs;
+            Captured = s.Captured ?? CapturedProfile.Empty;
         }
         catch (Exception ex) when (ex is IOException or JsonException) { }
     }
@@ -101,7 +142,7 @@ public sealed class CharacterState
         lock (_gate)
         {
             if (!_dirty) return;
-            text = JsonSerializer.Serialize(new Snapshot(EquippedPet, Pets, Titles.ToList(), Achievements.Values.ToList(), UpdatedMs), Json);
+            text = JsonSerializer.Serialize(new Snapshot(EquippedPet, Pets, Titles.ToList(), Achievements.Values.ToList(), UpdatedMs, Captured), Json);
             _dirty = false;
         }
         try

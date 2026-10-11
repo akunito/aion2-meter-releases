@@ -22,13 +22,13 @@ public class RegressionTests
         Assert.True(File.Exists(Pcap), Pcap);
         var inventory = new InventoryStore(null);
         var character = new CharacterState(null);
-        var broker = new BrokerStore(null);
+        var shop = new ShopStore(null);
         var counts = new Dictionary<string, int>();
         var replay = new PcapReplaySource(GameData.Empty, Pcap, realtime: false);
         replay.EventDecoded += e =>
         {
             counts[e.GetType().Name] = counts.GetValueOrDefault(e.GetType().Name) + 1;
-            inventory.OnEvent(e); character.OnEvent(e); broker.OnEvent(e);
+            inventory.OnEvent(e); character.OnEvent(e); shop.OnEvent(e);
         };
         replay.RunToEnd();
 
@@ -48,6 +48,20 @@ public class RegressionTests
         Assert.InRange(character.Pets.Count, 120, 130);
         Assert.InRange(character.Titles.Count, 180, 190);
         Assert.Equal(1512, character.Achievements.Count);
+
+        // A2M-35 build lists (docs/27): the same values as the official profile of that evening
+        var cap = character.Captured;
+        Assert.Equal(67, cap.Skills.Count);
+        var levels = cap.LevelsByBase();
+        Assert.Equal(14, levels[12240000]);                                   // Judgment lv14 (+4)
+        Assert.Equal(13, levels[12010000]);                                   // Vicious Strike lv13 (+3)
+        Assert.Equal(16, cap.Equipped.Count);
+        Assert.Equal(4, cap.Equipped.Count(e => e.IsStigma));
+        Assert.Equal(15, cap.Bar.Where(k => k.Page == 1).SelectMany(k => k.Skills).Distinct().Count());
+        Assert.Equal([50, 52, 47, 44, 1], cap.Boards.Select(b => b.Nodes.Length));
+        Assert.Equal((25, 46), (cap.Attributes[1], cap.Attributes[2]));       // Might, Dexterity
+        Assert.Equal(1, counts.GetValueOrDefault("SkillListEvent"));
+        Assert.Equal(1, counts.GetValueOrDefault("DaevanionBoardsEvent"));
 
         // movement and identity keep flowing
         Assert.True(counts.GetValueOrDefault("PositionEvent") > 100, $"positions {counts.GetValueOrDefault("PositionEvent")}");

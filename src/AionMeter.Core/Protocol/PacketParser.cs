@@ -70,8 +70,30 @@ public sealed class PacketParser
             case Opcodes.AchievementList:
                 ParseAchievementList(body);
                 break;
-            case Opcodes.BrokerPage:
-                ParseBrokerPage(body);
+            case Opcodes.ShopPage:
+                ParseShopPage(body);
+                break;
+            // A2M-35 login lists. They went through the default scans before; they still do, so the identity/roster
+            // results of a replay stay what they were.
+            case Opcodes.DaevanionBoards:
+                ParseDaevanionBoards(body);
+                ScanDefault(body);
+                break;
+            case Opcodes.SkillList:
+                ParseSkillList(body);
+                ScanDefault(body);
+                break;
+            case Opcodes.EquippedSkills:
+                ParseEquippedSkills(body);
+                ScanDefault(body);
+                break;
+            case Opcodes.SkillBar:
+                ParseSkillBar(body);
+                ScanDefault(body);
+                break;
+            case Opcodes.Attributes:
+                ParseAttributes(body);
+                ScanDefault(body);
                 break;
             case Opcodes.HitNotice:
                 ParseHitNotice(body);
@@ -142,16 +164,19 @@ public sealed class PacketParser
                 ParseBattleToggle(body);
                 break;
             default:
-                // Identity records also ride inside other packets: mid-packet, and inside LZ4 bundles embedded in a
-                // larger packet (the self record repeats that way every few minutes after a zone load).
-                if (body.Length >= 16)
-                {
-                    ScanForIdentities(body);
-                    ScanForRoster(body);
-                    ScanEmbeddedBundles(body);
-                }
+                ScanDefault(body);
                 break;
         }
+    }
+
+    /// <summary>Identity records also ride inside other packets: mid-packet, and inside LZ4 bundles embedded in a larger packet
+    /// (the self record repeats that way every few minutes after a zone load).</summary>
+    private void ScanDefault(ReadOnlySpan<byte> body)
+    {
+        if (body.Length < 16) return;
+        ScanForIdentities(body);
+        ScanForRoster(body);
+        ScanEmbeddedBundles(body);
     }
 
     private void ScanEmbeddedBundles(ReadOnlySpan<byte> b)
@@ -477,13 +502,150 @@ public sealed class PacketParser
         if (rows.Count > 0) Emit(new AchievementListEvent(TimeMs, rows));
     }
 
-    // ------------------------------------------------------------------ broker (91 56)
+    // ------------------------------------------------------------------ login lists (26 e2, 00 51, 00 39, 8c e2, 49 36) — A2M-35, docs/27
+
+    /// <summary><c>count u8, {board u32, n u8, node u32 × n} × count</c>, consumed exactly; every node id must belong to its board.</summary>
+    private void ParseDaevanionBoards(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 6) return;
+        int count = b[0];
+        if (count is < 1 or > 16) return;
+        var boards = new List<Character.DaevanionBoard>(count);
+        var o = 1;
+        for (var i = 0; i < count; i++)
+        {
+            if (o + 5 > b.Length) return;
+            var board = (int)Wire.U32(b, o);
+            int n = b[o + 4];
+            o += 5;
+            if (board is < 10 or > 99 || o + n * 4 > b.Length) return;
+            var nodes = new int[n];
+            for (var k = 0; k < n; k++, o += 4)
+            {
+                var id = (int)Wire.U32(b, o);
+                if (id / 10_000 != board) return;
+                nodes[k] = id;
+            }
+            boards.Add(new Character.DaevanionBoard(board, nodes));
+        }
+        if (o == b.Length) Emit(new DaevanionBoardsEvent(TimeMs, boards));
+    }
 
     /// <summary>
-    /// Listings are found by shape (the gap between them varies by 1–2 bytes): <c>item u32 (9 digits), qty u32, u32 0, level u8 ≤ 3,
+    /// MySkillList_NT (layout from Waffle meter, MIT): <c>count varint, {mask u8, id u32, level u8, base u8, bonus u8 × 5,
+    /// [mask&amp;1: cooldown varint], 00 00 00, [mask&amp;2: varint], [mask&amp;4: u8], [mask&amp;8: varint]}</c>. Every record checks itself
+    /// (level = base + Σ bonus) and the frame must be consumed exactly: 7/7 logins of 2026-10-09…11. One bad record drops the frame.
+    /// </summary>
+    private void ParseSkillList(ReadOnlySpan<byte> b)
+    {
+        var o = 0;
+        if (!Wire.TryVarint(b, ref o, out var count) || count is 0 or > 512) return;
+        var skills = new List<Character.LearnedSkill>((int)count);
+        for (var i = 0; i < count; i++)
+        {
+            if (o + 15 > b.Length) return;
+            var mask = b[o];
+            var id = (int)Wire.U32(b, o + 1);
+            int level = b[o + 5], baseLevel = b[o + 6];
+            var bonus = b[o + 7] + b[o + 8] + b[o + 9] + b[o + 10] + b[o + 11];
+            o += 12;
+            if (level != baseLevel + bonus || (mask & 0xF0) != 0) return;
+            if ((mask & 1) != 0 && !Wire.TryVarint(b, ref o, out _)) return;
+            if (o + 3 > b.Length) return;
+            o += 3;
+            if ((mask & 2) != 0 && !Wire.TryVarint(b, ref o, out _)) return;
+            if ((mask & 4) != 0 && !Wire.TryU8(b, ref o, out _)) return;
+            if ((mask & 8) != 0 && !Wire.TryVarint(b, ref o, out _)) return;
+            skills.Add(new Character.LearnedSkill(id, level, baseLevel));
+        }
+        if (o == b.Length) Emit(new SkillListEvent(TimeMs, skills));
+    }
+
+    /// <summary><c>count u8, {skill u32 (…0000), slots u8, {slot u8 = 1…slots, spec u32 (0 or a spec of that skill)} × slots}</c>, exact.</summary>
+    private void ParseEquippedSkills(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 6) return;
+        int count = b[0];
+        if (count is < 1 or > 64) return;
+        var list = new List<Character.EquippedSkill>(count);
+        var o = 1;
+        for (var i = 0; i < count; i++)
+        {
+            if (o + 5 > b.Length) return;
+            var skill = (int)Wire.U32(b, o);
+            int slots = b[o + 4];
+            o += 5;
+            if (skill < 10_000_000 || skill % 10_000 != 0 || slots is < 1 or > 8 || o + slots * 5 > b.Length) return;
+            var specs = new int[slots];
+            for (var k = 0; k < slots; k++, o += 5)
+            {
+                var spec = (int)Wire.U32(b, o + 1);
+                if (b[o] != k + 1 || (spec != 0 && spec / 10_000 != skill / 10_000)) return;
+                specs[k] = spec;
+            }
+            list.Add(new Character.EquippedSkill(skill, specs));
+        }
+        if (o == b.Length) Emit(new EquippedSkillsEvent(TimeMs, list));
+    }
+
+    /// <summary>
+    /// The key records follow a 189-byte block (key bindings / timers, not decoded): <c>count u8, then 03 page slot main u32 04 id u32 × 4
+    /// (filled key) or 02 page slot 04 u32 × 4 (empty)</c>. The block is found by its shape (first record = page 1 slot 0) rather than by
+    /// offset; ids on a filled key are the main skill then up to three more sharing that key (0 = none).
+    /// </summary>
+    private void ParseSkillBar(ReadOnlySpan<byte> b)
+    {
+        for (var k = 1; k + 4 < b.Length; k++)
+        {
+            int count = b[k];
+            if (count is < 4 or > 120 || b[k + 1] is not (2 or 3) || b[k + 2] != 1 || b[k + 3] != 0) continue;
+            var keys = new List<Character.BarKey>();
+            var o = k + 1;
+            var ok = true;
+            for (var i = 0; i < count && ok; i++)
+            {
+                if (o + 20 > b.Length) { ok = false; break; }
+                int type = b[o], page = b[o + 1], slot = b[o + 2];
+                if (page is < 1 or > 3) { ok = false; break; }
+                if (type == 3)
+                {
+                    if (o + 24 > b.Length || b[o + 7] != 4) { ok = false; break; }
+                    var main = (int)Wire.U32(b, o + 3);
+                    if (main < 1_000_000) { ok = false; break; }
+                    var ids = new List<int>(4) { main };
+                    for (var j = 0; j < 4; j++)
+                    {
+                        var id = (int)Wire.U32(b, o + 8 + j * 4);
+                        if (id != 0 && id != main) ids.Add(id);
+                    }
+                    keys.Add(new Character.BarKey(page, slot, ids.ToArray()));
+                    o += 24;
+                }
+                else if (type == 2 && b[o + 3] == 4) o += 20;
+                else ok = false;
+            }
+            if (ok) { Emit(new SkillBarEvent(TimeMs, keys)); return; }
+        }
+    }
+
+    /// <summary>StatSheetFull (Waffle): <c>00 00, count varint, {stat u16, value i32} × count, 8 bytes</c>, consumed exactly.</summary>
+    private void ParseAttributes(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 11 || b[0] != 0 || b[1] != 0) return;
+        var o = 2;
+        if (!Wire.TryVarint(b, ref o, out var count) || count is 0 or > 1024 || o + count * 6 + 8 != b.Length) return;
+        var stats = new Dictionary<int, int>((int)count);
+        for (var i = 0; i < count; i++, o += 6) stats[Wire.U16(b, o)] = BinaryPrimitives.ReadInt32LittleEndian(b[(o + 2)..]);
+        Emit(new AttributesEvent(TimeMs, stats));
+    }
+
+    // ------------------------------------------------------------------ Black Cloud shop (91 56)
+
+    /// <summary>
+    /// Offers are found by shape (the gap between them varies by 1–2 bytes): <c>item u32 (9 digits), qty u32, u32 0, level u8 ≤ 3,
     /// 5d, price u64, current u64</c> where current = price × 0.9/0.8/0.7/0.5 by level. Measured 2026-10-08 on three pages (30 listings).
     /// </summary>
-    private void ParseBrokerPage(ReadOnlySpan<byte> b)
+    private void ParseShopPage(ReadOnlySpan<byte> b)
     {
         if (b.Length < 36) return;
         var page = BitConverter.ToUInt16(b);
@@ -506,7 +668,7 @@ public sealed class PacketParser
             }
             o++;
         }
-        if (list.Count > 0) Emit(new BrokerPageEvent(TimeMs, page, list));
+        if (list.Count > 0) Emit(new ShopPageEvent(TimeMs, page, list));
     }
 
     // ------------------------------------------------------------------ hit notices (03 38)
