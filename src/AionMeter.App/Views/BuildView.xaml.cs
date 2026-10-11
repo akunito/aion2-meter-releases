@@ -12,6 +12,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using AionMeter.App.Controls;
 using AionMeter.App.Services;
+using AionMeter.App.Windows;
 using AionMeter.Core.Armory;
 using AionMeter.Core.Builds;
 
@@ -21,6 +22,7 @@ namespace AionMeter.App.Views;
 /// Build tab (A2M-21): the character's skill build in questlog's planner look — class skill library, 12×4 key bar, detail panel with
 /// level and specs, priority chains, macros — against the official profile (current level badge per icon, Missing summary). Edits
 /// are local and saved 500 ms after the last one through <see cref="BuildStore"/>. The Daevanion sub-tab is a placeholder (phase 4).
+/// Phase 3: questlog import (link, search dialog, suggestions card when no build is active), "Copy for questlog", build telemetry.
 /// </summary>
 public partial class BuildView : UserControl
 {
@@ -33,6 +35,8 @@ public partial class BuildView : UserControl
         CmpBack = SkillTile.Frozen(0x1F, 0x1F, 0x1F), Gt = SkillTile.Frozen(0x55, 0x55, 0x55), AddLine = SkillTile.Frozen(0x44, 0x44, 0x44), AddText = SkillTile.Frozen(0x88, 0x88, 0x88),
         Chip = SkillTile.Frozen(0x2B, 0x2B, 0x2B), White = SkillTile.Frozen(0xFF, 0xFF, 0xFF);
     private static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    /// <summary>The level slider spans 1..20 as questlog's planner does; it reaches further only for a build level above 20, never past the catalogue max.</summary>
+    public const int SliderMax = 20;
 
     private sealed class SkillVm(SkillInfo info)
     {
@@ -52,7 +56,9 @@ public partial class BuildView : UserControl
     private Build? _build;                       // what is shown; edits replace it and the save follows 500 ms later
     private CharacterProfile? _profile;
     private string _classId = "", _vmClass = "", _lang;
-    private bool _sample, _dirty, _syncing, _stale, _showDone, _descOpen;
+    private bool _sample, _dirty, _syncing, _stale, _showDone, _descOpen, _importing;
+    private string _suggestFor = "";            // class whose suggestions the card shows (or is loading)
+    private List<BuildSummary>? _sampleSuggestions;
     private int _selected, _key;
     private readonly Dictionary<int, SkillVm> _vms = new();
     private readonly Dictionary<int, SkillProgress> _prog = new();
@@ -125,6 +131,16 @@ public partial class BuildView : UserControl
         Render();
     }
 
+    /// <summary>Offscreen render (SampleRenderer "build --tab suggest"): no active build, these suggestions in the card.</summary>
+    public void ShowSampleSuggestions(CharacterProfile? profile, List<BuildSummary> suggestions)
+    {
+        _sample = true;
+        _build = null; _profile = profile; _selected = 0;
+        _sampleSuggestions = suggestions;
+        FillPicker([], null);
+        Render();
+    }
+
     /// <summary>Re-draws from the current state (the render tool calls it around its layout pass).</summary>
     public void RenderNow() => Render();
 
@@ -172,6 +188,7 @@ public partial class BuildView : UserControl
             BuildBox.ItemsSource = items;
             BuildBox.SelectedItem = sel;
             DeleteBuild.Visibility = _build is null || _sample ? Visibility.Collapsed : Visibility.Visible;
+            CopyQuestlog.Visibility = _build is null ? Visibility.Collapsed : Visibility.Visible;
         }
         finally { _syncing = false; }
     }
@@ -189,6 +206,7 @@ public partial class BuildView : UserControl
             if (_store.ActiveId != saved.Id) _store.ActiveId = saved.Id;
             if (isNew) FillPicker(_store.List(), saved.Id);
             RenderSaved();
+            QueueTelemetry(saved);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -266,6 +284,7 @@ public partial class BuildView : UserControl
         NoClassText.Visibility = library.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         _tiles.Clear();
+        RenderSuggestions();
         RenderHeader(progress);
         RenderLibrary(library);
         RenderBar();
@@ -433,14 +452,15 @@ public partial class BuildView : UserControl
         LevelBlock.Visibility = LevelSlider.Visibility = Ticks.Visibility = inBuild;
         LevelValue.Text = level.ToString(CultureInfo.InvariantCulture);
         _syncing = true;
-        LevelSlider.Maximum = info.MaxLevel;
+        var max = Math.Min(info.MaxLevel, Math.Max(SliderMax, level));
+        LevelSlider.Maximum = max;
         LevelSlider.Value = level;
         _syncing = false;
-        if (_ticks.Length != info.MaxLevel)
+        if (_ticks.Length != max)
         {
             Ticks.Children.Clear();
-            Ticks.Columns = info.MaxLevel;
-            _ticks = new TextBlock[info.MaxLevel];
+            Ticks.Columns = max;
+            _ticks = new TextBlock[max];
             for (var i = 0; i < _ticks.Length; i++)
                 Ticks.Children.Add(_ticks[i] = new TextBlock { Text = (i + 1).ToString(CultureInfo.InvariantCulture), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center });
         }
@@ -928,7 +948,7 @@ public partial class BuildView : UserControl
         _store.ActiveId = id.Length > 0 ? id : null;
         _build = id.Length > 0 ? _store.Load(id) : null;
         _selected = 0;
-        DeleteBuild.Visibility = _build is null ? Visibility.Collapsed : Visibility.Visible;
+        DeleteBuild.Visibility = CopyQuestlog.Visibility = _build is null ? Visibility.Collapsed : Visibility.Visible;
         Render();
     }
 
@@ -943,6 +963,7 @@ public partial class BuildView : UserControl
         {
             var saved = _store.Save(b);
             _store.ActiveId = saved.Id;
+            QueueTelemetry(saved);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); StatusText.Text = ex.Message; return; }
         StatusText.Text = "";
@@ -961,32 +982,128 @@ public partial class BuildView : UserControl
 
     private void Import_Click(object sender, RoutedEventArgs e)
     {
-        var box = new TextBox { Style = (Style)FindResource("Field"), Height = 28, Background = KeyBack, ToolTip = T.BuildImportHint, Margin = new Thickness(0, 10, 0, 12) };
-        var ok = new Button { Style = (Style)FindResource("Flat"), Content = T.BuildImport.TrimEnd('…'), IsDefault = true, MinWidth = 90 };
-        var cancel = new Button { Style = (Style)FindResource("Flat"), Content = T.BuildMacroCancel, IsCancel = true, MinWidth = 90, Margin = new Thickness(6, 0, 0, 0) };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        buttons.Children.Add(ok); buttons.Children.Add(cancel);
-        var panel = new StackPanel { Margin = new Thickness(16) };
-        panel.Children.Add(new TextBlock { Text = T.BuildImportTitle, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Text });
-        panel.Children.Add(box);
-        panel.Children.Add(buttons);
-        var dlg = new Window
-        {
-            Title = T.BuildImportTitle, Content = panel, Width = 520, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize, WindowStyle = WindowStyle.ToolWindow,
-            Background = SkillTile.Frozen(0x14, 0x14, 0x14), Owner = Window.GetWindow(this), WindowStartupLocation = WindowStartupLocation.CenterOwner, Topmost = true,
-            FontFamily = FontFamily,
-        };
-        ok.Click += (_, _) => dlg.DialogResult = true;
-        dlg.Loaded += (_, _) => box.Focus();
-        if (dlg.ShowDialog() == true) ImportFromUrl(box.Text);
+        if (_sample) return;
+        var dlg = new ImportBuildWindow(_classId) { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() == true && dlg.Result is { } b) SaveImported(b);
     }
 
-    /// <summary>Import hook (phase 3 fills it: fetch the questlog build behind the link and save it as a build of this character).</summary>
-    public void ImportFromUrl(string url)
+    /// <summary>Fetches the questlog build behind a skill-builder link and saves it as the active build of this character; errors go to the status line.</summary>
+    public async void ImportFromUrl(string url)
     {
         if (QuestlogBuilds.ParseUrl(url) is not { } r) { StatusText.Text = T.BuildImportBadUrl; return; }
-        Log.Info($"Build import requested: questlog {r.Slug} build {r.Id} (import lands in phase 3)");
-        StatusText.Text = string.Format(T.BuildImportComing, r.Id);
+        await ImportAsync(r.Slug, r.Id);
+    }
+
+    private async Task ImportAsync(string slug, long id)
+    {
+        if (_sample || _importing) return;
+        _importing = true;
+        StatusText.Text = string.Format(T.BuildImporting, id);
+        try
+        {
+            var b = await QuestlogService.FetchAsync(slug, id);
+            if (b is null) StatusText.Text = string.Format(T.BuildImportNotFound, id);
+            else SaveImported(b);
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or InvalidOperationException)
+        {
+            Log.Info($"Build import {slug}/{id} failed: {ex.Message}");
+            StatusText.Text = string.Format(T.BuildImportFailed, QuestlogService.Reason(ex));
+        }
+        finally { _importing = false; }
+    }
+
+    private void SaveImported(Build imported)
+    {
+        FlushSave();
+        Build saved;
+        try
+        {
+            saved = _store.Save(QuestlogImport.Prepare(imported, _store.List()));
+            _store.ActiveId = saved.Id;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); StatusText.Text = ex.Message; return; }
+        Log.Info($"Build imported from questlog: {saved.Source?.Id} → {saved.Id} ({saved.ClassId}, {saved.Skills.Count} skills)");
+        QueueTelemetry(saved);
+        _selected = 0;
+        Reload();
+        StatusText.Text = _classId.Length > 0 && saved.ClassId.Length > 0 && saved.ClassId != _classId
+            ? string.Format(T.BuildImportedOtherClass, saved.Name, ClassName(saved.ClassId), ClassName(_classId))
+            : string.Format(T.BuildImported, saved.Name);
+    }
+
+    private void QueueTelemetry(Build saved)
+    {
+        if (_sample) return;
+        var p = _meter.CurrentProfile;
+        Telemetry.QueueBuild(_meter.Settings, saved, BuildEditor.ClassIdOf(p?.ClassName) ?? _classId, p?.Level ?? 0);
+    }
+
+    private void CopyQuestlog_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NeedBuild()) return;
+        FlushSave();
+        try
+        {
+            Clipboard.SetText(QuestlogExport.ToJson(_build!));
+            StatusText.Text = T.BuildCopied;
+        }
+        catch (System.Runtime.InteropServices.COMException) { StatusText.Text = T.BuildCopyFailed; }   // another app holds the clipboard
+    }
+
+    private static string ClassName(string classId) => classId.Length > 0 ? char.ToUpperInvariant(classId[0]) + classId[1..] : classId;
+
+    // ------------------------------------------------------------------ suggestions
+
+    private void RenderSuggestions()
+    {
+        var show = _build is null && (_sample ? _sampleSuggestions is not null : true);
+        SuggestCard.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        BuildCards.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        if (!show) return;
+        SuggestTitle.Text = string.Format(T.BuildSuggestTitle, _classId.Length > 0 ? ClassName(_classId) : "?");
+        if (_classId.Length == 0) { _suggestFor = ""; SuggestMessage(T.BuildSuggestNoClass); return; }
+        if (_sample) { FillSuggestions(_sampleSuggestions!); return; }
+        if (QuestlogService.CachedSuggestions(_classId) is { } hit) { _suggestFor = _classId; FillSuggestions(hit); return; }
+        if (_suggestFor == _classId && SuggestList.Children.Count > 0) return;   // already loading for this class
+        _suggestFor = _classId;
+        SuggestMessage(T.BuildSuggestLoading);
+        _ = LoadSuggestionsAsync(_classId);
+    }
+
+    private async Task LoadSuggestionsAsync(string classId)
+    {
+        try
+        {
+            var list = await QuestlogService.SuggestionsAsync(classId);
+            if (_suggestFor == classId && _build is null) FillSuggestions(list);
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or InvalidOperationException)
+        {
+            Log.Info($"Build suggestions for {classId} failed: {ex.Message}");
+            if (_suggestFor == classId) { SuggestMessage(T.BuildSuggestFailed); _suggestFor = ""; }
+        }
+    }
+
+    private void SuggestMessage(string text)
+    {
+        SuggestList.Children.Clear();
+        SuggestList.Children.Add(new TextBlock { Text = text, FontSize = 12.5, Foreground = Mute, Margin = new Thickness(0, 0, 0, 6) });
+    }
+
+    private void FillSuggestions(List<BuildSummary> list)
+    {
+        SuggestList.Children.Clear();
+        if (list.Count == 0) { SuggestMessage(T.BuildSuggestEmpty); return; }
+        var style = (Style)FindResource("Flat");
+        foreach (var b in list)
+            SuggestList.Children.Add(ImportBuildWindow.Row(b, AddSuggestion, CmpBack, TagBack, Text, Mute, TagBack, style));
+    }
+
+    private void AddSuggestion(BuildSummary s)
+    {
+        if (s.AuthorSlug is { Length: > 0 } slug) _ = ImportAsync(slug, s.Id);
+        else StatusText.Text = string.Format(T.BuildImportNotFound, s.Id);
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)

@@ -20,8 +20,15 @@ public static partial class QuestlogBuilds
 {
     public const string Base = "https://questlog.gg/aion-2";
 
-    public static string SearchUrl(string term, int page = 1) =>
-        Base + "/api/trpc/skillBuilder.searchSkillBuilds?input=" + Uri.EscapeDataString(JsonSerializer.Serialize(new { searchTerm = term ?? "", page = Math.Max(1, page) }));
+    /// <summary>classId narrows the search server-side (accepted by searchSkillBuilds, confirmed 2026-10-11: "cleric" → 1791 hits of 10386, sorted by likes).</summary>
+    public static string SearchUrl(string term, int page = 1, string? classId = null) =>
+        Base + "/api/trpc/skillBuilder.searchSkillBuilds?input=" + Uri.EscapeDataString(string.IsNullOrEmpty(classId)
+            ? JsonSerializer.Serialize(new { searchTerm = term ?? "", page = Math.Max(1, page) })
+            : JsonSerializer.Serialize(new { searchTerm = term ?? "", page = Math.Max(1, page), classId }));
+
+    /// <summary>Every public build of one author: input {"slug":…} (a "language" key is accepted and ignored); unknown slug → {"result":{"data":null}}.</summary>
+    public static string UserBuildsUrl(string userSlug) =>
+        Base + "/api/trpc/skillBuilder.getSkillBuilderBySlug?input=" + Uri.EscapeDataString(JsonSerializer.Serialize(new { slug = userSlug }));
 
     public static string BuildUrl(string userSlug, long buildId, string lang = "en") => $"{Base}/{lang}/skill-builder/{userSlug}?build-id={buildId}";
 
@@ -197,8 +204,12 @@ public sealed class QuestlogClient : IDisposable
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
     }
 
-    public async Task<BuildSearchPage> SearchAsync(string term, int page = 1, CancellationToken ct = default) =>
-        QuestlogBuilds.ParseSearchPage(await GetAsync(QuestlogBuilds.SearchUrl(term, page), ct).ConfigureAwait(false));
+    /// <summary>The full build (chosen specs included) behind a build URL or a search result; null when the author or the id is gone.</summary>
+    public async Task<Build?> FetchBuildAsync(string userSlug, long buildId, CancellationToken ct = default) =>
+        QuestlogBuilds.FindBuild(await GetAsync(QuestlogBuilds.UserBuildsUrl(userSlug), ct).ConfigureAwait(false), buildId);
+
+    public async Task<BuildSearchPage> SearchAsync(string term, int page = 1, string? classId = null, CancellationToken ct = default) =>
+        QuestlogBuilds.ParseSearchPage(await GetAsync(QuestlogBuilds.SearchUrl(term, page, classId), ct).ConfigureAwait(false));
 
     public async Task<string> GetAsync(string url, CancellationToken ct = default)
     {

@@ -241,6 +241,8 @@
                         ToolTip="{Binding BuildNewFromProfileTip, Source={x:Static s:UiText.Current}}" />
                 <Button Style="{StaticResource Flat}" Margin="6,0,0,0" Height="28" Click="Import_Click" Content="{Binding BuildImport, Source={x:Static s:UiText.Current}}"
                         ToolTip="{Binding BuildImportTip, Source={x:Static s:UiText.Current}}" />
+                <Button x:Name="CopyQuestlog" Style="{StaticResource Flat}" Margin="6,0,0,0" Height="28" Click="CopyQuestlog_Click" Content="{Binding BuildCopyQuestlog, Source={x:Static s:UiText.Current}}"
+                        ToolTip="{Binding BuildCopyQuestlogTip, Source={x:Static s:UiText.Current}}" />
                 <Button x:Name="DeleteBuild" Style="{StaticResource IconButton}" Margin="4,0,0,0" Content="&#xE74D;" FontSize="12" Click="DeleteBuild_Click"
                         ToolTip="{Binding BuildDeleteTip, Source={x:Static s:UiText.Current}}" />
                 <TextBlock x:Name="StatusText" FontSize="12" Foreground="{StaticResource BMute}" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" />
@@ -250,6 +252,22 @@
                 <Grid Margin="14,0,14,14">
                     <!-- ===== Skills & Stigmas ===== -->
                     <StackPanel x:Name="PageSkills">
+                        <!-- no active build: the class's most-liked questlog builds instead of an empty planner -->
+                        <Border x:Name="SuggestCard" Style="{StaticResource Card}" Visibility="Collapsed">
+                            <StackPanel>
+                                <Border Style="{StaticResource Band}">
+                                    <TextBlock x:Name="SuggestTitle" Style="{StaticResource BandTitle}" />
+                                </Border>
+                                <TextBlock FontSize="12.5" Foreground="{StaticResource BDim}" TextWrapping="Wrap" Margin="12,10,12,10" Text="{Binding BuildSuggestHint, Source={x:Static s:UiText.Current}}" />
+                                <StackPanel x:Name="SuggestList" Margin="12,0,12,4" />
+                                <StackPanel Orientation="Horizontal" Margin="12,6,12,12">
+                                    <Button Style="{StaticResource Flat}" Height="28" Click="Import_Click" Content="{Binding BuildSearch, Source={x:Static s:UiText.Current}}" />
+                                    <Button Style="{StaticResource Flat}" Height="28" Margin="6,0,0,0" Click="NewFromProfile_Click" Content="{Binding BuildNewFromProfile, Source={x:Static s:UiText.Current}}"
+                                            ToolTip="{Binding BuildNewFromProfileTip, Source={x:Static s:UiText.Current}}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <StackPanel x:Name="BuildCards">
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <Border Style="{StaticResource Band}">
@@ -417,6 +435,7 @@
                                 </StackPanel>
                             </Button>
                             <TextBlock x:Name="SavedText" FontSize="13" Foreground="{StaticResource BMute}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
                         </StackPanel>
                     </StackPanel>
 

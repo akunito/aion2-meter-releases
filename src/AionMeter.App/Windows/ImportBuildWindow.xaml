@@ -1,0 +1,71 @@
+<Window x:Class="AionMeter.App.Windows.ImportBuildWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:AionMeter.App.Services"
+        Title="{Binding BuildImportTitle, Source={x:Static s:UiText.Current}}" Width="760" Height="680" MinWidth="560" MinHeight="420"
+        WindowStyle="None" WindowStartupLocation="CenterOwner" ResizeMode="CanResize" Background="{StaticResource Bg0}"
+        Topmost="True" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}" FontSize="12.5">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="52" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" />
+    </WindowChrome.WindowChrome>
+    <Border BorderBrush="{StaticResource GoldDim}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Margin="18,0,8,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="17" Foreground="{StaticResource Gold}" VerticalAlignment="Center" Margin="0,2,10,0" />
+                    <TextBlock Text="{Binding BuildImportTitle, Source={x:Static s:UiText.Current}}" FontFamily="{StaticResource TitleFont}" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" HorizontalAlignment="Right" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True" />
+            </Grid>
+
+            <!-- link import -->
+            <StackPanel Grid.Row="1" Margin="20,0,20,12">
+                <TextBlock Style="{StaticResource SectionLabel}" Text="{Binding ImportUrlLabel, Source={x:Static s:UiText.Current}}" Margin="0,0,0,6" />
+                <DockPanel>
+                    <Button x:Name="ImportButton" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="ImportUrl_Click" MinWidth="90"
+                            Content="{Binding ImportGo, Source={x:Static s:UiText.Current}}" />
+                    <TextBox x:Name="UrlBox" Style="{StaticResource Field}" Height="30" KeyDown="UrlBox_KeyDown" ToolTip="{Binding BuildImportHint, Source={x:Static s:UiText.Current}}" />
+                </DockPanel>
+                <TextBlock x:Name="UrlHint" FontSize="11.5" Foreground="{StaticResource TextMute}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"
+                           Text="{Binding BuildImportHint, Source={x:Static s:UiText.Current}}" />
+            </StackPanel>
+
+            <!-- search -->
+            <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,12,20,8">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="{Binding ImportSearchLabel, Source={x:Static s:UiText.Current}}" Margin="0,0,0,6" />
+                    <DockPanel>
+                        <CheckBox x:Name="AllClasses" DockPanel.Dock="Right" Style="{StaticResource DarkCheck}" Margin="12,0,0,0" VerticalAlignment="Center" Click="AllClasses_Click"
+                                  Content="{Binding ImportAllClasses, Source={x:Static s:UiText.Current}}" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="Search_Click" Padding="12,4">
+                            <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="13" />
+                        </Button>
+                        <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Height="30" KeyDown="SearchBox_KeyDown" ToolTip="{Binding ImportSearchHint, Source={x:Static s:UiText.Current}}" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer x:Name="ResultsScroll" Grid.Row="3" VerticalScrollBarVisibility="Auto" Focusable="False" Padding="20,0,20,0">
+                <StackPanel x:Name="Results" Margin="0,4,0,8" />
+            </ScrollViewer>
+
+            <Border Grid.Row="4" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,10">
+                <DockPanel>
+                    <Button x:Name="NextButton" DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Click="Next_Click" Margin="8,0,0,0" Padding="12,4"
+                            Content="{Binding ImportNext, Source={x:Static s:UiText.Current}}" />
+                    <Button x:Name="PrevButton" DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Click="Prev_Click" Padding="12,4"
+                            Content="{Binding ImportPrev, Source={x:Static s:UiText.Current}}" />
+                    <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

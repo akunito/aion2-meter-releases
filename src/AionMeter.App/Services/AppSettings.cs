@@ -159,6 +159,9 @@ public sealed class AppSettings
     public string SkillLanguage { get; set; } = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en";
     /// <summary>Build tab: list skills already at the build's level (off hides them from the library and dims them on the bar).</summary>
     public bool BuildShowDone { get; set; } = true;
+    /// <summary>Build telemetry (A2M-21): per build id, when it was last sent and the build's UpdatedAt then (at most one send per build per 24 h, none without a change).</summary>
+    public Dictionary<string, BuildSent> BuildTelemetrySent { get; set; } = new();
+    public sealed record BuildSent(DateTimeOffset Sent, DateTimeOffset Updated);
     /// <summary>Browser link of a watched item; {id} and {server} are replaced. The site is a hash-routed SPA: "/#/items/{id}" (Diego, 2026-10-09); "/item/{id}" renders blank.</summary>
     public string PriceItemUrl { get; set; } = "https://aion2.exchange/#/items/{id}";
     public double AtlasHeight { get; set; } = 760;

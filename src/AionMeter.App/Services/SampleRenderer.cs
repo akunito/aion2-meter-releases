@@ -15,9 +15,9 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, update, update-portable, build or build-es (the Build tab, skill texts in Spanish).</param>
+    /// arrives), breakdown, history, timers, settings, update, update-portable, build or build-es (the Build tab, skill texts in Spanish), import (the questlog import dialog).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden) or tip (one tooltip).</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (one tooltip) or suggest (no build: suggestions card).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
     /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); nothing is downloaded.</param>
@@ -64,12 +64,21 @@ public static class SampleRenderer
                 var icons = new IconCache(Core.GameDb.ItemIcons.Empty, o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
                 var build = new Views.BuildView(meter, icons);
                 if (o.Tab == "done") build.SetShowDone(false);
-                build.ShowSample(SampleBuild(), SampleProfile(), 14170000);   // Explosion Trap selected: the detail panel shows
+                if (o.Tab == "suggest") build.ShowSampleSuggestions(SampleProfile(), SampleSuggestions());   // no active build: the suggestions card
+                else build.ShowSample(SampleBuild(), SampleProfile(), 14170000);   // Explosion Trap selected: the detail panel shows
                 var page = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x0D));
                 // --tab tip: Explosion Trap's tooltip alone (a ToolTip never opens offscreen)
                 host = o.Tab == "tip" ? new Window { Content = new System.Windows.Controls.Grid { Background = page, Children = { build.TipPreview(14170000) } }, Width = o.Width ?? 360, Height = o.Height ?? 560, Background = page }
-                                      : new Window { Content = build, Width = o.Width ?? 1000, Height = o.Height ?? 1800, Background = page };
+                                      : new Window { Content = build, Width = o.Width ?? 1000, Height = o.Height ?? (o.Tab == "suggest" ? 720 : 1800), Background = page };
                 refresh = o.Tab == "tip" ? () => { } : build.RenderNow;
+                break;
+            case "import":
+                var import = new ImportBuildWindow("ranger") { Width = o.Width ?? 760, Height = o.Height ?? 680 };
+                var all = SampleSuggestions();
+                all.Insert(2, all[0] with { Id = 1, Name = "Templar tank (filtered out of a ranger search)", ClassId = "templar" });
+                import.ShowSample("https://questlog.gg/aion-2/en/skill-builder/AXIIyLxFWMU0?build-id=15969", new Core.Builds.BuildSearchPage(all, 1, 4, 74));
+                host = import;
+                refresh = () => { };
                 break;
             case "settings":
                 host = new SettingsWindow(meter) { Width = o.Width ?? 640, Height = o.Height ?? 900 };
@@ -199,7 +208,26 @@ public static class SampleRenderer
         var b = File.Exists(path) ? Core.Builds.QuestlogBuilds.ParseBuild(File.ReadAllText(path)) : null;
         b ??= new Core.Builds.Build { Name = "sample", ClassId = "ranger" };
         b.Notes[14170000] = "Situational (key 3). Equipped at level 1: the build's biggest gap, raise it to 12.";   // from the approved mock
-        return b with { Id = "sample" };
+        // the fixture is a bare build without its author: the URL's slug, so the header shows "Open on questlog.gg" as an import does
+        return b with { Id = "sample", Source = new Core.Builds.BuildSource(15969, "AXIIyLxFWMU0", "akunito88") };
+    }
+
+    /// <summary>Five made-up ranger builds shaped as questlog search rows (the first is the real most-liked ranger build of 2026-10-11).</summary>
+    private static List<Core.Builds.BuildSummary> SampleSuggestions()
+    {
+        (long Id, string Name, string Author, int Likes, string[] Tags, int Day)[] rows =
+        [
+            (9025, "Ranger updated 10.08", "whelps", 71, [], 8),
+            (8120, "Ranger PvE — Vaizel top 1 setup", "Vaizel", 25, ["pve", "dungeon"], 6),
+            (10411, "Bow PvP burst (arena)", "Kestrel", 9, ["pvp"], 9),
+            (7754, "Leveling 1-45 easy mode", "Nimbus", 6, ["leveling"], 2),
+            (11002, "Trap control (Abyss)", "Sable", 4, ["pvp", "abyss"], 10),
+        ];
+        var list = new List<Core.Builds.BuildSummary>(rows.Length);
+        foreach (var r in rows)
+            list.Add(new Core.Builds.BuildSummary(r.Id, r.Name, "ranger", r.Author, "X2aYOSzHtbA6", r.Likes, new DateTimeOffset(2026, 10, r.Day, 12, 0, 0, TimeSpan.Zero), r.Tags, true,
+                new Core.Builds.Build { Name = r.Name, ClassId = "ranger" }));
+        return list;
     }
 
     /// <summary>Irin's official profile of 2026-10-10 as far as skills go (Ranger 45): current levels, four build skills not acquired.</summary>
