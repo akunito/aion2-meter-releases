@@ -420,9 +420,8 @@
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE8A7;" Click="PopOut_Click" ToolTip="{Binding T.PopOut}" Margin="4,0,0,0" />
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE897;" Click="Help_Click" ToolTip="{Binding T.TipHelp}" Margin="2,0,0,0" />
                     <!-- Character selector (A2M-28): any saved character, also while playing (only the view moves; "(current)" = the logged-in one).
-                         The eye and the amber box say the tabs show someone other than the live character. -->
-                    <TextBlock x:Name="CharViewing" Visibility="Collapsed" Text="&#xE890;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource Amber}"
-                               VerticalAlignment="Center" Margin="8,0,0,0" Background="Transparent" WindowChrome.IsHitTestVisibleInChrome="True" />
+                         The amber box says the tabs show someone other than the live character. -->
+                    <!-- no extra glyph: at 560 px it pushed the title into an ellipsis; the amber box + tooltip carry the state -->
                     <ComboBox x:Name="CharBox" Visibility="Collapsed" MinWidth="110" Height="24" FontSize="11.5" Margin="6,0,0,0" Padding="8,3,24,3" VerticalAlignment="Center" DropDownOpened="CharBox_Opened" SelectionChanged="CharBox_Changed"
                               ToolTip="{Binding T.CharSelectTip}" WindowChrome.IsHitTestVisibleInChrome="True" />
                 </StackPanel>
