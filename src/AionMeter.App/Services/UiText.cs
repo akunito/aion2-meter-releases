@@ -432,8 +432,8 @@ public sealed class UiText
     public string BuildImport { get; init; } = "Import…";
     public string BuildImportTip { get; init; } = "Import a build from a questlog.gg skill-builder link";
     public string BuildImportTitle { get; init; } = "Import from questlog.gg";
-    public string BuildImportHint { get; init; } = "questlog.gg skill-builder link (…/skill-builder/<user>?build-id=<n>)";
-    public string BuildImportBadUrl { get; init; } = "That is not a questlog.gg skill-builder link";
+    public string BuildImportHint { get; init; } = "questlog.gg link: …/skill-builder/<user>?build-id=<n> (skills) or …/daevanion-planner/<user>?build-id=<n> (plan for the active build)";
+    public string BuildImportBadUrl { get; init; } = "That is not a questlog.gg link: paste a skill-builder or a daevanion-planner build link";
     public string BuildDeleteTip { get; init; } = "Delete this build";
     public string BuildDeleteConfirm { get; init; } = "Delete the build \"{0}\"?";
     public string BuildSkillLangTip { get; init; } = "Language of skill names and descriptions";

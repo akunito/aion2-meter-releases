@@ -28,6 +28,8 @@ public partial class ImportBuildWindow : Window
     private bool _busy;
 
     public Build? Result { get; private set; }
+    /// <summary>A daevanion-planner link pasted in the build box: the view imports it as the plan of the active build.</summary>
+    public string? PlanUrl { get; private set; }
 
     public ImportBuildWindow(string classId)
     {
@@ -152,7 +154,11 @@ public partial class ImportBuildWindow : Window
 
     private void ImportUrl_Click(object sender, RoutedEventArgs e)
     {
-        if (QuestlogBuilds.ParseUrl(UrlBox.Text) is not { } r) { StatusText.Text = T.BuildImportBadUrl; return; }
+        if (QuestlogBuilds.ParseUrl(UrlBox.Text) is not { } r)
+        {
+            if (Core.Builds.DaevanionPlan.ParsePlannerUrl(UrlBox.Text) is not null) { PlanUrl = UrlBox.Text.Trim(); DialogResult = true; Close(); return; }
+            StatusText.Text = T.BuildImportBadUrl; return;
+        }
         _ = FetchAsync(r.Slug, r.Id);
     }
 

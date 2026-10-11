@@ -1035,13 +1035,19 @@ public partial class BuildView : UserControl
     {
         if (_sample) return;
         var dlg = new ImportBuildWindow(_classId) { Owner = Window.GetWindow(this) };
-        if (dlg.ShowDialog() == true && dlg.Result is { } b) SaveImported(b);
+        if (dlg.ShowDialog() != true) return;
+        if (dlg.Result is { } b) SaveImported(b);
+        else if (dlg.PlanUrl is { } planUrl) { SubDaev.IsChecked = true; PageDaev.ImportPlanFromUrl(planUrl); }
     }
 
     /// <summary>Fetches the questlog build behind a skill-builder link and saves it as the active build of this character; errors go to the status line.</summary>
     public async void ImportFromUrl(string url)
     {
-        if (QuestlogBuilds.ParseUrl(url) is not { } r) { StatusText.Text = T.BuildImportBadUrl; return; }
+        if (QuestlogBuilds.ParseUrl(url) is not { } r)
+        {
+            if (Core.Builds.DaevanionPlan.ParsePlannerUrl(url) is not null) { SubDaev.IsChecked = true; PageDaev.ImportPlanFromUrl(url); return; }
+            StatusText.Text = T.BuildImportBadUrl; return;
+        }
         await ImportAsync(r.Slug, r.Id);
     }
 
