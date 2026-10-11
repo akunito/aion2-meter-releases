@@ -18,9 +18,10 @@ public sealed class IconCache : IDisposable
 {
     private readonly ItemIcons _index;
     private readonly string _dir = Path.Combine(AppSettings.AppDataDir, "icons");
-    private readonly ConcurrentDictionary<int, ImageSource?> _mem = new();
-    private readonly ConcurrentQueue<int> _queue = new();
-    private readonly ConcurrentDictionary<int, byte> _queued = new();
+    // keys: item ids as decimal strings for aion2hub item icons, "<prefix>:<stem>" for URL icons (skill icons from questlog's CDN, A2M-21)
+    private readonly ConcurrentDictionary<string, ImageSource?> _mem = new();
+    private readonly ConcurrentQueue<(string Key, string Url)> _queue = new();
+    private readonly ConcurrentDictionary<string, byte> _queued = new();
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(20) };
     private readonly CancellationTokenSource _cts = new();
     private Task? _worker;
@@ -37,21 +38,37 @@ public sealed class IconCache : IDisposable
     /// <summary>The icon when it is on disk already (decoded at 56 px and frozen); null while it downloads or when there is none.</summary>
     public ImageSource? Get(int item)
     {
-        if (_mem.TryGetValue(item, out var cached)) return cached;
+        var key = item.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_mem.TryGetValue(key, out var cached)) return cached;
         var rel = _index.Path(item);
-        if (rel is null) { _mem[item] = null; return null; }
-        var file = Path.Combine(_dir, item + ".png");
+        if (rel is null) { _mem[key] = null; return null; }
+        return GetOrQueue(key, "https://aion2hub.me/media/icons/" + rel, 56);
+    }
+
+    /// <summary>Any icon by URL, cached under <paramref name="key"/> (letters, digits, '_' '-' ':' only; the ':' becomes the file's folder
+    /// separator). Decoded at <paramref name="decodeWidth"/> px. Same queue and pace as the item icons.</summary>
+    public ImageSource? GetUrl(string key, string url, int decodeWidth = 56)
+    {
+        if (_mem.TryGetValue(key, out var cached)) return cached;
+        return GetOrQueue(key, url, decodeWidth);
+    }
+
+    private static string FileFor(string dir, string key) => Path.Combine(dir, key.Replace(':', Path.DirectorySeparatorChar) + ".png");
+
+    private ImageSource? GetOrQueue(string key, string url, int decodeWidth)
+    {
+        var file = FileFor(_dir, key);
         if (File.Exists(file))
         {
-            var img = Decode(file);
-            _mem[item] = img;
+            var img = Decode(file, decodeWidth);
+            _mem[key] = img;
             return img;
         }
-        if (Enabled && _queued.TryAdd(item, 0)) { _queue.Enqueue(item); _worker ??= Task.Run(WorkAsync); }
+        if (Enabled && _queued.TryAdd(key, 0)) { _queue.Enqueue((key, url)); _worker ??= Task.Run(WorkAsync); }
         return null;
     }
 
-    private static ImageSource? Decode(string file)
+    private static ImageSource? Decode(string file, int width)
     {
         try
         {
@@ -59,7 +76,7 @@ public sealed class IconCache : IDisposable
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
             bmp.UriSource = new Uri(file);
-            bmp.DecodePixelWidth = 56;
+            bmp.DecodePixelWidth = width;
             bmp.EndInit();
             bmp.Freeze();
             return bmp;
@@ -85,12 +102,13 @@ public sealed class IconCache : IDisposable
         Directory.CreateDirectory(_dir);
         while (!_cts.IsCancellationRequested)
         {
-            if (!_queue.TryDequeue(out var item)) { await Task.Delay(500, _cts.Token).ConfigureAwait(false); continue; }
-            var rel = _index.Path(item)!;
-            var file = Path.Combine(_dir, item + ".png");
+            if (!_queue.TryDequeue(out var job)) { await Task.Delay(500, _cts.Token).ConfigureAwait(false); continue; }
+            var (item, url) = job;
+            var file = FileFor(_dir, item);
             try
             {
-                var bytes = await _http.GetByteArrayAsync("https://aion2hub.me/media/icons/" + rel, _cts.Token).ConfigureAwait(false);
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                var bytes = await _http.GetByteArrayAsync(url, _cts.Token).ConfigureAwait(false);
                 // keep a 64 px PNG, not the 256 px original (75 KB each → ~5 KB; 1,684 recipe icons would be 126 MB otherwise)
                 var small = Shrink(bytes);
                 if (small is null) { _mem[item] = null; continue; }

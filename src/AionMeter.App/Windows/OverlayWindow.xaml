@@ -418,7 +418,7 @@
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE8A7;" Click="PopOut_Click" ToolTip="{Binding T.PopOut}" Margin="4,0,0,0" />
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE897;" Click="Help_Click" ToolTip="{Binding T.TipHelp}" Margin="2,0,0,0" />
                     <!-- Character selector (A2M-28): the game decides while it runs; with it closed, browse any saved character -->
-                    <ComboBox x:Name="CharBox" MinWidth="110" Height="24" FontSize="11.5" Margin="8,0,0,0" VerticalAlignment="Center" DropDownOpened="CharBox_Opened" SelectionChanged="CharBox_Changed"
+                    <ComboBox x:Name="CharBox" Visibility="Collapsed" MinWidth="110" Height="24" FontSize="11.5" Margin="8,0,0,0" VerticalAlignment="Center" DropDownOpened="CharBox_Opened" SelectionChanged="CharBox_Changed"
                               ToolTip="{Binding T.CharSelectTip}" WindowChrome.IsHitTestVisibleInChrome="True" />
                 </StackPanel>
 
