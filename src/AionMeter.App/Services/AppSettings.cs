@@ -106,6 +106,12 @@ public sealed class AppSettings
     public string UpdateChannel { get; set; } = "stable";
     /// <summary>Also watch the upstream project's releases (a new one means re-audit + rebase); only Diego turns this on.</summary>
     public bool CheckUpstream { get; set; } = false;
+    /// <summary>A2M-20: one anonymous usage record a day (build, OS, capture health, crashes, tabs; no names). Opt-out; the first start shows a balloon.</summary>
+    public bool Telemetry { get; set; } = true;
+    public bool TelemetryNoticeShown { get; set; } = false;
+    public DateTimeOffset? TelemetryLastSent { get; set; }
+    /// <summary>Random id so installs can be told apart in the telemetry; nothing else is derived from it.</summary>
+    public string InstallId { get; set; } = "";
     /// <summary>Scheduled task "AION2 meter autostart" registered: the meter starts with AION2.exe and closes 60 s after it.</summary>
     public bool StartWithGame { get; set; } = false;
     /// <summary>With the task on: also close the meter 60 s after AION2.exe ends. Off by default (Diego 2026-10-11: the meter must only open by itself).</summary>

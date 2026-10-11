@@ -167,6 +167,14 @@ public partial class App : Application
         Dispatcher.BeginInvoke(_overlay.SyncCharBox, DispatcherPriority.ApplicationIdle);
         _meter.Updates.Start();
         Updater.CleanDownloads();
+        if (_meter.Settings.Telemetry && !_meter.Settings.TelemetryNoticeShown)
+        {
+            _meter.Settings.TelemetryNoticeShown = true; _meter.Settings.Save();
+            Dispatcher.BeginInvoke(() => _tray?.ShowBalloon(AppInfo.Name, UiText.Current.TelemetryNotice, () => ShowSettings()), DispatcherPriority.ApplicationIdle);
+        }
+        var telemetry = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(5) };
+        telemetry.Tick += (_, _) => { telemetry.Interval = TimeSpan.FromMinutes(15); _ = Telemetry.SendIfDueAsync(_meter); };
+        telemetry.Start();
         if (e.Args.Contains("--updated")) // started by the installer after an in-app update
             Dispatcher.BeginInvoke(() => _tray?.ShowBalloon(AppInfo.Name,
                 string.Format(UiText.Current.UpdatedBalloon, _meter.Updates.Current.ToString(3))), DispatcherPriority.ApplicationIdle);

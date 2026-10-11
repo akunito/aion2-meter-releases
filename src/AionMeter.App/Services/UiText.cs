@@ -502,6 +502,9 @@ public sealed class UiText
     public string UpdateChannelDev { get; init; } = "Development builds";
     public string UpdateChannelHint { get; init; } = "Stable = releases marked as such. Development builds come out more often and may break; only pick it if Diego asked you to.";
     public string CheckUpstream { get; init; } = "Also watch the public upstream project (maintainer only)";
+    public string TelemetryOptIn { get; init; } = "Send anonymous usage statistics once a day";
+    public string TelemetryHint { get; init; } = "Build, Windows version, Npcap present, capture health, crash and error counts, tabs used. No character names, no chat, no fight data.";
+    public string TelemetryNotice { get; init; } = "To help development the meter sends anonymous usage statistics once a day (build, capture health, crashes; no character names). Turn it off in Settings → Updates.";
     public string SecGame { get; init; } = "GAME";
     public string StartWithGame { get; init; } = "Start and stop with AION 2";
     public string StartWithGameHint { get; init; } = "Registers a task for your Windows user (no administrator): every 10 s it looks for AION2.exe, starts the meter when the game is running and closes it 60 s after the game ends. Uncheck to remove the task.";

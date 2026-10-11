@@ -233,6 +233,9 @@
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding UpdateChannelHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="CheckUpstreamBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
                                       Content="{Binding CheckUpstream, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="TelemetryBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
+                                      Content="{Binding TelemetryOptIn, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding TelemetryHint, Source={x:Static s:UiText.Current}}" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock x:Name="VersionText" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0" />
                                 <Button x:Name="CheckNowButton" Style="{StaticResource GhostButton}" Click="CheckNow_Click"

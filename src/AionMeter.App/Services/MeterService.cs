@@ -215,6 +215,9 @@ public sealed class MeterService : IDisposable
     }
     public Func<GameData, IEventSource>? CaptureFactory { get; }
 
+    /// <summary>Adapter counters of the live capture, null without an open adapter (replay, demo, no Npcap).</summary>
+    public CaptureHealth? CaptureHealth() { lock (_captureGate) return (_capture as LiveCapture)?.Health(); }
+
     public CaptureStatus CaptureStatus =>
         _replay is { Status.State: CaptureState.Capturing } r ? r.Status
         : _restarting ? new CaptureStatus(CaptureState.Starting, "Starting capture…")

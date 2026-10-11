@@ -72,6 +72,7 @@ public partial class SettingsWindow : Window
                                                      : string.Format(T.VersionRelease, _meter.Updates.Current.ToString(3), _meter.Updates.ReleaseTag);
         if (s.UpdateChannel == "dev") ChannelDev.IsChecked = true; else ChannelStable.IsChecked = true;
         CheckUpstreamBox.IsChecked = s.CheckUpstream;
+        TelemetryBox.IsChecked = s.Telemetry;
         StartWithGameBox.IsChecked = s.StartWithGame;
         CloseWithGameBox.IsChecked = s.CloseWithGame;
 
@@ -115,6 +116,7 @@ public partial class SettingsWindow : Window
         s.AutoInstallUpdates = AutoInstallUpdates.IsChecked == true;
         s.UpdateChannel = ChannelDev.IsChecked == true ? "dev" : "stable";
         s.CheckUpstream = CheckUpstreamBox.IsChecked == true;
+        s.Telemetry = TelemetryBox.IsChecked == true;
         s.CloseWithGame = CloseWithGameBox.IsChecked == true;
         var wantHook = StartWithGameBox.IsChecked == true;
         if (wantHook != s.StartWithGame)

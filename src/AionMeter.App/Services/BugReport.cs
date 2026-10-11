@@ -72,14 +72,21 @@ public static class BugReport
 
     // Upload to Diego's n8n webhook (A2M-19 part 2): the zip + note; the token only protects the upload endpoint (it is in the exe).
     public const string UploadUrl = "https://example.invalid/webhook/aion2-meter-report";
-    private const string UploadToken = "REMOVED-TOKEN";
+    internal const string UploadToken = "REMOVED-TOKEN";
     private static readonly System.Net.Http.HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(60) };
+
+    /// <summary>"vX.Y.Z" for a release, "dev-&lt;sha7&gt;" for a hand-deployed build, "dev" without BUILD-INFO.</summary>
+    public static string BuildLabel()
+    {
+        var build = "dev";
+        try { var p = Path.Combine(AppContext.BaseDirectory, "BUILD-INFO.txt"); if (File.Exists(p)) foreach (var l in File.ReadLines(p)) { if (l.StartsWith("release ")) build = l[8..].Trim(); else if (l.StartsWith("upstream ") && build == "dev") build = "dev-" + l[9..16]; } } catch (IOException) { }
+        return build;
+    }
 
     /// <summary>POSTs the zip; returns the server's id. Throws HttpRequestException on refusal (403 token, 413 size) or network errors.</summary>
     public static async Task<string> UploadAsync(string zipPath, string note, CancellationToken ct)
     {
-        var build = "dev";
-        try { var p = Path.Combine(AppContext.BaseDirectory, "BUILD-INFO.txt"); if (File.Exists(p)) foreach (var l in File.ReadLines(p)) { if (l.StartsWith("release ")) build = l[8..].Trim(); else if (l.StartsWith("upstream ") && build == "dev") build = "dev-" + l[9..16]; } } catch (IOException) { }
+        var build = BuildLabel();
         using var form = new System.Net.Http.MultipartFormDataContent();
         // StringContent carries "text/plain" and n8n then treats the field as an uploaded file (Diego's first send arrived as data0/data1): no content type
         var noteContent = new System.Net.Http.StringContent(note.Length > 900 ? note[..900] : note); noteContent.Headers.ContentType = null; form.Add(noteContent, "note");
