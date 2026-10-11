@@ -90,6 +90,7 @@ public partial class BuildView : UserControl
         InitializeComponent();
         PageDaev.Attach(meter, _icons);
         // Daevanion edits ride on this view's build and its 500 ms save (the page only hands over the new plan)
+        PageDaev.PlanImported += (src, name) => { if (_build is null) return; _build = _build with { PlanSource = src, PlanName = name }; _dirty = true; if (!_sample) { _saveTick.Stop(); _saveTick.Start(); } };
         PageDaev.PlanEdited += plan => { if (_build is null) return; _build = _build with { Daevanion = plan }; _dirty = true; if (!_sample) { _saveTick.Stop(); _saveTick.Start(); } };
         _syncing = true;
         LangBox.SelectedIndex = _lang == "es" ? 1 : 0;

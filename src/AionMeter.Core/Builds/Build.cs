@@ -17,6 +17,9 @@ public sealed record Build
     public string Name { get; init; } = "";
     public string ClassId { get; init; } = "";
     public BuildSource? Source { get; init; }
+    /// <summary>The questlog daevanion-planner build the plan was imported from (skills and plans are separate tools on questlog; the meter keeps both in one build per character).</summary>
+    public BuildSource? PlanSource { get; init; }
+    public string? PlanName { get; init; }
     public List<BuildSkill> Skills { get; init; } = [];
     public List<int> Priority { get; init; } = [];
     public List<BuildMacro> Macros { get; init; } = [];

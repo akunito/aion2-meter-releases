@@ -43,6 +43,8 @@ public partial class DaevanionView : UserControl
 
     /// <summary>The whole plan (board → node ids, plan ∪ open of every edited board) after an edit; the host saves it into its build.</summary>
     public event Action<Dictionary<int, List<int>>>? PlanEdited;
+    /// <summary>A plan was imported from questlog: the host records where it came from.</summary>
+    public event Action<BuildSource, string>? PlanImported;
 
     public DaevanionView()
     {
@@ -91,7 +93,7 @@ public partial class DaevanionView : UserControl
         _class = _meter.Daevanion.ForClass(cls);
         _open = DaevanionPlan.OpenSet(_profile, _class);
         if (_class.Board(_boardId) is null) _boardId = _class.Boards.Length > 0 ? _class.Boards[0].Id : 0;
-        TitleText.Text = _profile is { } p ? string.Format(T.DaevTitle, p.Ref.Name) : T.DaevTitleNoChar;
+        _planName = _build?.PlanName; RenderTitle();
         BoardFrame.Visibility = _class.Boards.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         Note(_class.Boards.Length == 0 ? T.DaevNoClass : _build is null ? T.DaevNoBuild : "");
         RenderBoard();
@@ -163,20 +165,27 @@ public partial class DaevanionView : UserControl
     }
 
     /// <summary>Board buttons, header points, missing line, legend and the stats panel: everything that counts nodes.</summary>
+    private string? _planName;
+    private void RenderTitle()
+    {
+        var who = _profile is { } p ? string.Format(T.DaevTitle, p.Ref.Name) : T.DaevTitleNoChar;
+        TitleText.Text = _planName is { Length: > 0 } n ? who + " · " + string.Format(T.DaevPlanFrom, n) : who;
+    }
+
     private void RenderCounts()
     {
         BoardRow.Children.Clear();
         var planAll = new List<int>(400);
         var nowAll = new List<int>(256);
         DaevBoard? cur = null;
-        int curOpen = 0, curPlan = 0, curMissing = 0;
+        int curOpen = 0, curPlan = 0, curMissing = 0, curPlanOpen = 0;
         foreach (var b in _class.Boards)
         {
             var plan = DaevanionPlan.Effective(b, RawPlan(b.Id), _open);
             var open = 0;
             foreach (var n in b.Nodes) if (!n.Start && _open.Contains(n.Id)) { open++; nowAll.Add(n.Id); }
             planAll.AddRange(plan);
-            if (b.Id == _boardId) { cur = b; curOpen = open; curPlan = plan.Count; curMissing = plan.Count - open; }
+            if (b.Id == _boardId) { cur = b; curOpen = open; curPlan = plan.Count; curPlanOpen = plan.Count(id => _open.Contains(id)); curMissing = curPlan - curPlanOpen; }
             BoardRow.Children.Add(BoardButton(b, open, plan.Count));
         }
         var planCost = DaevanionPlan.Cost(_class, planAll);
@@ -185,7 +194,7 @@ public partial class DaevanionView : UserControl
         StatsPts.Text = string.Format(T.DaevStatsPts, planCost, nowCost);
         MissingText.Text = cur is not null && _build is not null && _profile is not null ? string.Format(T.DaevMissing, cur.Name(_lang), curMissing, curPlan) : "";
         LegendOpen.Text = string.Format(T.DaevLegendOpen, _profile?.Ref.Name ?? "—", curOpen);
-        LegendPlan.Text = string.Format(T.DaevLegendPlan, curPlan);
+        LegendPlan.Text = string.Format(T.DaevLegendPlan, curPlan, Math.Max(0, curPlan - curPlanOpen));
         RenderStats(DaevanionPlan.Summarize(_class, planAll, _lang), DaevanionPlan.Summarize(_class, nowAll, _lang));
     }
 
@@ -416,6 +425,8 @@ public partial class DaevanionView : UserControl
             count += list.Count;
         }
         Apply(next);
+        PlanImported?.Invoke(new BuildSource(plan.Id, r.Slug, null), plan.Name);
+        _planName = plan.Name; RenderTitle();
         Note(string.Format(T.DaevImported, plan.Name, count.ToString(CultureInfo.InvariantCulture), next.Count));
         Log.Info($"Daevanion import: \"{plan.Name}\" {count} nodes on {next.Count} boards into build {buildId}");
     }
