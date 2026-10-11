@@ -736,22 +736,50 @@ public partial class OverlayWindow : Window
         _craftView?.SetSearch(text);
     }
 
-    // ---- character selector (A2M-28) ----
+    // ---- character selector (A2M-28, view-while-playing) ----
     private bool _charSync;
     private static string CharLabel(string key) { var i = key.IndexOf('-'); return i > 0 ? key[(i + 1)..] : key; }
-    /// <summary>Fills the list and selects the bound character; disabled while the game runs (the login decides).</summary>
-    public void SyncCharBox()
+    /// <summary>Fills the list (the bound character marked "(current)") and selects the viewed one; amber while viewing someone else.</summary>
+    public void SyncCharBox() => FillCharBox(_meter.CharacterKeys(), _meter.BoundKey, _meter.CharacterKey);
+
+    /// <summary>Render tool (--tab viewing|current): the selector with these characters, nothing read from disk.</summary>
+    public void SampleCharacters(List<string> keys, string bound, string viewed) => FillCharBox(keys, bound, viewed);
+
+    private void FillCharBox(List<string> keys, string bound, string viewed)
     {
         _charSync = true;
         try
         {
-            var keys = _meter.CharacterKeys();
-            CharBox.ItemsSource = keys.Select(k => new ComboBoxItem { Content = CharLabel(k), Tag = k }).ToList();
-            foreach (ComboBoxItem it in CharBox.Items) if ((string)it.Tag == _meter.CharacterKey) { CharBox.SelectedItem = it; break; }
+            if (bound.Length > 0 && !keys.Contains(bound)) keys.Add(bound);   // a first login before its folder exists
+            var t = UiText.Current;
+            var items = new List<ComboBoxItem>(keys.Count);
+            ComboBoxItem? selected = null;
+            foreach (var k in keys)
+            {
+                var it = new ComboBoxItem { Content = k == bound ? CharLabel(k) + t.CharCurrentSuffix : CharLabel(k), Tag = k };
+                if (k == viewed) selected = it;
+                items.Add(it);
+            }
+            CharBox.ItemsSource = items;
+            CharBox.SelectedItem = selected;
             // Never disabled: a disabled ComboBox cannot raise DropDownOpened, so after the game closed it stayed locked until something
-            // else re-synced it (Diego 2026-10-11). The pick is refused while AION2.exe runs (SelectCharacter) and the list snaps back.
+            // else re-synced it (Diego 2026-10-11). Every pick is accepted (SelectCharacter only moves the view while the game runs).
             CharBox.IsEnabled = keys.Count > 0;
             CharBox.Visibility = keys.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            var other = viewed.Length > 0 && viewed != bound;
+            if (other)
+            {
+                var amber = TryFindResource("Amber") as Brush ?? Brushes.Orange;
+                CharBox.Foreground = amber; CharBox.BorderBrush = amber;
+                CharBox.ToolTip = string.Format(t.CharViewingTip, bound.Length > 0 ? CharLabel(bound) : t.CharViewingNobody, CharLabel(viewed));
+            }
+            else
+            {
+                CharBox.ClearValue(ForegroundProperty); CharBox.ClearValue(BorderBrushProperty);
+                CharBox.ToolTip = t.CharSelectTip;
+            }
+            CharViewing.Visibility = other ? Visibility.Visible : Visibility.Collapsed;
+            CharViewing.ToolTip = CharBox.ToolTip;
         }
         finally { _charSync = false; }
     }
@@ -759,8 +787,8 @@ public partial class OverlayWindow : Window
     private void CharBox_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_charSync || CharBox.SelectedItem is not ComboBoxItem { Tag: string key }) return;
-        if (!_meter.SelectCharacter(key)) { SyncCharBox(); CharBox.ToolTip = UiText.Current.CharSelectLocked; }
-        else CharBox.ToolTip = UiText.Current.CharSelectTip;
+        _meter.SelectCharacter(key);
+        SyncCharBox();   // labels, colour and tooltip for the new view (CharacterChanged re-syncs too; idempotent)
     }
 
     private void PopOut_Click(object sender, RoutedEventArgs e)

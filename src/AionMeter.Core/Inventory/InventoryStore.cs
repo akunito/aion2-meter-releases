@@ -55,11 +55,42 @@ public sealed class InventoryStore
     private string? _path, _mirror;
     private bool _dirty;
     private long _lastFullMs, _loginBurstMs = -1;
+    // read-only view of another character's file (A2M-28 view-while-playing): never takes packets, never writes
+    private readonly bool _readOnly;
+    private DateTime _loadedWritten;
+    private long _lastReloadCheck = -1;
 
-    public InventoryStore(string? path)
+    public InventoryStore(string? path) : this(path, false) { }
+
+    private InventoryStore(string? path, bool readOnly)
     {
         _path = path;
+        _readOnly = readOnly;
         Load();
+    }
+
+    /// <summary>A character's inventory.json shown while the live packets belong to someone else: ignores events, Save and Bind write nothing; <see cref="ReloadIfChanged"/> follows the file.</summary>
+    public static InventoryStore ReadOnly(string path) => new(path, true);
+
+    public bool IsReadOnly => _readOnly;
+
+    /// <summary>Read-only stores: re-read the file when its write time moved, checked at most every 5 s; raises Changed on a reload.</summary>
+    public bool ReloadIfChanged(long nowMs)
+    {
+        if (!_readOnly || _path is null || (_lastReloadCheck >= 0 && nowMs - _lastReloadCheck < 5_000)) return false;
+        _lastReloadCheck = nowMs;
+        DateTime written;
+        try { written = File.Exists(_path) ? File.GetLastWriteTimeUtc(_path) : default; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        lock (_gate)
+        {
+            if (written == _loadedWritten) return false;
+            _containers.Clear(); _seen.Clear(); _slotSeen.Clear();
+            Load();
+            _loadedWritten = written;   // a rewrite between the stat and the read costs one extra reload, never a missed one
+        }
+        Changed?.Invoke();
+        return true;
     }
 
     public string? FilePath => _path;
@@ -71,6 +102,12 @@ public sealed class InventoryStore
     /// </summary>
     public void Bind(string? path, string? mirror = null)
     {
+        if (_readOnly)
+        {
+            lock (_gate) { _path = path; _containers.Clear(); _seen.Clear(); _slotSeen.Clear(); _loadedWritten = default; Load(); }
+            Changed?.Invoke();
+            return;
+        }
         if (string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)) { lock (_gate) { _mirror = mirror; _lastFullMs = 0; } Save(); return; }   // same character again: release the hold
         bool keep;
         lock (_gate) { keep = LoginListPending; _lastFullMs = 0; }
@@ -122,7 +159,7 @@ public sealed class InventoryStore
 
     public void OnEvent(GameEvent e)
     {
-        if (e is not InventoryEvent inv || inv.Stacks.Count == 0) return;
+        if (_readOnly || e is not InventoryEvent inv || inv.Stacks.Count == 0) return;
         var t = inv.TimeMs;
         lock (_gate)
         {
@@ -199,6 +236,7 @@ public sealed class InventoryStore
     private void Load()
     {
         if (_path is null || ReadFile(_path) is not { } f) return;
+        _loadedWritten = f.WrittenUtc;
         foreach (var s in f.Stacks)
         {
             if (!_containers.TryGetValue(s.Container, out var c)) _containers[s.Container] = c = new();
@@ -244,7 +282,7 @@ public sealed class InventoryStore
 
     public void Save()
     {
-        if (_path is null) return;
+        if (_path is null || _readOnly) return;
         string text;
         lock (_gate)
         {

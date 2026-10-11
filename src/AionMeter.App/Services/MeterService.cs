@@ -68,6 +68,7 @@ public sealed class MeterService : IDisposable
             Log.Info($"Atlas: asking the name of object {spot.Code} (spot {spot.X:0},{spot.Y:0})");
             NodeNameWanted?.Invoke(spot.Code);
         };
+        Inventory.Changed += OnLiveInventoryChanged;
         Tracker.EncounterFinished += OnEncounterFinished;
         if (!settings.Transient) Prices.Changed += () => Telemetry.QueueState(this);   // hourly polls raise it too: unchanged state is not sent
         // A recording's or the demo's bosses must not move the live respawn timers.
@@ -217,11 +218,11 @@ public sealed class MeterService : IDisposable
     /// <summary>The bound character's container 2 into the shared warehouse (every 5 s with the state save; nothing while a login list waits for its character).</summary>
     private void AbsorbAccountWarehouse()
     {
-        var dash = _characterKey.IndexOf('-');
+        var dash = _boundKey.IndexOf('-');
         if (dash <= 0 || Inventory.Pending) return;
         var seen = Inventory.Seen(Containers.AccountWarehouse);
         if (seen.SeenMs == 0) return;
-        if (Account.Absorb(_characterKey[..dash], _characterKey, seen.FullMs, Inventory.Items(Containers.AccountWarehouse), Inventory.SlotStamps(Containers.AccountWarehouse))) Account.Save();
+        if (Account.Absorb(_boundKey[..dash], _boundKey, seen.FullMs, Inventory.Items(Containers.AccountWarehouse), Inventory.SlotStamps(Containers.AccountWarehouse))) Account.Save();
     }
 
     /// <summary>Item icons on demand for the Craft and Prices rows (A2M-26).</summary>
@@ -382,12 +383,13 @@ public sealed class MeterService : IDisposable
                 Log.Info($"Lag probe: server silent {ms} ms from {DateTimeOffset.FromUnixTimeMilliseconds(start).ToLocalTime():HH:mm:ss.fff}");
         }
 
+        _viewStore?.ReloadIfChanged(Environment.TickCount64);
         // Persist the name map a few seconds after it changes (not on every packet).
         if (Settings.Transient || _replaying || DemoRunning) return;
         var now = Environment.TickCount64;
         if (Tracker.SelfServerId > 0) Prices.ExchangeServerId = 10000 + Tracker.SelfServerId;
-        if (_characterKey.Length == 0) BindCharacterStores();   // identity restored from the names cache at start-up raises no SelfIdentified
-        if (_characterKey.Length > 0 && now - _lastProfileSync > 6 * 3_600_000L && _lastProfileSync > 0) { _lastProfileSync = now; _ = SyncProfileAsync(_characterKey, Tracker.SelfName ?? "", Tracker.SelfServerId); }
+        if (_boundKey.Length == 0) BindCharacterStores();   // identity restored from the names cache at start-up raises no SelfIdentified
+        if (_boundKey.Length > 0 && now - _lastProfileSync > 6 * 3_600_000L && _lastProfileSync > 0) { _lastProfileSync = now; _ = SyncProfileAsync(_boundKey, Tracker.SelfName ?? "", Tracker.SelfServerId); }
         if (Prices.Due(now)) _ = PollPricesAsync(now);
         if (now - _lastAtlasSave > 30_000) { _lastAtlasSave = now; Atlas.Save(); }
         // The player state on disk is what the AI side reads: a few seconds behind the packets at most, plus a summary with the ages.
@@ -404,9 +406,23 @@ public sealed class MeterService : IDisposable
     private long _lastStateSave;
     private string _lastSummary = "";
 
-    private string _characterKey = "";
-    public string CharacterKey => _characterKey;
-    /// <summary>The bound character changed (login, or a manual pick while the game is closed): tabs re-read their stores.</summary>
+    // A2M-28 view-while-playing: _boundKey = the character the live packets belong to (Inventory, Character, telemetry state, the
+    // account-warehouse feed); _sel.Viewed = the one the tabs show (ViewInventory, Builds, CurrentProfile). Both under _selGate:
+    // BindCharacterStores runs on the capture thread (SelfIdentified), SelectCharacter on the UI thread.
+    private readonly object _selGate = new();
+    private readonly CharacterSelection _sel = new();
+    private string _boundKey = "";
+    private volatile InventoryStore? _viewStore;   // read-only file store while viewing someone other than the bound character
+    /// <summary>The character the live packets belong to ("" until the first identity).</summary>
+    public string BoundKey => _boundKey;
+    /// <summary>The character the tabs show; the bound one unless the selector picked another.</summary>
+    public string CharacterKey { get { lock (_selGate) return _sel.Viewed; } }
+    public bool IsViewingOther { get { lock (_selGate) return _sel.IsViewingOther; } }
+    /// <summary>The viewed character's inventory: the live <see cref="Inventory"/> when viewing the bound one, else a read-only copy of its file.</summary>
+    public InventoryStore ViewInventory => _viewStore ?? Inventory;
+    /// <summary>Raised when what <see cref="ViewInventory"/> holds changed (live packets of the viewed character, a reload of its file, a switch).</summary>
+    public event Action? ViewInventoryChanged;
+    /// <summary>The bound or the viewed character changed (login, or a pick in the selector): tabs re-read their stores.</summary>
     public event Action? CharacterChanged;
     public List<string> CharacterKeys()
     {
@@ -414,40 +430,75 @@ public sealed class MeterService : IDisposable
         if (!Directory.Exists(dir)) return new List<string>();
         return Directory.EnumerateDirectories(dir).Select(Path.GetFileName).Where(n => n is not null).Select(n => n!).OrderBy(n => n).ToList();
     }
-    /// <summary>Browse another saved character while the game is closed (A2M-28). Refused while AION2.exe runs: the game decides who is bound.</summary>
+
+    private void OnLiveInventoryChanged() { if (_viewStore is null) ViewInventoryChanged?.Invoke(); }
+    private void OnViewStoreChanged() => ViewInventoryChanged?.Invoke();
+
+    /// <summary>Points ViewInventory at the viewed character (call under _selGate after the selection moved).</summary>
+    private void SetViewStore()
+    {
+        var old = _viewStore;
+        if (old is not null) old.Changed -= OnViewStoreChanged;
+        InventoryStore? next = null;
+        if (_sel.IsViewingOther)
+        {
+            next = InventoryStore.ReadOnly(Path.Combine(AppSettings.AppDataDir, "characters", _sel.Viewed, "inventory.json"));
+            next.Changed += OnViewStoreChanged;
+        }
+        _viewStore = next;
+    }
+
+    /// <summary>
+    /// The selector (A2M-28). Always allowed: while AION2.exe runs only the view moves (the live stores keep receiving the bound
+    /// character's packets); with the game closed a pick also rebinds the live stores, as before. False only for an unknown folder.
+    /// </summary>
     public bool SelectCharacter(string key)
     {
-        if (key == _characterKey) return true;
-        if (Core.Capture.GameProcessLocator.FindGameProcessIds().Length > 0) return false;
         var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
-        if (!Directory.Exists(dir)) return false;
-        _characterKey = key;
-        Inventory.Bind(Path.Combine(dir, "inventory.json"), null);   // no legacy mirrors: this is a view, the live login rebinds with them
-        Character.Bind(Path.Combine(dir, "character.json"), null);
-        AdoptRestoredBuilds(key);
-        Builds = new BuildStore(Path.Combine(dir, "builds"));
-        _lastSummary = "";
-        Log.Info($"Character stores switched by hand to {key}");
+        if (key.Length == 0 || !Directory.Exists(dir)) return false;
+        var running = Core.Capture.GameProcessLocator.FindGameProcessIds().Length > 0;
+        lock (_selGate)
+        {
+            var pick = _sel.Pick(key, running);
+            if (pick == CharacterPick.None) return true;
+            if (pick == CharacterPick.Rebind)
+            {
+                _boundKey = key;
+                Inventory.Bind(Path.Combine(dir, "inventory.json"), null);   // no legacy mirrors: this is a view, the live login rebinds with them
+                Character.Bind(Path.Combine(dir, "character.json"), null);
+                _lastSummary = "";
+            }
+            SetViewStore();
+            AdoptRestoredBuilds(key);
+            Builds = new BuildStore(Path.Combine(dir, "builds"));
+            Log.Info(pick == CharacterPick.Rebind ? $"Character stores switched by hand to {key}" : $"Viewing {key} (live data stays with {(_boundKey.Length > 0 ? _boundKey : "nobody")})");
+        }
         CharacterChanged?.Invoke();
+        ViewInventoryChanged?.Invoke();
         return true;
     }
 
-    /// <summary>One folder per character (characters/&lt;server&gt;-&lt;name&gt;/) so every alt keeps its own live inventory and lists; the legacy inventory.json and state/character.json mirror the character that is logged in.</summary>
+    /// <summary>One folder per character (characters/&lt;server&gt;-&lt;name&gt;/) so every alt keeps its own live inventory and lists; the legacy inventory.json and state/character.json mirror the character that is logged in. A new identity also pulls the view to it, whoever was being viewed.</summary>
     private void BindCharacterStores()
     {
         var name = Tracker.SelfName; var server = Tracker.SelfServerId;
         if (Settings.Transient || string.IsNullOrEmpty(name) || server <= 0) return;
         var key = $"{server}-{string.Concat(name.Where(ch => char.IsLetterOrDigit(ch) || ch == '-' || ch == '_'))}";
-        if (key == _characterKey) return;
-        _characterKey = key;
         var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
-        Inventory.Bind(Path.Combine(dir, "inventory.json"), Path.Combine(AppSettings.AppDataDir, "inventory.json"));
-        Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
-        AdoptRestoredBuilds(key);
-        Builds = new BuildStore(Path.Combine(dir, "builds"));
-        Log.Info($"Character stores bound to {key}");
-        _lastSummary = "";
+        lock (_selGate)
+        {
+            if (!_sel.Login(key)) return;
+            _boundKey = key;
+            Inventory.Bind(Path.Combine(dir, "inventory.json"), Path.Combine(AppSettings.AppDataDir, "inventory.json"));
+            Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
+            SetViewStore();
+            AdoptRestoredBuilds(key);
+            Builds = new BuildStore(Path.Combine(dir, "builds"));
+            Log.Info($"Character stores bound to {key}");
+            _lastSummary = "";
+        }
         CharacterChanged?.Invoke();
+        ViewInventoryChanged?.Invoke();
         _ = SyncProfileAsync(key, name, server);
     }
 
@@ -491,7 +542,9 @@ public sealed class MeterService : IDisposable
         }
         try { s.Save(); } catch (IOException ex) { Log.Error("Backup: settings not saved", ex); }
         Log.Info($"Backup restored: {payload.Builds.Count} builds ({placed.Placed} placed, {placed.Waiting} waiting, {placed.KeptLocal} newer here), state {(stateFound ? "found" : "none")}, watch {(watchRestored ? "restored" : "kept")}, favourites {(favRestored ? "restored" : "kept")}");
-        if (_characterKey.Length > 0) AdoptRestoredBuilds(_characterKey);
+        if (_boundKey.Length > 0) AdoptRestoredBuilds(_boundKey);
+        var viewed = CharacterKey;
+        if (viewed.Length > 0 && viewed != _boundKey) AdoptRestoredBuilds(viewed);
         Builds = new BuildStore(Builds.Directory);
         _lastSummary = "";
         CharacterChanged?.Invoke();
@@ -503,21 +556,23 @@ public sealed class MeterService : IDisposable
     private (string Path, DateTime Stamp, CharacterProfile? Profile) _profileCache = ("", default, null);
 
     /// <summary>
-    /// The bound character's official profile as last synced (characters/&lt;key&gt;/profile.json, re-read only when the file changes),
-    /// else the armory cache for the logged-in name; null when neither exists.
+    /// The viewed character's official profile as last synced (characters/&lt;key&gt;/profile.json, re-read only when the file changes),
+    /// else (viewing the logged-in character) the armory cache for its name; null when neither exists.
     /// </summary>
     public CharacterProfile? CurrentProfile
     {
         get
         {
-            if (_characterKey.Length == 0) return null;
-            var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "profile.json");
+            var key = CharacterKey;
+            if (key.Length == 0) return null;
+            var live = key == _boundKey;
+            var path = Path.Combine(AppSettings.AppDataDir, "characters", key, "profile.json");
             try
             {
                 var stamp = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : default;
                 if (_profileCache.Path == path && _profileCache.Stamp == stamp && (stamp != default || _profileCache.Profile is not null)) return _profileCache.Profile;
                 var p = stamp != default ? System.Text.Json.JsonSerializer.Deserialize<CharacterProfile>(File.ReadAllText(path))
-                      : Tracker.SelfName is { Length: > 0 } n && Tracker.SelfServerId > 0 ? Armory.Cached(n, Tracker.SelfServerId) : null;
+                      : live && Tracker.SelfName is { Length: > 0 } n && Tracker.SelfServerId > 0 ? Armory.Cached(n, Tracker.SelfServerId) : null;
                 _profileCache = (path, stamp, p);
                 return p;
             }
@@ -525,14 +580,14 @@ public sealed class MeterService : IDisposable
         }
     }
 
-    /// <summary>Fetches the bound character's official profile now, ignoring the cache's age (Build tab → refresh). False when nothing was fetched.</summary>
+    /// <summary>Fetches the viewed character's official profile now, ignoring the cache's age (Build tab → refresh). False when nothing was fetched.</summary>
     public Task<bool> RefreshProfileAsync()
     {
-        var key = _characterKey;
+        var key = CharacterKey;
         if (key.Length == 0) return Task.FromResult(false);
         string? name = null; var server = 0;
         if (CurrentProfile is { } p) { name = p.Ref.Name; server = p.Ref.ServerId; }
-        else if (Tracker.SelfName is { Length: > 0 } n && Tracker.SelfServerId > 0) { name = n; server = Tracker.SelfServerId; }
+        else if (key == _boundKey && Tracker.SelfName is { Length: > 0 } n && Tracker.SelfServerId > 0) { name = n; server = Tracker.SelfServerId; }
         else if (key.IndexOf('-') is > 0 and var dash && int.TryParse(key.AsSpan(0, dash), out var sv)) { name = key[(dash + 1)..]; server = sv; }
         return name is null || server <= 0 ? Task.FromResult(false) : SyncProfileAsync(key, name, server, force: true);
     }
@@ -581,7 +636,7 @@ public sealed class MeterService : IDisposable
             catch (Exception) { }
             var prof = Path.Combine(dir, "profile.json");
             list.Add(new { key = Path.GetFileName(dir), kinah, stacks, inventoryAt = File.Exists(inv) ? new DateTimeOffset(File.GetLastWriteTime(inv)).ToString("O") : null,
-                           profileAt = File.Exists(prof) ? new DateTimeOffset(File.GetLastWriteTime(prof)).ToString("O") : null, current = Path.GetFileName(dir) == _characterKey });
+                           profileAt = File.Exists(prof) ? new DateTimeOffset(File.GetLastWriteTime(prof)).ToString("O") : null, current = Path.GetFileName(dir) == _boundKey });
         }
         return list;
     }
@@ -601,7 +656,7 @@ public sealed class MeterService : IDisposable
     /// <summary>characters/&lt;key&gt;/craftable.json: recipes the stock allows now and those short by ≤ 2 materials, for the AI side; rewritten when the inventory changed.</summary>
     private void WriteCraftable()
     {
-        if (_characterKey.Length == 0 || Recipes.Count == 0 || Inventory.UpdatedMs == _craftableInventoryMs) return;
+        if (_boundKey.Length == 0 || Recipes.Count == 0 || Inventory.UpdatedMs == _craftableInventoryMs) return;
         _craftableInventoryMs = Inventory.UpdatedMs;
         var opts = Recipes.Evaluate(Inventory.CountOf, 2);
         var rows = new List<object>(opts.Count);
@@ -610,7 +665,7 @@ public sealed class MeterService : IDisposable
                            missing = o.Missing.Select(m => new { item = m.Item, name = Names.Name(m.Item), need = m.Need, have = m.Have, source = Names.Source(m.Item) }) });
         try
         {
-            var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "craftable.json");
+            var path = Path.Combine(AppSettings.AppDataDir, "characters", _boundKey, "craftable.json");
             File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new { at = DateTimeOffset.Now.ToString("O"), craftable = opts.Count(x => x.Times > 0), rows }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         }
         catch (IOException) { }
@@ -625,7 +680,7 @@ public sealed class MeterService : IDisposable
     /// </summary>
     private void WriteTitles()
     {
-        if (_characterKey.Length == 0 || Titles.Count == 0 || Character.UpdatedMs == _titlesCharacterMs) return;
+        if (_boundKey.Length == 0 || Titles.Count == 0 || Character.UpdatedMs == _titlesCharacterMs) return;
         _titlesCharacterMs = Character.UpdatedMs;
         var ownedIds = Character.Titles;
         var faction = Titles.FactionOf(ownedIds);
@@ -643,7 +698,7 @@ public sealed class MeterService : IDisposable
         {
             var totals = Titles.CollectionTotals(ownedIds);
             var sb = new System.Text.StringBuilder(32_768);
-            sb.Append("Titles — ").Append(_characterKey).Append(" — ").Append(faction == 'l' ? "Elyos" : faction == 'd' ? "Asmodian" : "?")
+            sb.Append("Titles — ").Append(_boundKey).Append(" — ").Append(faction == 'l' ? "Elyos" : faction == 'd' ? "Asmodian" : "?")
               .Append(" — owned ").Append(ownedIds.Count).Append(", missing same-faction ").Append(missing.Count).Append(", written ").Append(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm")).Append('\n');
             sb.Append("Collection totals (permanent, from owned titles): ");
             var first = true;
@@ -658,12 +713,12 @@ public sealed class MeterService : IDisposable
                   .Append(" — how: ").Append(string.IsNullOrEmpty(t.Description) ? "?" : t.Description).Append('\n');
             }
             sb.Append("\nOwned (").Append(owned.Count).Append("): ").Append(string.Join("; ", Titles.All.Where(t => ownedIds.Contains(t.Id)).Select(t => t.Name))).Append('\n');
-            File.WriteAllText(Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "titles.txt"), sb.ToString());
+            File.WriteAllText(Path.Combine(AppSettings.AppDataDir, "characters", _boundKey, "titles.txt"), sb.ToString());
         }
         catch (IOException) { }
         try
         {
-            var path = Path.Combine(AppSettings.AppDataDir, "characters", _characterKey, "titles.json");
+            var path = Path.Combine(AppSettings.AppDataDir, "characters", _boundKey, "titles.json");
             File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new
             {
                 at = DateTimeOffset.Now.ToString("O"), faction = faction == 'l' ? "Elyos" : faction == 'd' ? "Asmodian" : "?", owned = owned.Count, unknownIds = unknown, missingSameFaction = missing.Count,
@@ -682,7 +737,7 @@ public sealed class MeterService : IDisposable
         var invAge = Inventory.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Inventory.UpdatedMs).ToLocalTime().ToString("O")
                    : File.Exists(invPath) ? new DateTimeOffset(File.GetLastWriteTime(invPath)).ToString("O") : null;
         var chrAge = Character.UpdatedMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.UpdatedMs).ToLocalTime().ToString("O") : null;
-        var key = $"{_characterKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
+        var key = $"{_boundKey}|{Inventory.UpdatedMs}|{Inventory.CountOf(InventoryStore.Kinah)}|{Character.UpdatedMs}|{Broker.Count}|{Prices.LastPollAt}|{Atlas.MapId}|{(int)Atlas.SelfX}|{(int)Atlas.SelfY}|{Tracker.SelfServerId}|{Inventory.All().Count}";
         if (key == _lastSummary) return;
         _lastSummary = key;
         WriteCraftable();
@@ -692,7 +747,7 @@ public sealed class MeterService : IDisposable
             savedAt = DateTimeOffset.Now.ToString("O"),
             serverId = Tracker.SelfServerId,
             mapId = Atlas.MapId, x = Atlas.SelfX, y = Atlas.SelfY,
-            characterKey = _characterKey.Length > 0 ? _characterKey : null,
+            characterKey = _boundKey.Length > 0 ? _boundKey : null,
             characterName = Tracker.SelfName,
             kinah = Inventory.CountOf(InventoryStore.Kinah),
             kinahBound = Inventory.CountOf(InventoryStore.KinahBound),

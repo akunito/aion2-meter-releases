@@ -419,8 +419,11 @@
                     <!-- Pop out: one more card (same tabs) so two or three views can be open at once; the copies get an X, this one never -->
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE8A7;" Click="PopOut_Click" ToolTip="{Binding T.PopOut}" Margin="4,0,0,0" />
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE897;" Click="Help_Click" ToolTip="{Binding T.TipHelp}" Margin="2,0,0,0" />
-                    <!-- Character selector (A2M-28): the game decides while it runs; with it closed, browse any saved character -->
-                    <ComboBox x:Name="CharBox" Visibility="Collapsed" MinWidth="110" Height="24" FontSize="11.5" Margin="8,0,0,0" VerticalAlignment="Center" DropDownOpened="CharBox_Opened" SelectionChanged="CharBox_Changed"
+                    <!-- Character selector (A2M-28): any saved character, also while playing (only the view moves; "(current)" = the logged-in one).
+                         The eye and the amber box say the tabs show someone other than the live character. -->
+                    <TextBlock x:Name="CharViewing" Visibility="Collapsed" Text="&#xE890;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource Amber}"
+                               VerticalAlignment="Center" Margin="8,0,0,0" Background="Transparent" WindowChrome.IsHitTestVisibleInChrome="True" />
+                    <ComboBox x:Name="CharBox" Visibility="Collapsed" MinWidth="110" Height="24" FontSize="11.5" Margin="6,0,0,0" Padding="8,3,24,3" VerticalAlignment="Center" DropDownOpened="CharBox_Opened" SelectionChanged="CharBox_Changed"
                               ToolTip="{Binding T.CharSelectTip}" WindowChrome.IsHitTestVisibleInChrome="True" />
                 </StackPanel>
 

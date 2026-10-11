@@ -79,12 +79,12 @@ public partial class ItemsView : UserControl
         {
             if (_sample) return;
             Reload();
-            _meter.Inventory.Changed += OnChanged; _meter.CharacterChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.Account.Changed += OnChanged; _icons.Loaded += OnIcon;
+            _meter.Inventory.Changed += OnChanged; _meter.ViewInventoryChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.Account.Changed += OnChanged; _icons.Loaded += OnIcon;
         };
         Unloaded += (_, _) =>
         {
             if (_sample) return;
-            _meter.Inventory.Changed -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.Account.Changed -= OnChanged; _icons.Loaded -= OnIcon;
+            _meter.Inventory.Changed -= OnChanged; _meter.ViewInventoryChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.Account.Changed -= OnChanged; _icons.Loaded -= OnIcon;
             _reloadTick.Stop(); _iconTick.Stop();
         };
         // hidden tab: one reload when it comes back, not one per packet
@@ -119,6 +119,7 @@ public partial class ItemsView : UserControl
     private Data Gather()
     {
         var cur = _meter.CharacterKey;
+        var bound = _meter.BoundKey;
         var keys = _meter.CharacterKeys();
         if (cur.Length > 0 && !keys.Contains(cur)) keys.Add(cur);
         var server = ServerOf(cur.Length > 0 ? cur : keys.Count > 0 ? keys[0] : "");
@@ -128,11 +129,13 @@ public partial class ItemsView : UserControl
             if (ServerOf(k) != server) continue;   // the account warehouse and the footer are per server
             var path = Path.Combine(AppSettings.AppDataDir, "characters", k, "inventory.json");
             InventoryFile? f;
-            if (k == cur)
+            // the viewed character from ViewInventory (live or its file), the bound one live even when not viewed (search panel), others from disk
+            var store = k == cur ? _meter.ViewInventory : k == bound ? _meter.Inventory : null;
+            if (store is not null)
             {
                 var written = DateTime.UtcNow;
                 try { if (File.Exists(path)) written = File.GetLastWriteTimeUtc(path); } catch (IOException) { }
-                f = new InventoryFile(_meter.Inventory.All(), _meter.Inventory.SeenAll(), written);
+                f = new InventoryFile(store.All(), store.SeenAll(), written);
             }
             else f = _meter.OtherInventories.Get(path);
             chars.Add(new CharData(k, ClassLine(k), f));

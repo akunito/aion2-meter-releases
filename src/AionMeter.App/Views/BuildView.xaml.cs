@@ -53,6 +53,7 @@ public partial class BuildView : UserControl
     private readonly MeterService _meter;
     private readonly IconCache _icons;
     private BuildStore _store;
+    private string _storeKey;   // whose builds _store holds: a save flushed during a character switch is still that character's (telemetry charhash)
     private Build? _build;                       // what is shown; edits replace it and the save follows 500 ms later
     private CharacterProfile? _profile;
     private string _classId = "", _vmClass = "", _lang;
@@ -89,6 +90,7 @@ public partial class BuildView : UserControl
         _meter = meter;
         _icons = icons ?? meter.ItemIconCache;
         _store = meter.Builds;
+        _storeKey = meter.CharacterKey;
         _lang = meter.Settings.SkillLanguage == "es" ? "es" : "en";
         _showDone = meter.Settings.BuildShowDone;
         InitializeComponent();
@@ -185,6 +187,7 @@ public partial class BuildView : UserControl
         if (_sample) { Render(); return; }
         FlushSave();                              // into the store it was edited for, before a character switch rebinds it
         _store = _meter.Builds;
+        _storeKey = _meter.CharacterKey;
         _profile = _meter.CurrentProfile;
         var builds = _store.List();
         var active = _store.ActiveId;
@@ -1245,8 +1248,8 @@ public partial class BuildView : UserControl
     private void QueueTelemetry(Build saved)
     {
         if (_sample) return;
-        var p = _meter.CurrentProfile;
-        Telemetry.QueueBuild(_meter.Settings, saved, BuildEditor.ClassIdOf(p?.ClassName) ?? _classId, p?.Level ?? 0, _meter.CharacterKey);
+        var p = _storeKey == _meter.CharacterKey ? _meter.CurrentProfile : _profile;
+        Telemetry.QueueBuild(_meter.Settings, saved, BuildEditor.ClassIdOf(p?.ClassName) ?? _classId, p?.Level ?? 0, _storeKey);
     }
 
     private void CopyQuestlog_Click(object sender, RoutedEventArgs e)

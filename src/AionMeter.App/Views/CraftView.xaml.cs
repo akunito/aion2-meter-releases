@@ -38,8 +38,8 @@ public partial class CraftView : UserControl
         Professions.ItemsSource = new[] { new Prof("", T.CraftAll, true), new Prof("blacksmithing", "Blacksmith", false), new Prof("tailoring", "Tailor", false), new Prof("jewelcrafting", "Jewel", false), new Prof("alchemy", "Alchemy", false), new Prof("cooking", "Cooking", false) };
         foreach (ComboBoxItem it in ScopeBox.Items) if ((string)it.Tag == meter.Settings.CraftScope) { ScopeBox.SelectedItem = it; break; }
         if (ScopeBox.SelectedItem is null) ScopeBox.SelectedIndex = 0;
-        Loaded += (_, _) => { Reload(); _meter.Inventory.Changed += OnChanged; _meter.MarketChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.ItemIconCache.Loaded += OnIcon; };
-        Unloaded += (_, _) => { _meter.Inventory.Changed -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.ItemIconCache.Loaded -= OnIcon; _iconTick.Stop(); };
+        Loaded += (_, _) => { Reload(); _meter.ViewInventoryChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.ItemIconCache.Loaded += OnIcon; };
+        Unloaded += (_, _) => { _meter.ViewInventoryChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.ItemIconCache.Loaded -= OnIcon; _iconTick.Stop(); };
         IsVisibleChanged += (_, e) => { if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
         _iconTick.Tick += (_, _) => { _iconTick.Stop(); if (List.ItemsSource is IEnumerable<Row> rows) foreach (var r in rows) r.RefreshIcon(); };
         _searchTick.Tick += (_, _) => { _searchTick.Stop(); Reload(); };
@@ -112,7 +112,7 @@ public partial class CraftView : UserControl
         var m = _meter.Market;
         if (m.Count == 0) { List.ItemsSource = Array.Empty<Row>(); StatusText.Text = T.CraftNoMarket; return; }
         var fee = _meter.Settings.BrokerFeePercent;
-        var all = _meter.Recipes.Profit(m.Price, fee, _meter.Inventory.CountOf, _profession.Length == 0 ? null : _profession);
+        var all = _meter.Recipes.Profit(m.Price, fee, _meter.ViewInventory.CountOf, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(120); var shown = 0; var favs = _meter.Settings.CraftFavourites; var seen = new HashSet<string>();
         foreach (var p in all.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
@@ -141,7 +141,7 @@ public partial class CraftView : UserControl
         // Typing searches the whole book (Diego 2026-10-11): the scope only applies while the box is empty
         var scope = q.Length > 0 ? "all" : Scope; var favs = _meter.Settings.CraftFavourites;
         // one pass over every recipe (1,684: cheap); the scope filters, favourites bypass it and lead the list
-        var opts = _meter.Recipes.Evaluate(_meter.Inventory.CountOf, 99, _profession.Length == 0 ? null : _profession);
+        var opts = _meter.Recipes.Evaluate(_meter.ViewInventory.CountOf, 99, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(opts.Count); var craftable = 0; var (keep, variants) = PickTwins(opts, Nm);
         foreach (var o in opts.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {

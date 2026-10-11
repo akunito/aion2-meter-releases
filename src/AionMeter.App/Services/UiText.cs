@@ -373,8 +373,10 @@ public sealed class UiText
     public string TrayCheckUpdates { get; init; } = "Check for updates";
     public string TrayReport { get; init; } = "Report a problem…";
     public string HelpTitle { get; init; } = "Help";
-    public string CharSelectTip { get; init; } = "Character whose inventory, titles and pets the tabs show. While AION 2 runs the game decides; with it closed you can browse any saved character.";
-    public string CharSelectLocked { get; init; } = "Locked while AION 2 runs: the login decides the character";
+    public string CharSelectTip { get; init; } = "Character whose bag, warehouse, builds and Craft counts the tabs show. Pick any saved character, also while playing: live data keeps going to the logged-in one, marked (current).";
+    public string CharCurrentSuffix { get; init; } = " (current)";
+    public string CharViewingTip { get; init; } = "Live data belongs to {0}; you are viewing {1}";
+    public string CharViewingNobody { get; init; } = "nobody yet";
     public string TipHelp { get; init; } = "What this tab does and how to use it";
     public string HelpMissing { get; init; } = "No help page for this tab in this build.";
     public string ReportTitle { get; init; } = "Report a problem";
