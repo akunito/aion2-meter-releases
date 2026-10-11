@@ -38,13 +38,30 @@
                            Text="{Binding BuildImportHint, Source={x:Static s:UiText.Current}}" />
             </StackPanel>
 
-            <!-- search -->
-            <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,12,20,8">
+            <!-- my builds (questlog user, no login) | search of the public builds; "All classes" is shared -->
+            <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,4,20,8">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionLabel}" Text="{Binding ImportSearchLabel, Source={x:Static s:UiText.Current}}" Margin="0,0,0,6" />
-                    <DockPanel>
+                    <DockPanel Margin="-10,0,0,6">
                         <CheckBox x:Name="AllClasses" DockPanel.Dock="Right" Style="{StaticResource DarkCheck}" Margin="12,0,0,0" VerticalAlignment="Center" Click="AllClasses_Click"
                                   Content="{Binding ImportAllClasses, Source={x:Static s:UiText.Current}}" />
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="TabMine" Style="{StaticResource TabToggle}" GroupName="ImportTab" Checked="Tab_Checked"
+                                         Content="{Binding ImportMineTab, Source={x:Static s:UiText.Current}}" />
+                            <RadioButton x:Name="TabSearch" Style="{StaticResource TabToggle}" GroupName="ImportTab" Checked="Tab_Checked"
+                                         Content="{Binding ImportSearchLabel, Source={x:Static s:UiText.Current}}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <DockPanel x:Name="MinePanel" Visibility="Collapsed">
+                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,10,0"
+                                   Text="{Binding ImportUserLabel, Source={x:Static s:UiText.Current}}" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="MineRefresh_Click" Padding="12,4"
+                                ToolTip="{Binding ImportMineRefresh, Source={x:Static s:UiText.Current}}">
+                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFont}" FontSize="13" />
+                        </Button>
+                        <TextBox x:Name="UserBox" Style="{StaticResource Field}" Height="30" KeyDown="UserBox_KeyDown" LostKeyboardFocus="UserBox_LostFocus"
+                                 ToolTip="{Binding ImportUserHint, Source={x:Static s:UiText.Current}}" />
+                    </DockPanel>
+                    <DockPanel x:Name="SearchPanel">
                         <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="Search_Click" Padding="12,4">
                             <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="13" />
                         </Button>

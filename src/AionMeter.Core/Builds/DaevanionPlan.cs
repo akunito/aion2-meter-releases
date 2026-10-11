@@ -15,8 +15,8 @@ public sealed record EffectSum(string Key, string Name, double Value, string Suf
     public string Amount => "+" + Value.ToString("0.##", CultureInfo.InvariantCulture) + Suffix;
 }
 
-/// <summary>A questlog daevanion-planner build: selectedNodes per board (the start is never listed).</summary>
-public sealed record QuestlogDaevPlan(long Id, string Name, string ClassId, Dictionary<int, List<int>> Boards);
+/// <summary>A questlog daevanion-planner build: selectedNodes per board (the start is never listed). The planner has no likes.</summary>
+public sealed record QuestlogDaevPlan(long Id, string Name, string ClassId, Dictionary<int, List<int>> Boards, DateTimeOffset? UpdatedAt = null, IReadOnlyList<string>? Tags = null);
 
 /// <summary>
 /// The Daevanion planner's rules as pure functions over one board. A plan list never holds the start node; what is shown and saved
@@ -182,35 +182,69 @@ public static partial class DaevanionPlan
     /// <summary>Build <paramref name="id"/> of a getDaevanionPlannerBySlug answer; null when absent or the JSON is not that shape.</summary>
     public static QuestlogDaevPlan? ParsePlanner(string json, long id)
     {
+        foreach (var p in ParsePlannerList(json)) if (p.Id == id) return p;
+        return null;
+    }
+
+    /// <summary>Every planner build of a getDaevanionPlannerBySlug answer, in questlog's order; empty when the JSON is not that shape.</summary>
+    public static List<QuestlogDaevPlan> ParsePlannerList(string json)
+    {
+        var list = new List<QuestlogDaevPlan>();
         try
         {
             using var doc = JsonDocument.Parse(json);
             var d = doc.RootElement;
-            if (d.TryGetProperty("result", out var r) && r.TryGetProperty("data", out var data)) d = data;
+            if (d.ValueKind == JsonValueKind.Array && d.GetArrayLength() > 0) d = d[0];   // batched tRPC
+            if (d.ValueKind == JsonValueKind.Object && d.TryGetProperty("result", out var r) && r.ValueKind == JsonValueKind.Object && r.TryGetProperty("data", out var data)) d = data;
             if (d.ValueKind == JsonValueKind.Object && d.TryGetProperty("json", out var j)) d = j;   // superjson wrapper
-            if (d.ValueKind != JsonValueKind.Object || !d.TryGetProperty("builds", out var builds) || builds.ValueKind != JsonValueKind.Array) return null;
+            if (d.ValueKind != JsonValueKind.Object || !d.TryGetProperty("builds", out var builds) || builds.ValueKind != JsonValueKind.Array) return list;
             foreach (var b in builds.EnumerateArray())
             {
-                if (!b.TryGetProperty("id", out var bid) || !bid.TryGetInt64(out var v) || v != id) continue;
+                if (b.ValueKind != JsonValueKind.Object || !b.TryGetProperty("id", out var bid) || !bid.TryGetInt64(out var v)) continue;
                 var boards = new Dictionary<int, List<int>>();
                 if (b.TryGetProperty("selectedNodes", out var sel) && sel.ValueKind == JsonValueKind.Object)
                     foreach (var p in sel.EnumerateObject())
                     {
                         if (!int.TryParse(p.Name, NumberStyles.None, CultureInfo.InvariantCulture, out var board) || p.Value.ValueKind != JsonValueKind.Array) continue;
-                        var list = new List<int>(p.Value.GetArrayLength());
+                        var nodes = new List<int>(p.Value.GetArrayLength());
                         foreach (var x in p.Value.EnumerateArray())
                         {
                             int n;
                             var okId = x.ValueKind == JsonValueKind.String ? int.TryParse(x.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out n) : x.TryGetInt32(out n);
-                            if (okId) list.Add(n);
+                            if (okId) nodes.Add(n);
                         }
-                        boards[board] = list;
+                        boards[board] = nodes;
                     }
-                return new QuestlogDaevPlan(v, b.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "", b.TryGetProperty("classId", out var c) ? c.GetString() ?? "" : "", boards);
+                List<string>? tags = null;
+                if (b.TryGetProperty("tags", out var t) && t.ValueKind == JsonValueKind.Array)
+                {
+                    tags = new List<string>(t.GetArrayLength());
+                    foreach (var x in t.EnumerateArray()) if (x.ValueKind == JsonValueKind.String && x.GetString() is { } tag) tags.Add(tag);
+                }
+                DateTimeOffset? updated = b.TryGetProperty("updatedAt", out var u) && u.ValueKind == JsonValueKind.String
+                    && DateTimeOffset.TryParse(u.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var ud) ? ud : null;
+                list.Add(new QuestlogDaevPlan(v, b.TryGetProperty("name", out var nm) && nm.ValueKind == JsonValueKind.String ? nm.GetString() ?? "" : "",
+                    b.TryGetProperty("classId", out var c) && c.ValueKind == JsonValueKind.String ? (c.GetString() ?? "").ToLowerInvariant() : "", boards, updated, tags ?? []));
             }
         }
         catch (JsonException) { }
-        return null;
+        return list;
+    }
+
+    /// <summary>The questlog plan as this class's plan: only nodes of the catalogue that sit on their own board, starts dropped. <paramref name="count"/> = nodes kept.</summary>
+    public static Dictionary<int, List<int>> FromQuestlog(DaevClass cls, QuestlogDaevPlan plan, out int count)
+    {
+        var next = new Dictionary<int, List<int>>();
+        count = 0;
+        foreach (var b in cls.Boards)
+        {
+            if (!plan.Boards.TryGetValue(b.Id, out var ids)) continue;
+            var list = new List<int>(ids.Count);
+            foreach (var id in ids) if (cls.Node(id) is { Start: false } n && n.Board == b.Id) list.Add(id);
+            next[b.Id] = list;
+            count += list.Count;
+        }
+        return next;
     }
 
     private static List<int> Ordered(DaevBoard b, HashSet<int> set)

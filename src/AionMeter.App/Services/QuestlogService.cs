@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using AionMeter.Core.Builds;
 
@@ -70,6 +71,41 @@ public static class QuestlogService
         var m = 0;
         foreach (var b in list) if (b.LikeCount > m) m = b.LikeCount;
         return m;
+    }
+
+    /// <summary>The user's own questlog builds: skill builds (full, specs included) and planner builds, fetched together.</summary>
+    public sealed record MyBuilds(List<BuildSummary> Skills, List<QuestlogDaevPlan> Plans, DateTimeOffset At);
+
+    private static readonly Dictionary<string, MyBuilds> Mine = new(StringComparer.Ordinal);
+
+    /// <summary>Cached lists of this slug for the session, or null when they still have to be fetched.</summary>
+    public static MyBuilds? CachedMine(string slug)
+    {
+        lock (Mine) return Mine.GetValueOrDefault(slug);
+    }
+
+    /// <summary>getSkillBuilderBySlug + getDaevanionPlannerBySlug of one user (two GETs on the shared client), cached per slug for the session; <paramref name="refresh"/> refetches. Errors propagate.</summary>
+    public static async Task<MyBuilds> MineAsync(string slug, bool refresh = false)
+    {
+        if (!refresh && CachedMine(slug) is { } hit) return hit;
+        var r = await Task.Run(async () =>
+        {
+            var skills = QuestlogBuilds.ParseSearch(await Client.GetAsync(QuestlogBuilds.UserBuildsUrl(slug)).ConfigureAwait(false));
+            var plans = DaevanionPlan.ParsePlannerList(await Client.GetAsync(DaevanionPlan.PlannerApiUrl(slug)).ConfigureAwait(false));
+            return new MyBuilds(skills, plans, DateTimeOffset.UtcNow);
+        }).ConfigureAwait(false);
+        lock (Mine) Mine[slug] = r;
+        return r;
+    }
+
+    /// <summary>A questlog link was imported: its author becomes the user's slug when none is set yet. True when the setting changed.</summary>
+    public static bool LearnSlug(AppSettings settings, string? slug)
+    {
+        if (!string.IsNullOrEmpty(settings.QuestlogSlug) || string.IsNullOrEmpty(slug)) return false;
+        settings.QuestlogSlug = slug;
+        try { settings.Save(); } catch (IOException) { }
+        Log.Info($"questlog user learnt from a link: {slug}");
+        return true;
     }
 
     /// <summary>The full build (specs included) of a search result or a pasted link.</summary>

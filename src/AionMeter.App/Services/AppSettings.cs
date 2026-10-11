@@ -161,6 +161,8 @@ public sealed class AppSettings
     public bool BuildShowDone { get; set; } = true;
     /// <summary>Build tab, Daevanion: draw nodes already open at full strength (off dims them to show only what is left).</summary>
     public bool DaevShowOpen { get; set; } = true;
+    /// <summary>The user's questlog.gg slug (…/skill-builder/&lt;slug&gt;): "My builds" in the Import dialog and the suggestions card. Learnt from the first questlog link imported, editable in the dialog; no login.</summary>
+    public string QuestlogSlug { get; set; } = "";
     /// <summary>Build tab, Daevanion: skill icon over the "Skill Level Up" nodes.</summary>
     public bool DaevSkillIcons { get; set; } = true;
     /// <summary>Build telemetry (A2M-21): per build id, when it was last sent and the build's UpdatedAt then (at most one send per build per 24 h, none without a change).</summary>

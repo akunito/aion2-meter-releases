@@ -17,7 +17,7 @@ public static class SampleRenderer
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
     /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected) or suggest (no build: suggestions card).</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
     /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); nothing is downloaded.</param>
@@ -64,8 +64,9 @@ public static class SampleRenderer
                 var icons = new IconCache(Core.GameDb.ItemIcons.Empty, o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
                 var build = new Views.BuildView(meter, icons);
                 if (o.Tab == "done") build.SetShowDone(false);
-                if (o.Tab == "suggest") build.ShowSampleSuggestions(SampleProfile(), SampleSuggestions());   // no active build: the suggestions card
+                if (o.Tab == "suggest") build.ShowSampleSuggestions(SampleProfile(), SampleSuggestions(), Core.Builds.QuestlogMine.OfClass(SampleMine().Skills, static b => b.ClassId, "ranger"));   // no active build: the suggestions card ("Your questlog builds" first)
                 else build.ShowSample(SampleBuild(), SampleProfile(), o.Tab == "rel" ? 14090000 : 14170000);   // Explosion Trap selected (--tab rel: Marking Shot — no note, so the placeholder, plus its E chain and Precision links)
+                if (o.Tab == "update") build.SampleCheck(SampleMine().Skills.Find(static b => b.Id == 15969)! with { UpdatedAt = new DateTimeOffset(2026, 10, 11, 9, 30, 0, TimeSpan.Zero) });   // "Check questlog" found a newer version
                 var page = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x0D));
                 // --tab tip: Explosion Trap's and Deadshot's tooltips side by side (a ToolTip never opens offscreen)
                 host = o.Tab == "tip" ? new Window { Content = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Background = page, Children = { build.TipPreview(14170000), build.TipPreview(14010000) } }, Width = o.Width ?? 720, Height = o.Height ?? 640, Background = page }
@@ -73,10 +74,15 @@ public static class SampleRenderer
                 refresh = o.Tab == "tip" ? () => { } : build.RenderNow;
                 break;
             case "import":
-                var import = new ImportBuildWindow("ranger") { Width = o.Width ?? 760, Height = o.Height ?? 680 };
+                var import = new ImportBuildWindow("ranger", meter.Settings) { Width = o.Width ?? 760, Height = o.Height ?? 680 };
                 var all = SampleSuggestions();
                 all.Insert(2, all[0] with { Id = 1, Name = "Templar tank (filtered out of a ranger search)", ClassId = "templar" });
-                import.ShowSample("https://questlog.gg/aion-2/en/skill-builder/AXIIyLxFWMU0?build-id=15969", new Core.Builds.BuildSearchPage(all, 1, 4, 74));
+                if (o.Tab is "mine" or "mine-all")   // "My builds" of Diego's questlog user (7 skill builds, 6 plans; mine-all = "All classes" ticked)
+                {
+                    if (o.Tab == "mine-all") ((System.Windows.Controls.CheckBox)import.FindName("AllClasses")).IsChecked = true;
+                    import.ShowSampleMine("AXIIyLxFWMU0", SampleMine());
+                }
+                else import.ShowSample("https://questlog.gg/aion-2/en/skill-builder/AXIIyLxFWMU0?build-id=15969", new Core.Builds.BuildSearchPage(all, 1, 4, 74));
                 host = import;
                 refresh = () => { };
                 break;
@@ -246,6 +252,34 @@ public static class SampleRenderer
             list.Add(new Core.Builds.BuildSummary(r.Id, r.Name, "ranger", r.Author, "X2aYOSzHtbA6", r.Likes, new DateTimeOffset(2026, 10, r.Day, 12, 0, 0, TimeSpan.Zero), r.Tags, true,
                 new Core.Builds.Build { Name = r.Name, ClassId = "ranger" }));
         return list;
+    }
+
+    /// <summary>Diego's questlog user AXIIyLxFWMU0 as of 2026-10-11: names, classes, tags and dates of his 7 skill builds and 6 planner builds (no skills or nodes).</summary>
+    private static QuestlogService.MyBuilds SampleMine()
+    {
+        (long Id, string Name, string Cls, string[] Tags, int Day, int Hour)[] skills =
+        [
+            (13277, "P1 Farmeo solo (Leonis Midgame + aguante)", "templar", ["pve"], 4, 7), (13278, "P2 Mazmorras y jefes (Leonis Midgame)", "templar", ["pve"], 4, 7),
+            (13279, "P3 Peleas duras (Leonis Defensive)", "templar", ["pve"], 4, 7), (15969, "Irin — Ranger PvE 45 (ref. whelps 10.08 + top Vaizel)", "ranger", ["pve", "dps"], 9, 20),
+            (16049, "Arielka - Chanter PvE (ref. dimach + top Vaizel)", "chanter", ["pve", "dps"], 9, 23), (16051, "Akunita - Templar PvE 45 (top Vaizel, 2026-10-10)", "templar", ["pve", "dps"], 9, 23),
+            (16056, "Akuna - Cleric PvE (ref. MrRosaPony + top Vaizel)", "cleric", ["pve", "dps"], 9, 23),
+        ];
+        (long Id, string Name, string Cls, string[] Tags, int Day, int Hour)[] plans =
+        [
+            (6035, "Akunita", "templar", [], 4, 6), (6046, "Akunita (Aligned)", "templar", [], 4, 6), (8602, "Irin — Daevanion Ranger (top Vaizel)", "ranger", ["pve", "dps"], 9, 21),
+            (8661, "Arielka - Daevanion Chanter (top Vaizel)", "chanter", ["pve", "dps"], 9, 23), (8664, "Akunita - Daevanion Templar (top Vaizel, 2026-10-10)", "templar", ["pve", "dps"], 9, 23),
+            (8670, "Akuna - Daevanion Cleric (top Vaizel)", "cleric", ["pve", "dps"], 9, 23),
+        ];
+        var s = new List<Core.Builds.BuildSummary>(skills.Length);
+        foreach (var r in skills)
+        {
+            var at = new DateTimeOffset(2026, 10, r.Day, r.Hour, 0, 0, TimeSpan.Zero);
+            s.Add(new Core.Builds.BuildSummary(r.Id, r.Name, r.Cls, "akunito88", "AXIIyLxFWMU0", 0, at, r.Tags, false,
+                new Core.Builds.Build { Name = r.Name, ClassId = r.Cls, Source = new Core.Builds.BuildSource(r.Id, "AXIIyLxFWMU0", "akunito88"), UpdatedAt = at }));
+        }
+        var p = new List<Core.Builds.QuestlogDaevPlan>(plans.Length);
+        foreach (var r in plans) p.Add(new Core.Builds.QuestlogDaevPlan(r.Id, r.Name, r.Cls, new(), new DateTimeOffset(2026, 10, r.Day, r.Hour, 0, 0, TimeSpan.Zero), r.Tags));
+        return new QuestlogService.MyBuilds(s, p, DateTimeOffset.UtcNow);
     }
 
     /// <summary>Irin's official profile of 2026-10-10 as far as skills go (Ranger 45): current levels, four build skills not acquired.</summary>

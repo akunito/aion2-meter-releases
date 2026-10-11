@@ -58,7 +58,11 @@ public partial class BuildView : UserControl
     private string _classId = "", _vmClass = "", _lang;
     private bool _sample, _dirty, _syncing, _stale, _showDone, _descOpen, _importing;
     private string _suggestFor = "";            // class whose suggestions the card shows (or is loading)
-    private List<BuildSummary>? _sampleSuggestions;
+    private List<BuildSummary>? _sampleSuggestions, _sampleMine;
+    /// <summary>Last "Check questlog" answer for one build: the newer questlog versions (null = not newer), or a note when none is.</summary>
+    private sealed record QuestlogCheck(string BuildId, BuildSummary? Skill, QuestlogDaevPlan? Plan, string? PlanSlug, string? Note);
+    private QuestlogCheck? _check;
+    private bool _checking;
     private int _selected, _key;
     private readonly Dictionary<int, SkillVm> _vms = new();
     private readonly Dictionary<int, SkillProgress> _prog = new();
@@ -90,7 +94,12 @@ public partial class BuildView : UserControl
         InitializeComponent();
         PageDaev.Attach(meter, _icons);
         // Daevanion edits ride on this view's build and its 500 ms save (the page only hands over the new plan)
-        PageDaev.PlanImported += (src, name) => { if (_build is null) return; _build = _build with { PlanSource = src, PlanName = name }; _dirty = true; if (!_sample) { _saveTick.Stop(); _saveTick.Start(); } };
+        PageDaev.PlanImported += (plan, slug) =>
+        {
+            if (_build is null) return;
+            _build = _build with { PlanSource = new BuildSource(plan.Id, slug, null), PlanName = plan.Name, PlanSourceUpdatedAt = plan.UpdatedAt };
+            _dirty = true; if (!_sample) { _saveTick.Stop(); _saveTick.Start(); }
+        };
         PageDaev.PlanEdited += plan => { if (_build is null) return; _build = _build with { Daevanion = plan }; _dirty = true; if (!_sample) { _saveTick.Stop(); _saveTick.Start(); } };
         _syncing = true;
         LangBox.SelectedIndex = _lang == "es" ? 1 : 0;
@@ -137,12 +146,20 @@ public partial class BuildView : UserControl
     }
 
     /// <summary>Offscreen render (SampleRenderer "build --tab suggest"): no active build, these suggestions in the card.</summary>
-    public void ShowSampleSuggestions(CharacterProfile? profile, List<BuildSummary> suggestions)
+    public void ShowSampleSuggestions(CharacterProfile? profile, List<BuildSummary> suggestions, List<BuildSummary>? mine = null)
     {
         _sample = true;
         _build = null; _profile = profile; _selected = 0;
         _sampleSuggestions = suggestions;
+        _sampleMine = mine;
         FillPicker([], null);
+        Render();
+    }
+
+    /// <summary>Render tool (--tab update): the header as after "Check questlog" found a newer skill build on questlog.</summary>
+    public void SampleCheck(BuildSummary newer)
+    {
+        if (_build is not null) _check = new QuestlogCheck(_build.Id, newer, null, null, null);
         Render();
     }
 
@@ -319,6 +336,7 @@ public partial class BuildView : UserControl
                 link.RequestNavigate += (_, e) => OpenUrl(e.Uri.AbsoluteUri);
                 src.Add(link);
             }
+            RenderCheck(src);
         }
         MissingText.Text = progress is not null && _profile is not null
             ? string.Format(T.BuildMissing, progress.MissingSkills, progress.TotalSkills, progress.MissingLevels, progress.NotLearned) : "";
@@ -1007,8 +1025,14 @@ public partial class BuildView : UserControl
     private void NewFromProfile_Click(object sender, RoutedEventArgs e)
     {
         if (_sample) return;
+        StatusText.Text = CreateFromProfile(out var error) ? "" : error;
+    }
+
+    /// <summary>"New from profile": a build of what the character has now becomes the active build. False with the reason when there is no profile or the save failed.</summary>
+    private bool CreateFromProfile(out string error)
+    {
         var p = _meter.CurrentProfile ?? _profile;
-        if (p is null) { StatusText.Text = T.BuildNoProfileForNew; return; }
+        if (p is null) { error = T.BuildNoProfileForNew; return false; }
         FlushSave();
         var b = BuildEditor.FromProfile(p, string.Format(T.BuildProfileName, p.Ref.Name, p.FetchedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)));
         try
@@ -1017,9 +1041,10 @@ public partial class BuildView : UserControl
             _store.ActiveId = saved.Id;
             QueueTelemetry(saved);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); StatusText.Text = ex.Message; return; }
-        StatusText.Text = "";
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); error = ex.Message; return false; }
+        error = "";
         Reload();
+        return true;
     }
 
     private void DeleteBuild_Click(object sender, RoutedEventArgs e)
@@ -1035,9 +1060,9 @@ public partial class BuildView : UserControl
     private void Import_Click(object sender, RoutedEventArgs e)
     {
         if (_sample) return;
-        var dlg = new ImportBuildWindow(_classId) { Owner = Window.GetWindow(this) };
+        var dlg = new ImportBuildWindow(_classId, _meter.Settings) { Owner = Window.GetWindow(this), ImportPlan = (p, slug) => ImportPlan(p, slug).Message };
         if (dlg.ShowDialog() != true) return;
-        if (dlg.Result is { } b) SaveImported(b);
+        if (dlg.Result is { } b) ImportMine(b, dlg.PairedPlan, dlg.PairedSlug);
         else if (dlg.PlanUrl is { } planUrl) { SubDaev.IsChecked = true; PageDaev.ImportPlanFromUrl(planUrl); }
     }
 
@@ -1049,10 +1074,10 @@ public partial class BuildView : UserControl
             if (Core.Builds.DaevanionPlan.ParsePlannerUrl(url) is not null) { SubDaev.IsChecked = true; PageDaev.ImportPlanFromUrl(url); return; }
             StatusText.Text = T.BuildImportBadUrl; return;
         }
-        await ImportAsync(r.Slug, r.Id);
+        await ImportAsync(r.Slug, r.Id, fromLink: true);
     }
 
-    private async Task ImportAsync(string slug, long id)
+    private async Task ImportAsync(string slug, long id, bool fromLink = false)
     {
         if (_sample || _importing) return;
         _importing = true;
@@ -1061,7 +1086,11 @@ public partial class BuildView : UserControl
         {
             var b = await QuestlogService.FetchAsync(slug, id);
             if (b is null) StatusText.Text = string.Format(T.BuildImportNotFound, id);
-            else SaveImported(b);
+            else
+            {
+                if (fromLink) QuestlogService.LearnSlug(_meter.Settings, slug);
+                SaveImported(b);
+            }
         }
         catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or InvalidOperationException)
         {
@@ -1071,7 +1100,7 @@ public partial class BuildView : UserControl
         finally { _importing = false; }
     }
 
-    private void SaveImported(Build imported)
+    private Build? SaveImported(Build imported)
     {
         FlushSave();
         Build saved;
@@ -1080,7 +1109,7 @@ public partial class BuildView : UserControl
             saved = _store.Save(QuestlogImport.Prepare(imported, _store.List()));
             _store.ActiveId = saved.Id;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); StatusText.Text = ex.Message; return; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); StatusText.Text = ex.Message; return null; }
         Log.Info($"Build imported from questlog: {saved.Source?.Id} → {saved.Id} ({saved.ClassId}, {saved.Skills.Count} skills)");
         QueueTelemetry(saved);
         _selected = 0;
@@ -1088,6 +1117,129 @@ public partial class BuildView : UserControl
         StatusText.Text = _classId.Length > 0 && saved.ClassId.Length > 0 && saved.ClassId != _classId
             ? string.Format(T.BuildImportedOtherClass, saved.Name, ClassName(saved.ClassId), ClassName(_classId))
             : string.Format(T.BuildImported, saved.Name);
+        return saved;
+    }
+
+    /// <summary>A skill build of the user's own list (already complete, nothing fetched) plus the planner build paired with it, reported on one status line.</summary>
+    private void ImportMine(Build build, QuestlogDaevPlan? paired, string? slug)
+    {
+        if (SaveImported(build) is null || paired is null) return;
+        var status = StatusText.Text;
+        var (ok, msg) = ImportPlan(paired, slug ?? build.Source?.Slug);
+        StatusText.Text = status + (ok ? string.Format(T.BuildPlanPaired, paired.Name) : "; " + msg);
+    }
+
+    /// <summary>
+    /// A questlog planner build becomes the plan of the active build; with no active build one is made from the profile first
+    /// ("New from profile"). Refused for another class. Saved at once (the dialog that asked may stay open).
+    /// </summary>
+    private (bool Ok, string Message) ImportPlan(QuestlogDaevPlan plan, string? slug)
+    {
+        if (_sample) return (false, "");
+        if (_classId.Length > 0 && plan.ClassId.Length > 0 && !plan.ClassId.Equals(_classId, StringComparison.OrdinalIgnoreCase))
+            return (false, string.Format(T.DaevImportClass, plan.Id, plan.ClassId, _classId));
+        var created = false;
+        if (_build is null)
+        {
+            if (!CreateFromProfile(out var error)) return (false, error);
+            created = true;
+            if (_build is null) return (false, T.BuildNoBuild);
+        }
+        var cls = _meter.Daevanion.ForClass(_classId.Length > 0 ? _classId : plan.ClassId);
+        var next = DaevanionPlan.FromQuestlog(cls, plan, out var count);
+        _build = _build with { Daevanion = next, PlanSource = new BuildSource(plan.Id, slug, null), PlanName = plan.Name, PlanSourceUpdatedAt = plan.UpdatedAt };
+        _dirty = true;
+        FlushSave();
+        Render();
+        Log.Info($"Daevanion import: \"{plan.Name}\" ({plan.Id}) {count} nodes on {next.Count} boards into build {_build.Id}");
+        var msg = string.Format(T.ImportPlanDone, plan.Name, _build.Name, count.ToString(CultureInfo.InvariantCulture), next.Count);
+        return (true, created ? T.ImportPlanNewBuild + msg : msg);
+    }
+
+    // ------------------------------------------------------------------ check questlog (only on click: no network on tab open)
+
+    private void RenderCheck(InlineCollection src)
+    {
+        if (_build is null) return;
+        if (_build.Source is not { Slug: { Length: > 0 } } && _build.PlanSource is not { Slug: { Length: > 0 } }) return;
+        src.Add(new Run("  ·  "));
+        var c = _check is { } k && k.BuildId == _build.Id ? k : null;
+        if (c is { Note: { } note }) { src.Add(new Run(note)); src.Add(new Run("  ")); }
+        if (c is not null && (c.Skill is not null || c.Plan is not null))
+        {
+            var newest = Nullable.Compare(c.Skill?.UpdatedAt, c.Plan?.UpdatedAt) >= 0 ? c.Skill?.UpdatedAt : c.Plan?.UpdatedAt;
+            src.Add(new Run(string.Format(T.BuildQuestlogNewer, newest?.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "?")) { Foreground = Amber });
+            src.Add(new Run(" — "));
+            var upd = new Hyperlink(new Run(T.BuildQuestlogUpdate)) { Foreground = Blue, TextDecorations = null, Cursor = Cursors.Hand, ToolTip = T.BuildQuestlogUpdateTip };
+            upd.Click += QuestlogUpdate_Click;
+            src.Add(upd);
+            return;
+        }
+        var check = new Hyperlink(new Run(_checking ? T.BuildChecking : T.BuildCheckQuestlog)) { Foreground = Blue, TextDecorations = null, Cursor = Cursors.Hand, ToolTip = T.BuildCheckQuestlogTip };
+        check.Click += CheckQuestlog_Click;
+        src.Add(check);
+    }
+
+    private void RenderSourceLine() => RenderHeader(_build is not null ? Progress.Compare(_build, _profile, null) : null);
+
+    private async void CheckQuestlog_Click(object sender, RoutedEventArgs e)
+    {
+        if (_sample || _build is null || _checking) return;
+        var b = _build;
+        var skillSlug = b.Source is { Id: > 0, Slug: { Length: > 0 } ss } ? ss : null;
+        var planSlug = b.PlanSource is { Id: > 0, Slug: { Length: > 0 } ps } ? ps : null;
+        if (skillSlug is null && planSlug is null) return;
+        _checking = true; _check = null;
+        StatusText.Text = T.BuildChecking;
+        RenderSourceLine();
+        try
+        {
+            BuildSummary? skill = null;
+            QuestlogDaevPlan? plan = null;
+            var gone = false;
+            if (skillSlug is not null)
+            {
+                var m = await QuestlogService.MineAsync(skillSlug, refresh: true);
+                var r = m.Skills.Find(x => x.Id == b.Source!.Id);
+                if (r is null) gone = true;
+                else if (QuestlogMine.IsNewer(r.UpdatedAt, b.SourceUpdatedAt)) skill = r;
+            }
+            if (planSlug is not null)
+            {
+                var m = planSlug == skillSlug && QuestlogService.CachedMine(planSlug) is { } same ? same : await QuestlogService.MineAsync(planSlug, refresh: true);
+                var r = m.Plans.Find(x => x.Id == b.PlanSource!.Id);
+                if (r is null) gone = true;
+                else if (QuestlogMine.IsNewer(r.UpdatedAt, b.PlanSourceUpdatedAt)) plan = r;
+            }
+            _check = new QuestlogCheck(b.Id, skill, plan, planSlug, skill is null && plan is null ? (gone ? T.BuildQuestlogGone : T.BuildQuestlogUpToDate) : null);
+            StatusText.Text = "";
+        }
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or InvalidOperationException)
+        {
+            Log.Info($"questlog check of build {b.Id} failed: {ex.Message}");
+            StatusText.Text = string.Format(T.BuildImportFailed, QuestlogService.Reason(ex));
+        }
+        finally { _checking = false; }
+        if (_build?.Id == b.Id) RenderSourceLine();
+    }
+
+    /// <summary>Re-imports questlog's newer versions: the skill build keeps the local notes and plan (QuestlogImport.Prepare); the plan is replaced only when it is the newer one.</summary>
+    private void QuestlogUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_sample || _check is not { } c || _build?.Id != c.BuildId) return;
+        _check = null;
+        var parts = new List<string>(2);
+        if (c.Skill is { } s)
+        {
+            if (SaveImported(s.Build) is null) return;
+            parts.Add(s.Name);
+        }
+        if (c.Plan is { } p)
+        {
+            var (ok, msg) = ImportPlan(p, c.PlanSlug);
+            parts.Add(ok ? p.Name : msg);
+        }
+        StatusText.Text = string.Format(T.BuildUpdatedFromQuestlog, string.Join(" + ", parts));
     }
 
     private void QueueTelemetry(Build saved)
@@ -1121,8 +1273,14 @@ public partial class BuildView : UserControl
         if (!show) return;
         SuggestTitle.Text = string.Format(T.BuildSuggestTitle, _classId.Length > 0 ? ClassName(_classId) : "?");
         if (_classId.Length == 0) { _suggestFor = ""; SuggestMessage(T.BuildSuggestNoClass); return; }
-        if (_sample) { FillSuggestions(_sampleSuggestions!); return; }
-        if (QuestlogService.CachedSuggestions(_classId) is { } hit) { _suggestFor = _classId; FillSuggestions(hit); return; }
+        if (_sample) { FillSuggestions(_sampleSuggestions!, _sampleMine); return; }
+        var slug = _meter.Settings.QuestlogSlug ?? "";
+        if (QuestlogService.CachedSuggestions(_classId) is { } hit && (slug.Length == 0 || QuestlogService.CachedMine(slug) is not null))
+        {
+            _suggestFor = _classId;
+            FillSuggestions(hit, MineOf(slug, _classId));
+            return;
+        }
         if (_suggestFor == _classId && SuggestList.Children.Count > 0) return;   // already loading for this class
         _suggestFor = _classId;
         SuggestMessage(T.BuildSuggestLoading);
@@ -1131,17 +1289,34 @@ public partial class BuildView : UserControl
 
     private async Task LoadSuggestionsAsync(string classId)
     {
+        var slug = _meter.Settings.QuestlogSlug ?? "";
+        List<BuildSummary>? mine = null;
+        if (slug.Length > 0)
+        {
+            try { await QuestlogService.MineAsync(slug); mine = MineOf(slug, classId); }
+            catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or InvalidOperationException)
+            {
+                Log.Info($"questlog builds of {slug} failed: {ex.Message}");
+            }
+        }
         try
         {
             var list = await QuestlogService.SuggestionsAsync(classId);
-            if (_suggestFor == classId && _build is null) FillSuggestions(list);
+            if (_suggestFor == classId && _build is null) FillSuggestions(list, mine);
         }
         catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or IOException or InvalidOperationException)
         {
             Log.Info($"Build suggestions for {classId} failed: {ex.Message}");
-            if (_suggestFor == classId) { SuggestMessage(T.BuildSuggestFailed); _suggestFor = ""; }
+            if (_suggestFor != classId) return;
+            if (mine is { Count: > 0 } && _build is null) { FillSuggestions([], mine); SuggestList.Children.Add(new TextBlock { Text = T.BuildSuggestFailed, FontSize = 12.5, Foreground = Mute, Margin = new Thickness(0, 0, 0, 6) }); }
+            else SuggestMessage(T.BuildSuggestFailed);
+            _suggestFor = "";
         }
     }
+
+    /// <summary>The user's questlog skill builds of this class from the session cache, at most 5; null without a slug or a cached list.</summary>
+    private static List<BuildSummary>? MineOf(string slug, string classId) =>
+        slug.Length > 0 && QuestlogService.CachedMine(slug) is { } m ? QuestlogMine.OfClass(m.Skills, static b => b.ClassId, classId, BuildSuggestions.Take) : null;
 
     private void SuggestMessage(string text)
     {
@@ -1149,13 +1324,30 @@ public partial class BuildView : UserControl
         SuggestList.Children.Add(new TextBlock { Text = text, FontSize = 12.5, Foreground = Mute, Margin = new Thickness(0, 0, 0, 6) });
     }
 
-    private void FillSuggestions(List<BuildSummary> list)
+    private void FillSuggestions(List<BuildSummary> list, List<BuildSummary>? mine)
     {
         SuggestList.Children.Clear();
-        if (list.Count == 0) { SuggestMessage(T.BuildSuggestEmpty); return; }
         var style = (Style)FindResource("Flat");
+        if (mine is { Count: > 0 })
+        {
+            SuggestList.Children.Add(SuggestHeader(T.BuildSuggestMine));
+            foreach (var b in mine)
+                SuggestList.Children.Add(ImportBuildWindow.Row(b, AddMineSuggestion, CmpBack, TagBack, Text, Mute, TagBack, style));
+            SuggestList.Children.Add(SuggestHeader(T.BuildSuggestTop));
+        }
+        if (list.Count == 0) { SuggestList.Children.Add(new TextBlock { Text = T.BuildSuggestEmpty, FontSize = 12.5, Foreground = Mute, Margin = new Thickness(0, 0, 0, 6) }); return; }
         foreach (var b in list)
             SuggestList.Children.Add(ImportBuildWindow.Row(b, AddSuggestion, CmpBack, TagBack, Text, Mute, TagBack, style));
+    }
+
+    private static TextBlock SuggestHeader(string text) => new() { Text = text.ToUpper(T.Culture), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Dim, Margin = new Thickness(0, 4, 0, 6) };
+
+    private void AddMineSuggestion(BuildSummary s)
+    {
+        if (_sample) return;
+        var slug = _meter.Settings.QuestlogSlug ?? "";
+        var plans = QuestlogService.CachedMine(slug)?.Plans;
+        ImportMine(s.Build, plans is null ? null : QuestlogMine.PairPlan(s.Name, s.ClassId, plans), slug);
     }
 
     private void AddSuggestion(BuildSummary s)

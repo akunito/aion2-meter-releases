@@ -43,8 +43,8 @@ public partial class DaevanionView : UserControl
 
     /// <summary>The whole plan (board → node ids, plan ∪ open of every edited board) after an edit; the host saves it into its build.</summary>
     public event Action<Dictionary<int, List<int>>>? PlanEdited;
-    /// <summary>A plan was imported from questlog: the host records where it came from.</summary>
-    public event Action<BuildSource, string>? PlanImported;
+    /// <summary>A plan was imported from questlog (plan, author slug): the host records where it came from and questlog's date.</summary>
+    public event Action<QuestlogDaevPlan, string>? PlanImported;
 
     public DaevanionView()
     {
@@ -131,7 +131,7 @@ public partial class DaevanionView : UserControl
     {
         if (_class.Board(_boardId) is not { } b) return;
         var plan = new HashSet<int>(DaevanionPlan.Effective(b, RawPlan(b.Id), _open));
-        var hasPlan = _build is not null && RawPlan(b.Id).Count > 0;   // without a plan nothing is "off plan"
+        var hasPlan = RawPlan(b.Id) is { Count: > 0 };   // without a plan nothing is "off plan"
         foreach (var t in _tiles)
         {
             var n = t.Node;
@@ -187,7 +187,7 @@ public partial class DaevanionView : UserControl
             var open = 0;
             foreach (var n in b.Nodes) if (!n.Start && _open.Contains(n.Id)) { open++; nowAll.Add(n.Id); }
             planAll.AddRange(plan);
-            if (b.Id == _boardId) { cur = b; curOpen = open; curPlan = plan.Count; curPlanOpen = plan.Count(id => _open.Contains(id)); curMissing = curPlan - curPlanOpen; curOff = RawPlan(b.Id).Count > 0 ? open - curPlanOpen : 0; }
+            if (b.Id == _boardId) { cur = b; curOpen = open; curPlan = plan.Count; curPlanOpen = plan.Count(id => _open.Contains(id)); curMissing = curPlan - curPlanOpen; curOff = RawPlan(b.Id) is { Count: > 0 } ? open - curPlanOpen : 0; }
             BoardRow.Children.Add(BoardButton(b, open, plan.Count));
         }
         var planCost = DaevanionPlan.Cost(_class, planAll);
@@ -418,17 +418,10 @@ public partial class DaevanionView : UserControl
             return;
         }
         var cls = _class.Boards.Length > 0 ? _class : _meter!.Daevanion.ForClass(plan.ClassId);
-        var next = new Dictionary<int, List<int>>();
-        var count = 0;
-        foreach (var b in cls.Boards)
-        {
-            if (!plan.Boards.TryGetValue(b.Id, out var ids)) continue;
-            var list = ids.FindAll(id => cls.Node(id) is { Start: false } n && n.Board == b.Id);
-            next[b.Id] = list;
-            count += list.Count;
-        }
+        var next = DaevanionPlan.FromQuestlog(cls, plan, out var count);
         Apply(next);
-        PlanImported?.Invoke(new BuildSource(plan.Id, r.Slug, null), plan.Name);
+        PlanImported?.Invoke(plan, r.Slug);
+        if (_meter is not null) QuestlogService.LearnSlug(_meter.Settings, r.Slug);
         _planName = plan.Name; RenderTitle();
         Note(string.Format(T.DaevImported, plan.Name, count.ToString(CultureInfo.InvariantCulture), next.Count));
         Log.Info($"Daevanion import: \"{plan.Name}\" {count} nodes on {next.Count} boards into build {buildId}");

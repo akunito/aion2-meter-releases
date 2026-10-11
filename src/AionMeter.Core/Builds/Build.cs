@@ -20,6 +20,9 @@ public sealed record Build
     /// <summary>The questlog daevanion-planner build the plan was imported from (skills and plans are separate tools on questlog; the meter keeps both in one build per character).</summary>
     public BuildSource? PlanSource { get; init; }
     public string? PlanName { get; init; }
+    /// <summary>questlog's updatedAt of the imported skill build / planner build (UpdatedAt is the local save time); null for imports older than "Check questlog".</summary>
+    public DateTimeOffset? SourceUpdatedAt { get; init; }
+    public DateTimeOffset? PlanSourceUpdatedAt { get; init; }
     public List<BuildSkill> Skills { get; init; } = [];
     public List<int> Priority { get; init; } = [];
     public List<BuildMacro> Macros { get; init; } = [];

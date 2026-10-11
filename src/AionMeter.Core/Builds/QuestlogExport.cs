@@ -74,15 +74,17 @@ public static class QuestlogImport
 {
     /// <summary>
     /// A questlog build ready for <see cref="BuildStore.Save"/>: imported again, it replaces the earlier copy (same questlog id) and keeps
-    /// what only the meter has (notes, Daevanion plan); a new one gets a fresh id. Class falls back to the skills' class when questlog has none.
+    /// what only the meter has (notes, Daevanion plan and where it came from); a new one gets a fresh id. Class falls back to the skills' class when questlog has none.
     /// </summary>
     public static Build Prepare(Build imported, IReadOnlyList<Build> existing)
     {
         var cls = imported.ClassId.Length > 0 ? imported.ClassId : imported.Skills.Count > 0 ? SkillBook.ClassOf(imported.Skills[0].SkillId) ?? "" : "";
-        var b = imported with { Id = "", ClassId = cls };
+        // the parsed UpdatedAt is questlog's; BuildStore.Save overwrites UpdatedAt, so it is kept as SourceUpdatedAt
+        var b = imported with { Id = "", ClassId = cls, SourceUpdatedAt = imported.UpdatedAt != default ? imported.UpdatedAt : imported.SourceUpdatedAt };
         if (imported.Source is { Id: > 0 } src)
             foreach (var e in existing)
-                if (e.Source?.Id == src.Id) return b with { Id = e.Id, Notes = e.Notes, Daevanion = e.Daevanion };
+                if (e.Source?.Id == src.Id)
+                    return b with { Id = e.Id, Notes = e.Notes, Daevanion = e.Daevanion, PlanSource = e.PlanSource, PlanName = e.PlanName, PlanSourceUpdatedAt = e.PlanSourceUpdatedAt };
         return b;
     }
 }
