@@ -14,6 +14,13 @@ public sealed class LiveCaptureOptions
 
     /// <summary>When set, every captured game packet is also written to a .pcap file in this folder.</summary>
     public string? RecordDirectory { get; set; }
+
+    /// <summary>Whether the capture library can be loaded; null = <see cref="LiveCapture.IsNpcapInstalled"/> on Windows, always true elsewhere.
+    /// Tests inject a stub. While it answers false the monitor never touches SharpPcap (A2M-27).</summary>
+    public Func<bool>? LibraryPresent { get; set; }
+
+    /// <summary>How often the monitor re-checks for the library while it is missing (an install during the session is picked up without a restart).</summary>
+    public int LibraryPollMs { get; set; } = 10_000;
 }
 
 /// <summary>
@@ -104,21 +111,32 @@ public sealed class LiveCapture : IEventSource
         _cts?.Dispose();
     }
 
+    public const string NpcapMissingMessage = "Npcap is not installed — get it from npcap.com";
+
     private async Task MonitorLoop(CancellationToken ct)
     {
+        // Without the library SharpPcap's static initialiser fails once and the TypeInitializationException then repeats for the life of
+        // the process (an install mid-session needed a restart). So the DLL is checked first and SharpPcap is left alone until it exists.
+        var present = _options.LibraryPresent ?? (OperatingSystem.IsWindows() ? IsNpcapInstalled : static () => true);
         while (!ct.IsCancellationRequested)
         {
+            if (!present())
+            {
+                if (_status.State != CaptureState.Error || _status.Message != NpcapMissingMessage) SetStatus(CaptureState.Error, NpcapMissingMessage);
+                try { await Task.Delay(_options.LibraryPollMs, ct).ConfigureAwait(false); } catch (TaskCanceledException) { break; }
+                continue;
+            }
             try
             {
                 Refresh();
             }
             catch (DllNotFoundException)
             {
-                SetStatus(CaptureState.Error, "Npcap is not installed — get it from npcap.com");
+                SetStatus(CaptureState.Error, NpcapMissingMessage);
             }
             catch (TypeInitializationException)
             {
-                SetStatus(CaptureState.Error, "Npcap is not installed — get it from npcap.com");
+                SetStatus(CaptureState.Error, NpcapMissingMessage);
             }
             catch (PcapException ex)
             {
