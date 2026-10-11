@@ -17,7 +17,7 @@ public static class SampleRenderer
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
     /// arrives), breakdown, history, timers, settings, update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (one tooltip) or suggest (no build: suggestions card).</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected) or suggest (no build: suggestions card).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
     /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); nothing is downloaded.</param>
@@ -65,10 +65,10 @@ public static class SampleRenderer
                 var build = new Views.BuildView(meter, icons);
                 if (o.Tab == "done") build.SetShowDone(false);
                 if (o.Tab == "suggest") build.ShowSampleSuggestions(SampleProfile(), SampleSuggestions());   // no active build: the suggestions card
-                else build.ShowSample(SampleBuild(), SampleProfile(), 14170000);   // Explosion Trap selected: the detail panel shows
+                else build.ShowSample(SampleBuild(), SampleProfile(), o.Tab == "rel" ? 14090000 : 14170000);   // Explosion Trap selected (--tab rel: Marking Shot — no note, so the placeholder, plus its E chain and Precision links)
                 var page = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x0D));
-                // --tab tip: Explosion Trap's tooltip alone (a ToolTip never opens offscreen)
-                host = o.Tab == "tip" ? new Window { Content = new System.Windows.Controls.Grid { Background = page, Children = { build.TipPreview(14170000) } }, Width = o.Width ?? 360, Height = o.Height ?? 560, Background = page }
+                // --tab tip: Explosion Trap's and Deadshot's tooltips side by side (a ToolTip never opens offscreen)
+                host = o.Tab == "tip" ? new Window { Content = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Background = page, Children = { build.TipPreview(14170000), build.TipPreview(14010000) } }, Width = o.Width ?? 720, Height = o.Height ?? 640, Background = page }
                                       : new Window { Content = build, Width = o.Width ?? 1000, Height = o.Height ?? (o.Tab == "suggest" ? 720 : 1800), Background = page };
                 refresh = o.Tab == "tip" ? () => { } : build.RenderNow;
                 break;
@@ -219,6 +219,7 @@ public static class SampleRenderer
         var b = File.Exists(path) ? Core.Builds.QuestlogBuilds.ParseBuild(File.ReadAllText(path)) : null;
         b ??= new Core.Builds.Build { Name = "sample", ClassId = "ranger" };
         b.Notes[14170000] = "Situational (key 3). Equipped at level 1: the build's biggest gap, raise it to 12.";   // from the approved mock
+        b.Notes[14010000] = "Opener after Marking Shot (Precision +35%). Charge to 3 only in burst windows; Snipe hits shave its cooldown.";
         // the fixture is a bare build without its author: the URL's slug, so the header shows "Open on questlog.gg" as an import does
         return b with { Id = "sample", Source = new Core.Builds.BuildSource(15969, "AXIIyLxFWMU0", "akunito88") };
     }

@@ -71,6 +71,7 @@ public partial class BuildView : UserControl
     private TextBlock[] _ticks = [];
     private readonly List<int> _macroSteps = new();
     private readonly SkillTile _detailTile = new();
+    private SkillRelationCache? _relCache;
     private readonly DispatcherTimer _saveTick = new() { Interval = TimeSpan.FromMilliseconds(500) };
     // icons land one per 400 ms: refresh at most every 600 ms instead of per icon (as Craft)
     private readonly DispatcherTimer _iconTick = new() { Interval = TimeSpan.FromMilliseconds(600) };
@@ -259,6 +260,9 @@ public partial class BuildView : UserControl
         foreach (var (img, spec) in _specIcons)
             if (img.Source is null && SpecIcon(spec) is { } src) { img.Source = src; img.Visibility = Visibility.Visible; }
     }
+
+    /// <summary>Relations for the shown build: recomputed only after an edit (a new Build), a class or a language change.</summary>
+    private SkillRelationSet Relations => (_relCache ??= new SkillRelationCache(_meter.Skills)).Get(_classId, _build, _lang);
 
     private ImageSource? SpecIcon(SkillSpec sp) => sp.Icon is { Length: > 0 } stem ? _icons.GetUrl("spec:" + stem, SkillBook.SpecIconUrl(stem), 48) : null;
 
@@ -505,6 +509,29 @@ public partial class BuildView : UserControl
             border.MouseLeftButtonUp += Spec_Click;
             SpecList.Children.Add(border);
         }
+
+        NoteBlock.Visibility = _build is null ? Visibility.Collapsed : Visibility.Visible;
+        var note = _build is not null && _build.Notes.TryGetValue(info.Id, out var n) ? n : "";
+        if (NoteBox.Text != note) { _syncing = true; NoteBox.Text = note; _syncing = false; }   // equal text untouched: the caret stays while typing
+        NoteCount.Text = note.Length.ToString(CultureInfo.InvariantCulture) + "/" + NoteBox.MaxLength.ToString(CultureInfo.InvariantCulture);
+        RelList.Children.Clear();
+        foreach (var r in Relations.For(info.Id)) RelList.Children.Add(RelationLine(r, 12));
+        RelBlock.Visibility = RelList.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>One compact relation line: a green arrow for what the skill gives, blue for what it takes, grey for chain/priority.</summary>
+    private static TextBlock RelationLine(SkillRelation r, double size)
+    {
+        var (glyph, brush) = r.Kind switch
+        {
+            RelationKind.Grants or RelationKind.Applies or RelationKind.Shortens or RelationKind.Boosts or RelationKind.ChainSkill => ("→ ", Green),
+            RelationKind.Consumes or RelationKind.Needs or RelationKind.ShortenedBy or RelationKind.BoostedBy => ("← ", Blue),
+            _ => ("· ", Mute),
+        };
+        var tb = new TextBlock { FontSize = size, Foreground = Dim, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2) };
+        tb.Inlines.Add(new Run(glyph) { Foreground = brush, FontWeight = FontWeights.Bold });
+        tb.Inlines.Add(new Run(r.Text));
+        return tb;
     }
 
     private void RenderPriority()
@@ -647,8 +674,6 @@ public partial class BuildView : UserControl
         return sb.ToString();
     }
 
-    private static string KeyName(int k) => k switch { 9 => "Q", 10 => "E", 11 => "LMB", 12 => "RMB", _ => k.ToString(CultureInfo.InvariantCulture) };
-
     // ------------------------------------------------------------------ tooltip
 
     private void AttachTip(FrameworkElement t)
@@ -702,7 +727,7 @@ public partial class BuildView : UserControl
             var specs = new StringBuilder();
             foreach (var id in b.Specs) if (BuildEditor.Spec(info, id) is { } sp) { if (specs.Length > 0) specs.Append(" · "); specs.Append(sp.Name(_lang)); }
             CmpRow(cmp, 0, _profile is not null ? string.Format(T.BuildTipNow, _profile.Ref.Name) : T.BuildTipNowAnon, curText, _profile is null ? Mute : StateBrush(vm.P), true);
-            CmpRow(cmp, 1, T.BuildTipBuild, b.Level.ToString(CultureInfo.InvariantCulture) + (key > 0 ? " · " + string.Format(T.BuildTipKey, KeyName(key)) : ""), Text, false);
+            CmpRow(cmp, 1, T.BuildTipBuild, b.Level.ToString(CultureInfo.InvariantCulture) + (key > 0 ? " · " + string.Format(T.BuildTipKey, BuildEditor.KeyName(key)) : ""), Text, false);
             CmpRow(cmp, 2, T.BuildTipSpecs, specs.Length > 0 ? specs.ToString() : T.BuildTipNone, Text, false);
             root.Children.Add(new Border { Background = CmpBack, CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 0, 0, 8), Child = cmp });
             if (cur is int now && now != b.Level)
@@ -717,6 +742,12 @@ public partial class BuildView : UserControl
         {
             root.Children.Add(Section(T.BuildTipNotes));
             root.Children.Add(new TextBlock { Text = note, FontSize = 12, Foreground = Text, TextWrapping = TextWrapping.Wrap, LineHeight = 17.4, LineStackingStrategy = LineStackingStrategy.BlockLineHeight });
+        }
+        var rels = Relations.For(info.Id);
+        if (rels.Count > 0)
+        {
+            root.Children.Add(Section(T.BuildRelations));
+            foreach (var r in rels) root.Children.Add(RelationLine(r, 11.5));
         }
         return root;
     }
@@ -830,6 +861,22 @@ public partial class BuildView : UserControl
     private void RemoveSkill_Click(object sender, RoutedEventArgs e)
     {
         if (_vms.TryGetValue(_selected, out var vm) && NeedBuild()) Edit(BuildEditor.RemoveSkill(_build!, vm.Info.Id));
+    }
+
+    /// <summary>Typing in the note box: only the build changes (no redraw, the caret stays); the 500 ms save follows; tooltips read the note when they open.</summary>
+    private void Note_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (_syncing || _build is null || _selected == 0) return;
+        var text = NoteBox.Text;
+        var has = _build.Notes.TryGetValue(_selected, out var cur);
+        var empty = string.IsNullOrWhiteSpace(text);
+        NoteCount.Text = text.Length.ToString(CultureInfo.InvariantCulture) + "/" + NoteBox.MaxLength.ToString(CultureInfo.InvariantCulture);
+        if (empty ? !has : cur == text) return;
+        var notes = new Dictionary<int, string>(_build.Notes);
+        if (empty) notes.Remove(_selected); else notes[_selected] = text;
+        _build = _build with { Notes = notes };
+        _dirty = true;
+        if (!_sample) { _saveTick.Stop(); _saveTick.Start(); }
     }
 
     private void DetailClose_Click(object sender, RoutedEventArgs e) { _selected = 0; RefreshSelection(); }

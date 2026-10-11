@@ -29,6 +29,8 @@ public static class BuildEditor
                key is >= 1 and <= Keys && row is >= 0 and < Rows;
     }
 
+    public static string KeyName(int key) => key switch { 9 => "Q", 10 => "E", 11 => "LMB", 12 => "RMB", _ => key.ToString(CultureInfo.InvariantCulture) };
+
     public static int KeyOf(string? slot) => TryParseSlot(slot, out var k, out _) ? k : 0;
 
     public static int? SkillAt(Build b, int key, int row)

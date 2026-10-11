@@ -539,6 +539,8 @@ public sealed class UiText
     public string BuildTipNone { get; init; } = "none";
     public string BuildTipAtLevel { get; init; } = "At level {0}";
     public string BuildTipNotes { get; init; } = "When to use · combos";
+    public string BuildNoteHint { get; init; } = "Your note for this skill: when to use it, combos, order…";
+    public string BuildRelations { get; init; } = "Relations";
     public string BuildImporting { get; init; } = "Fetching questlog build {0}…";
     public string BuildImported { get; init; } = "Imported \"{0}\" from questlog.gg";
     public string BuildImportedOtherClass { get; init; } = "Imported \"{0}\": it is a {1} build, this character is a {2}";

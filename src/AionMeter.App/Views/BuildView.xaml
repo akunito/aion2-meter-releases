@@ -67,6 +67,46 @@
             </Setter>
         </Style>
 
+        <!-- the note box: Theme's Field look in the tab's greys, multi-line and top-aligned; the placeholder is the Tag (Field's ToolTip hint would also pop up) -->
+        <Style x:Key="NoteField" TargetType="TextBox">
+            <Setter Property="Background" Value="#1A1A1A" />
+            <Setter Property="Foreground" Value="{StaticResource BText}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BLine2}" />
+            <Setter Property="BorderThickness" Value="0.8" />
+            <Setter Property="Padding" Value="6,5" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="CaretBrush" Value="{StaticResource BText}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource BBlue}" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <Grid>
+                                <TextBlock x:Name="Hint" Text="{TemplateBinding Tag}" Foreground="#6A6A6A" FontSize="{TemplateBinding FontSize}" Margin="9,5,6,0" VerticalAlignment="Top"
+                                           TextWrapping="Wrap" IsHitTestVisible="False" Visibility="Collapsed" />
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Stretch" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Text" Value="" />
+                                    <Condition Property="IsKeyboardFocused" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Hint" Property="Visibility" Value="Visible" />
+                            </MultiTrigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#65B0FC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="Flat" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource BText}" />
             <Setter Property="Background" Value="{StaticResource BBtn}" />
@@ -357,6 +397,18 @@
                                             <TextBlock FontSize="13" Text="{Binding BuildSpecs, Source={x:Static s:UiText.Current}}" />
                                         </DockPanel>
                                         <StackPanel x:Name="SpecList" />
+                                        <StackPanel x:Name="NoteBlock">
+                                            <DockPanel Margin="0,12,0,4">
+                                                <TextBlock DockPanel.Dock="Right" x:Name="NoteCount" FontSize="11" Foreground="{StaticResource BMute}" VerticalAlignment="Bottom" />
+                                                <TextBlock FontSize="13" Text="{Binding BuildTipNotes, Source={x:Static s:UiText.Current}}" />
+                                            </DockPanel>
+                                            <TextBox x:Name="NoteBox" Style="{StaticResource NoteField}" MinHeight="62" MaxHeight="160" MaxLength="600" TextChanged="Note_Changed"
+                                                     Tag="{Binding BuildNoteHint, Source={x:Static s:UiText.Current}}" />
+                                        </StackPanel>
+                                        <StackPanel x:Name="RelBlock" Margin="0,12,0,0">
+                                            <TextBlock FontSize="13" Margin="0,0,0,4" Text="{Binding BuildRelations, Source={x:Static s:UiText.Current}}" />
+                                            <StackPanel x:Name="RelList" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
