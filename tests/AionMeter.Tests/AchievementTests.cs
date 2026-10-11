@@ -156,4 +156,91 @@ public class AchievementTests
         var morning = new DateTimeOffset(2026, 10, 14, 8, 0, 0, TimeSpan.FromHours(2));  // Wednesday 15:00 KST
         Assert.Equal(new DateTimeOffset(2026, 10, 14, 16, 0, 0, TimeSpan.FromHours(9)), GameReset.NextWeekly(morning));
     }
+
+    // ------------------------------------------------------------------ Items tab "Tickets" table (per-character overview)
+
+    private static string CharFixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "character", name);
+    private static AchievementCatalog PassCatalog() => AchievementCatalog.Parse(File.ReadAllBytes(CharFixture("pass-catalog.json")));
+
+    [Fact]
+    public void Tickets_row_from_arielkas_real_file()
+    {
+        // characters/1303-Arielka/character.json of 2026-10-11 21:07, trimmed to the pass rows; tickets as written (two 0c 61 deltas, no login snapshot)
+        var p = new CharacterFiles().Get(CharFixture("character-arielka.json"));
+        Assert.NotNull(p);
+        Assert.Equal(2, p!.Tickets.Count);
+        var r = TicketsOverview.Of(p, PassCatalog());
+        Assert.True(r.Any);
+        Assert.Equal("840+100", r.Odyle);
+        Assert.Equal("22", r.DaevaPass);   // 35,220 EXP reaches tier 22 of 101 = the claimed step
+        Assert.Equal("16", r.EventPass);   // 11,440 EXP, tier 16 of 51
+        Assert.Equal(TicketsOverview.None, r.Keys);
+        Assert.Equal(TicketsOverview.None, r.Seal);
+        Assert.Equal(TicketsOverview.None, r.Raids);
+        Assert.Equal(TicketsOverview.None, r.Corridors);
+        Assert.Equal(1791747072724, r.SeenMs);   // newest ticket, not the login-list time
+        Assert.Contains("rewards claimed 22", r.PassTip);
+        // unnamed key 10 (base 14) never lands in a column
+        Assert.DoesNotContain("14", r.Odyle + r.Keys + r.Seal + r.Raids + r.Corridors);
+    }
+
+    [Fact]
+    public void Tickets_row_of_an_old_build_file_is_empty()
+    {
+        // Akunita's file from a build before A2M-15: achievement rows with "State" instead of Count/Step, no Tickets key
+        var p = new CharacterFiles().Get(CharFixture("character-akunita.json"));
+        Assert.NotNull(p);
+        Assert.Empty(p!.Tickets);
+        var r = TicketsOverview.Of(p, PassCatalog());
+        Assert.False(r.Any);
+        Assert.Equal(0, r.SeenMs);
+        Assert.Equal(TicketsOverview.None, r.Odyle);
+        Assert.False(TicketsOverview.Of(null, PassCatalog()).Any);
+        Assert.Null(new CharacterFiles().Get(CharFixture("missing.json")));
+    }
+
+    [Fact]
+    public void Tickets_row_round_trips_akunitas_login_through_character_json()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "a2m-tickets-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(dir, "character.json");
+        try
+        {
+            var state = new CharacterState(path);
+            state.OnEvent(One<AchievementListEvent>(Opcodes.AchievementList, Bin("ach-8356-akunita-20261011.bin"), 1791670000000));
+            state.OnEvent(One<ContentTicketsEvent>(Opcodes.TicketList, Bin("tickets-0b61.bin"), 1791670024000));
+            state.Bind(path);   // same file: the login lists belong here, written now
+            var files = new CharacterFiles();
+            var p = files.Get(path);
+            Assert.NotNull(p);
+            Assert.Equal(73, p!.Tickets.Count);
+            var r = TicketsOverview.Of(p, PassCatalog());
+            Assert.Equal("240+110", r.Odyle);
+            Assert.Equal("14", r.Keys);
+            Assert.Equal("0:00 h", r.Seal);                   // key 6 spent: mask 0
+            Assert.Equal("4/1 · 4/2 · 4/2", r.Raids);         // Ludra, Corroded, Muspel: entries/boss clears
+            Assert.Equal("0:02 h", r.Corridors);              // only 10000002 held (130,000 ms)
+            Assert.Equal("58", r.DaevaPass);                  // 100,000 EXP = tier 58 (docs/27)
+            Assert.Equal(1791670024000, r.SeenMs);
+            Assert.Contains("Abyssal Forge: Ludra: 4 entries, 1 boss clears", r.RaidsTip);
+            Assert.Same(p, files.Get(path));                  // unchanged mtime: cached
+
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+            Assert.NotSame(p, files.Get(path));               // new mtime: read again
+        }
+        finally { try { Directory.Delete(dir, true); } catch (IOException) { } }
+    }
+
+    [Fact]
+    public void Tickets_hours_and_pass_level()
+    {
+        Assert.Equal("0:42 h", TicketsOverview.Hours(42 * 60_000 + 59_000));
+        Assert.Equal("0:59 h", TicketsOverview.Hours(3_594_759));
+        Assert.Equal("7:00 h", TicketsOverview.Hours(25_200_000));
+        Assert.Equal("0:00 h", TicketsOverview.Hours(-5));
+        var row = new AchievementRow(TicketsOverview.DaevaPassId, 1499, 0, 0);
+        Assert.Equal(0, TicketsOverview.PassLevel(row, PassCatalog().Get(TicketsOverview.DaevaPassId)));
+        Assert.Equal(1, TicketsOverview.PassLevel(row with { Count = 1500 }, PassCatalog().Get(TicketsOverview.DaevaPassId)));
+        Assert.Equal(7, TicketsOverview.PassLevel(row with { Step = 7 }, null));   // no catalogue: the claimed step
+    }
 }

@@ -24,8 +24,9 @@ namespace AionMeter.App.Views;
 /// </summary>
 public partial class ItemsView : UserControl
 {
-    /// <summary>One character of the server: its inventory.json (the live store for the bound one) and "Templar 45" from profile.txt.</summary>
-    public sealed record CharData(string Key, string Cls, InventoryFile? File);
+    /// <summary>One character of the server: its inventory.json (the live store for the bound one), "Templar 45" from profile.txt and its
+    /// tickets/achievements (live for the bound one, character.json otherwise; the Tickets table).</summary>
+    public sealed record CharData(string Key, string Cls, InventoryFile? File, CharacterProgress? Progress = null);
 
     /// <summary>Everything one render needs; the live tab gathers it from the meter, the render tool builds it from a fixture.</summary>
     public sealed record Data(string CurrentKey, string Server, string ServerName, List<CharData> Chars, AccountWarehouseView? Account, MarketSnapshot Market, DateTimeOffset Now,
@@ -51,7 +52,7 @@ public partial class ItemsView : UserControl
     private string _group = "all", _q = "", _lang;
     private ItemSortMode _sort = ItemSortMode.Game;
     private readonly HashSet<string> _collapsed = ["eq", "x17", "ach"], _listMode = [];
-    private readonly Dictionary<string, (DateTime Written, ProgressData Data)> _otherProgress = new();
+    private readonly CharacterFiles _charFiles = new();
     private readonly Dictionary<int, (string En, string Es)> _norm = new();
     private readonly Dictionary<string, (DateTime Written, string Cls)> _cls = new();
     private ItemsIndex _index = new();
@@ -86,13 +87,13 @@ public partial class ItemsView : UserControl
             if (_sample) return;
             Reload();
             _meter.Inventory.Changed += OnChanged; _meter.ViewInventoryChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.Account.Changed += OnChanged; _icons.Loaded += OnIcon;
-            _meter.ProgressChanged += OnChanged;
+            _meter.ProgressChanged += OnChanged; _meter.ProfileChanged += OnChanged;
         };
         Unloaded += (_, _) =>
         {
             if (_sample) return;
             _meter.Inventory.Changed -= OnChanged; _meter.ViewInventoryChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.Account.Changed -= OnChanged; _icons.Loaded -= OnIcon;
-            _meter.ProgressChanged -= OnChanged;
+            _meter.ProgressChanged -= OnChanged; _meter.ProfileChanged -= OnChanged;
             _reloadTick.Stop(); _iconTick.Stop();
         };
         // hidden tab: one reload when it comes back, not one per packet
@@ -146,29 +147,15 @@ public partial class ItemsView : UserControl
                 f = new InventoryFile(store.All(), store.SeenAll(), written);
             }
             else f = _meter.OtherInventories.Get(path);
-            chars.Add(new CharData(k, ClassLine(k), f));
+            var progress = k == bound ? new CharacterProgress(_meter.Character.Achievements, _meter.Character.Tickets, _meter.Character.UpdatedMs)
+                : _charFiles.Get(Path.Combine(AppSettings.AppDataDir, "characters", k, "character.json"));
+            chars.Add(new CharData(k, ClassLine(k), f, progress));
         }
         var serverName = int.TryParse(server, NumberStyles.Integer, CultureInfo.InvariantCulture, out var sid) ? _meter.Data.ServerName(sid) : server;
         if (_meter.Market.Server.Length > 0 && serverName == server) serverName = _meter.Market.Server;
-        return new Data(cur, server, serverName, chars, server.Length > 0 ? _meter.Account.View(server) : null, _meter.Market, DateTimeOffset.Now, ProgressOf(cur, bound));
-    }
-
-    private ProgressData? ProgressOf(string cur, string bound)
-    {
-        if (cur.Length == 0) return null;
-        if (cur == bound) return new ProgressData(_meter.Character.Achievements, _meter.Character.Tickets, _meter.AchievementBook);
-        var path = Path.Combine(AppSettings.AppDataDir, "characters", cur, "character.json");
-        try
-        {
-            if (!File.Exists(path)) return null;
-            var w = File.GetLastWriteTimeUtc(path);
-            if (_otherProgress.TryGetValue(cur, out var c) && c.Written == w) return c.Data;
-            var (a, t) = CharacterState.ReadProgress(path);
-            var d = new ProgressData(a, t, _meter.AchievementBook);
-            _otherProgress[cur] = (w, d);
-            return d;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        var viewed = cur.Length > 0 ? chars.Find(c => c.Key == cur)?.Progress : null;
+        return new Data(cur, server, serverName, chars, server.Length > 0 ? _meter.Account.View(server) : null, _meter.Market, DateTimeOffset.Now,
+            viewed is null ? null : new ProgressData(viewed.Achievements, viewed.Tickets, _meter.AchievementBook));
     }
 
     /// <summary>"Ranger lv45  ·  combat power …" (profile.txt, first line) → "Ranger 45"; re-read only when the file changes.</summary>
@@ -215,9 +202,9 @@ public partial class ItemsView : UserControl
     private static DateTimeOffset Local(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToLocalTime();
 
     /// <summary>When the character was last seen: its newest container time, else (files of older builds) the file's write time.</summary>
-    private string SeenOf(InventoryFile f)
+    private string SeenOf(InventoryFile f, long alsoMs = 0)
     {
-        long ms = 0;
+        var ms = alsoMs;
         foreach (var v in f.Seen.Values) ms = Math.Max(ms, v.SeenMs);
         return ms > 0 ? When(ms) : When(Local(f.WrittenUtc));
     }
@@ -736,49 +723,72 @@ public partial class ItemsView : UserControl
 
     private static readonly int[] FootCurrencies = [InventoryStore.Kinah, InventoryStore.KinahBound, InventoryStore.AbyssPoints, InventoryStore.EnhanceStone];
     private static readonly string[] FootCurrencyFallback = ["Kina", "Kina (Bound)", "Abyss Points", "Enhance Stone"];
+    // Character · Kina · Kina (Bound) · AP · Enhance · Odyle · Shugo · Pass · Event · Seal · Value · Seen: readable at the overlay's 900–1100 px
+    private static readonly double[] FootWidths = [1.5, 1.25, 1.15, 1, 0.9, 0.95, 0.65, 0.6, 0.6, 0.8, 0.9, 0.8];
+    private const int FootCols = 12, ColBound = 2, ColEvent = 8;
 
+    /// <summary>One row per character: currencies (bag stacks) and its content tickets (A2M-15, live for the bound one, character.json otherwise),
+    /// then the account warehouse. Below 820 px Kina (Bound) and Event pass drop out; raids and corridors are the name's tooltip.</summary>
     private void RenderFoot(Data d)
     {
         var g = FootGrid;
         g.Children.Clear(); g.RowDefinitions.Clear(); g.ColumnDefinitions.Clear();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.6, GridUnitType.Star) });
-        for (var i = 0; i < 8; i++) g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var narrow = _narrow;
+        for (var i = 0; i < FootCols; i++)
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = narrow && i is ColBound or ColEvent ? new GridLength(0) : new GridLength(FootWidths[i], GridUnitType.Star) });
         var row = 0;
-        void Add(int col, string text, Brush fg, bool head = false, bool left = false, double size = 12.5)
+        void Add(int col, string text, Brush fg, bool head = false, bool left = false, string? tip = null)
         {
-            var t = new TextBlock { Text = text, Foreground = fg, FontSize = head ? 11 : size, HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right, TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(8, 3, 8, 3), VerticalAlignment = VerticalAlignment.Center };
+            if (narrow && col is ColBound or ColEvent) return;
+            var t = new TextBlock { Text = text, Foreground = fg, FontSize = head ? 11 : 12.5, HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right, TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(6, 3, 6, 3), VerticalAlignment = VerticalAlignment.Center };
+            if (!string.IsNullOrEmpty(tip)) t.ToolTip = tip;
             Grid.SetRow(t, row); Grid.SetColumn(t, col); g.Children.Add(t);
         }
         void Rule()
         {
             var r = new Border { BorderBrush = FootLine, BorderThickness = new Thickness(0, 0.8, 0, 0) };
-            Grid.SetRow(r, row); Grid.SetColumnSpan(r, 9); g.Children.Add(r);
+            Grid.SetRow(r, row); Grid.SetColumnSpan(r, FootCols); g.Children.Add(r);
         }
         g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Add(0, T.ItemsFootChar, Mute, true, true);
-        for (var i = 0; i < FootCurrencies.Length; i++) Add(1 + i, _meter.Names.Name(FootCurrencies[i], _lang) ?? FootCurrencyFallback[i], Mute, true);
-        Add(5, T.ItemsFootBag, Mute, true); Add(6, T.ItemsFootWh, Mute, true); Add(7, T.ItemsFootValue, Mute, true); Add(8, T.ItemsFootSeen, Mute, true);
+        string Cur(int i) => _meter.Names.Name(FootCurrencies[i], _lang) ?? FootCurrencyFallback[i];
+        Add(1, Cur(0), Mute, true); Add(2, Cur(1), Mute, true);
+        Add(3, T.ItemsFootAp, Mute, true, tip: Cur(2)); Add(4, T.ItemsFootEnhance, Mute, true, tip: Cur(3));
+        Add(5, T.ItemsTkOdyle, Mute, true, tip: T.ItemsTkOdyleTip); Add(6, T.ItemsTkKeys, Mute, true, tip: T.ItemsTkKeysTip);
+        Add(7, T.ItemsTkPass, Mute, true, tip: T.ItemsTkPassTip); Add(8, T.ItemsTkEvent, Mute, true, tip: T.ItemsTkEventTip);
+        Add(9, T.ItemsTkSeal, Mute, true, tip: T.ItemsTkSealTip);
+        Add(10, T.ItemsFootValueShort, Mute, true, tip: T.ItemsFootValue); Add(11, T.ItemsFootSeen, Mute, true, tip: T.ItemsTkSeenTip);
         long Value(List<ItemStack> l) { long v = 0; foreach (var s in l) if (!InventoryStore.IsCurrency(s.Item)) v += (Price(s.Item) ?? 0) * s.Count; return v; }
+        var book = _meter.AchievementBook;
         foreach (var c in d.Chars)
         {
             row++; g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); Rule();
             var me = c.Key == d.CurrentKey;
-            var nameBlock = new TextBlock { Margin = new Thickness(8, 3, 8, 3), FontSize = 12.5, Foreground = me ? Text : Dim, TextTrimming = TextTrimming.CharacterEllipsis };
+            var tk = TicketsOverview.Of(c.Progress, book, _lang);
+            var nameBlock = new TextBlock { Margin = new Thickness(6, 3, 6, 3), FontSize = 12.5, Foreground = me ? Text : Dim, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
             nameBlock.Inlines.Add(new Run(NameOf(c.Key)));
             if (c.Cls.Length > 0) nameBlock.Inlines.Add(new Run(" " + c.Cls) { Foreground = Mute, FontSize = 11 });
+            var tip = tk.RaidsTip.Length > 0 ? tk.RaidsTip : "";
+            if (tk.CorridorsTip.Length > 0) tip = tip.Length > 0 ? tip + "\n" + tk.CorridorsTip : tk.CorridorsTip;
+            if (tip.Length > 0) nameBlock.ToolTip = tip;
             Grid.SetRow(nameBlock, row); g.Children.Add(nameBlock);
-            if (c.File is not { } f) { for (var i = 1; i < 8; i++) Add(i, "—", Dim); Add(8, T.ItemsFootNever, Dim); continue; }
-            var bag = f.Items(Containers.Bag); var wh = f.Items(Containers.CharacterWarehouse);
+
+            var bag = c.File?.Items(Containers.Bag);
             for (var i = 0; i < FootCurrencies.Length; i++)
             {
                 long n = 0;
-                foreach (var s in bag) if (s.Item == FootCurrencies[i]) n += s.Count;
+                if (bag is not null) foreach (var s in bag) if (s.Item == FootCurrencies[i]) n += s.Count;
                 Add(1 + i, n > 0 ? N(n) : "—", n > 0 ? Num : Dim);
             }
-            Add(5, N(bag.Count), me ? Text : Dim); Add(6, N(wh.Count), me ? Text : Dim);
-            var v = Value(bag) + Value(wh);
-            Add(7, v > 0 ? ItemTile.Short(v) : "—", me ? Text : Dim); Add(8, SeenOf(f), me ? Text : Dim);
+            Brush V(string s) => s == TicketsOverview.None ? Dim : Num;
+            Add(5, tk.Odyle, V(tk.Odyle)); Add(6, tk.Keys, V(tk.Keys));
+            Add(7, tk.DaevaPass, V(tk.DaevaPass), tip: tk.PassTip); Add(8, tk.EventPass, V(tk.EventPass), tip: tk.PassTip);
+            Add(9, tk.Seal, V(tk.Seal));
+            if (c.File is not { } f) { Add(10, "—", Dim); Add(11, tk.SeenMs > 0 ? When(tk.SeenMs) : T.ItemsFootNever, Dim); continue; }
+            var v = Value(bag!) + Value(f.Items(Containers.CharacterWarehouse));
+            Add(10, v > 0 ? ItemTile.Short(v) : "—", me ? Text : Dim);
+            Add(11, SeenOf(f, tk.SeenMs), me ? Text : Dim);
         }
         if (d.Account is { } a)
         {
@@ -787,12 +797,11 @@ public partial class ItemsView : UserControl
             long kina = 0;
             foreach (var s in a.Slots) if (s.Item == InventoryStore.Kinah) kina += s.Count;
             Add(1, kina > 0 ? N(kina) : "—", kina > 0 ? Num : Dim);
-            for (var i = 2; i < 6; i++) Add(i, "—", Dim);
-            Add(6, N(a.Slots.Count), Dim);
+            for (var i = 2; i < 10; i++) Add(i, "—", Dim);
             var v = Value(AccountStacks(a));
-            Add(7, v > 0 ? ItemTile.Short(v) : "—", Dim);
+            Add(10, v > 0 ? ItemTile.Short(v) : "—", Dim);
             var (_, at) = a.LastUpdate();
-            Add(8, at > 0 ? When(at) : T.ItemsFootNever, Dim);
+            Add(11, at > 0 ? When(at) : T.ItemsFootNever, Dim);
         }
         FootCaption.Text = string.Format(T.ItemsCaption, MarketLabel(d.Market));
     }
@@ -830,6 +839,7 @@ public partial class ItemsView : UserControl
         Grid.SetColumn(Side, narrow ? 0 : 2);
         Grid.SetRow(Side, narrow ? 1 : 0);
         Side.Margin = new Thickness(0, narrow ? 10 : 0, 0, 0);
+        if (_data is { } d) RenderFoot(d);
     }
 
     private void MainList_SizeChanged(object sender, SizeChangedEventArgs e)

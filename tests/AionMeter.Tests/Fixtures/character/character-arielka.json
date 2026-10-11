@@ -1,0 +1,46 @@
+{
+  "EquippedPet": 1299,
+  "Pets": {},
+  "Titles": [],
+  "Achievements": [
+    {
+      "Id": 810433000,
+      "Count": 35220,
+      "CompletedMs": 1791747367088,
+      "Step": 22
+    },
+    {
+      "Id": 810435000,
+      "Count": 11440,
+      "CompletedMs": 1791747367088,
+      "Step": 16
+    }
+  ],
+  "UpdatedMs": 1791745667321,
+  "Captured": null,
+  "AchievementGroups": [],
+  "Tickets": [
+    {
+      "Key": 10,
+      "Mask": 4,
+      "Time": 0,
+      "Time2": 0,
+      "Base": 14,
+      "Bonus": 0,
+      "UpdatedMs": 1791747057275,
+      "IsTime": false,
+      "Total": 14
+    },
+    {
+      "Key": 60000001,
+      "Mask": 12,
+      "Time": 0,
+      "Time2": 0,
+      "Base": 840,
+      "Bonus": 100,
+      "UpdatedMs": 1791747072724,
+      "IsTime": false,
+      "Total": 940
+    }
+  ]
+}

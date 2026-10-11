@@ -98,7 +98,7 @@ public static class SampleRenderer
                 meter.Settings.PriceSearchLanguage = o.Tab == "es" ? "es" : "en";
                 var itemIcons = new IconCache(Core.GameDb.ItemIcons.Load(Path.Combine(MeterService.DataDirectory, "gamedb", "item-icons.json")), o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
                 var itemsView = new Views.ItemsView(meter, itemIcons);
-                itemsView.ShowSample(SampleItems());
+                itemsView.ShowSample(SampleItems(meter.AchievementBook));
                 if (o.Tab == "search") itemsView.SampleSearch("odyle");
                 if (o.Tab == "list") itemsView.SampleListMode();
                 host = new Window { Content = itemsView, Width = o.Width ?? 1180, Height = o.Height ?? 1500, Background = new SolidColorBrush(Color.FromRgb(0x0D, 0x0D, 0x0D)) };
@@ -347,7 +347,7 @@ public static class SampleRenderer
     }
 
     /// <summary>Akunita bound, Irin and Arielka on disk, their shared warehouse seeded as on first run, and the market prices they need (data/gamedb/sample-items.json, tools/items-sample.py).</summary>
-    private static Views.ItemsView.Data SampleItems()
+    private static Views.ItemsView.Data SampleItems(Core.Character.AchievementCatalog? book = null)
     {
         var path = Path.Combine(MeterService.DataDirectory, "gamedb", "sample-items.json");
         var chars = new List<Views.ItemsView.CharData>();
@@ -371,7 +371,23 @@ public static class SampleRenderer
         }
         var account = new Core.Inventory.AccountWarehouse(null);
         account.Seed("1303", chars.Where(c => c.File is not null).Select(c => (c.Key, c.File!)));
-        return new Views.ItemsView.Data("1303-Akunita", "1303", "Vaizel", chars, account.View("1303"), market, now);
+        // Tickets table: Akunita = her login of 2026-10-11 14:03 (tickets-0b61 fixture; Daeva Pass 100,000 EXP per docs/27, event pass made up),
+        // Arielka = her character.json of 21:07 (two ticket deltas, passes 35,220 / 11,440 EXP), Irin = no capture yet
+        var ms = now.ToUnixTimeMilliseconds();
+        Core.Character.ContentTicket Tk(int key, byte mask, long time, int b, int bonus, long ago) => new(key, mask, time, 0, b, bonus, ms - ago);
+        var akunita = new Core.Character.CharacterProgress(
+            new Dictionary<int, Core.Character.AchievementRow> { [810_433_000] = new(810_433_000, 100_000, ms - 3_600_000, 58), [810_435_000] = new(810_435_000, 21_000, ms - 3_600_000, 30) },
+            new[] { Tk(60_000_001, 12, 0, 240, 110, 1_500_000), Tk(1, 4, 0, 14, 0, 1_500_000), Tk(6, 1, 2_520_000, 0, 0, 1_500_000), Tk(90_000_001, 4, 0, 4, 0, 1_500_000),
+                    Tk(90_000_002, 4, 0, 1, 0, 1_500_000), Tk(90_000_003, 4, 0, 4, 0, 1_500_000), Tk(90_000_004, 4, 0, 2, 0, 1_500_000), Tk(90_000_005, 4, 0, 4, 0, 1_500_000),
+                    Tk(90_000_006, 4, 0, 2, 0, 1_500_000), Tk(10_000_001, 0, 0, 0, 0, 1_500_000), Tk(10_000_002, 1, 130_000, 0, 0, 1_500_000) }.ToDictionary(t => t.Key),
+            ms - 1_500_000);
+        var arielka = new Core.Character.CharacterProgress(
+            new Dictionary<int, Core.Character.AchievementRow> { [810_433_000] = new(810_433_000, 35_220, ms - 7_200_000, 22), [810_435_000] = new(810_435_000, 11_440, ms - 7_200_000, 16) },
+            new[] { Tk(10, 4, 0, 14, 0, 7_300_000), Tk(60_000_001, 12, 0, 840, 100, 7_200_000) }.ToDictionary(t => t.Key), ms - 8_000_000);
+        for (var i = 0; i < chars.Count; i++)
+            chars[i] = chars[i] with { Progress = chars[i].Key switch { "1303-Akunita" => akunita, "1303-Arielka" => arielka, _ => null } };
+        return new Views.ItemsView.Data("1303-Akunita", "1303", "Vaizel", chars, account.View("1303"), market, now,
+            book is null ? null : new Views.ItemsView.ProgressData(akunita.Achievements, akunita.Tickets, book));
     }
 
     /// <summary>Verteron at Kernon of the West: the map's own seeded Orichalcum/Inina spots turned into live, out-of-view and emptied

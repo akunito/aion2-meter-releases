@@ -145,21 +145,24 @@ public sealed class CharacterState
     private sealed record Snapshot(int EquippedPet, Dictionary<int, int> Pets, List<int> Titles, List<AchievementRow> Achievements, long UpdatedMs,
         CapturedProfile? Captured = null, List<AchievementGroup>? AchievementGroups = null, List<ContentTicket>? Tickets = null);
 
-    /// <summary>Achievements and tickets of another character's character.json (the Items cards for a non-bound character).</summary>
-    public static (Dictionary<int, AchievementRow> Achievements, Dictionary<int, ContentTicket> Tickets) ReadProgress(string path)
+    // Only the fields ReadProgress needs: the serializer skips Captured/Pets/Titles (~150 KB) without building them.
+    private sealed record ProgressSnapshot(List<AchievementRow>? Achievements, long UpdatedMs, List<ContentTicket>? Tickets);
+
+    /// <summary>Achievements, tickets and UpdatedMs of another character's character.json (Items cards and the Tickets table); null when missing or unreadable.</summary>
+    public static CharacterProgress? ReadProgress(string path)
     {
         try
         {
-            if (!File.Exists(path)) return (new(), new());
-            var s = JsonSerializer.Deserialize<Snapshot>(File.ReadAllText(path), Json);
-            if (s is null) return (new(), new());
-            var a = new Dictionary<int, AchievementRow>(s.Achievements.Count);
-            foreach (var r in s.Achievements) a[r.Id] = r;
-            var t = new Dictionary<int, ContentTicket>();
+            if (!File.Exists(path)) return null;
+            var s = JsonSerializer.Deserialize<ProgressSnapshot>(File.ReadAllBytes(path), Json);
+            if (s is null) return null;
+            var a = new Dictionary<int, AchievementRow>(s.Achievements?.Count ?? 0);
+            if (s.Achievements is not null) foreach (var r in s.Achievements) a[r.Id] = r;
+            var t = new Dictionary<int, ContentTicket>(s.Tickets?.Count ?? 0);
             if (s.Tickets is not null) foreach (var x in s.Tickets) t[x.Key] = x;
-            return (a, t);
+            return new CharacterProgress(a, t, s.UpdatedMs);
         }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return (new(), new()); }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>The captured part of a character.json (another character's file, for the selector view); Empty when missing.</summary>
