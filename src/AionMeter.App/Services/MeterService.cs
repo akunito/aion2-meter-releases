@@ -37,7 +37,8 @@ public sealed class MeterService : IDisposable
         History = new HistoryStore(Path.Combine(AppSettings.AppDataDir, "fights"));
         Timers = new BossTimers(Path.Combine(AppSettings.AppDataDir, "boss-timers.json"), Data, DataDirectory, persistent: !settings.Transient);
         Updates = new Updater(settings);
-        Atlas = new NodeStore(Path.Combine(AppSettings.AppDataDir, "atlas"));
+        // render tool (Transient): an empty folder of its own, so the user's remembered nodes and last map stay out of the sample
+        Atlas = new NodeStore(settings.Transient ? Path.Combine(Path.GetTempPath(), "aion2-render-atlas-" + Environment.ProcessId) : Path.Combine(AppSettings.AppDataDir, "atlas"));
         Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
         Names = ItemNames.Load(Path.Combine(DataDirectory, "gamedb", "item-names.json"));
         Recipes = RecipeBook.Load(Path.Combine(DataDirectory, "gamedb", "recipes.json"));
@@ -916,7 +917,7 @@ public sealed class MeterService : IDisposable
     {
         var live = !Settings.Transient && !_replaying && !DemoRunning;
         lock (_captureGate) _capture?.Dispose(); // no more packets: the running fight is as complete as it gets
-        Atlas.Save();
+        if (!Settings.Transient) Atlas.Save();   // the render tool's sample nodes are never written
         _replay?.Dispose();
         _demo?.Dispose();
         if (live)

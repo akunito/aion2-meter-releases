@@ -107,8 +107,26 @@ public partial class TopDpsView : UserControl
     private static readonly GameClass[] AllClasses =
         [GameClass.Gladiator, GameClass.Templar, GameClass.Ranger, GameClass.Assassin, GameClass.Sorcerer, GameClass.Elementalist, GameClass.Cleric, GameClass.Chanter];
 
+    private bool _sample;
+    /// <summary>Render tool (--window top): "My fights" from these entries instead of the store, <paramref name="cls"/> selected and its first row opened.</summary>
+    public void ShowSample(IReadOnlyDictionary<GameClass, List<TopEntry>> byClass, GameClass cls, string server)
+    {
+        _sample = true; _class = cls;
+        ScopeServer.Content = string.Format(T.TopScopeServer, server);
+        _tabs.Clear(); _rows.Clear();
+        var total = 0;
+        foreach (var c in AllClasses)
+            if (byClass.TryGetValue(c, out var l) && l.Count > 0) { total += l.Count; _tabs.Add(new ClassTab(c, $"{T.ClassName(c)} ({l.Count})", c == cls)); }
+        CountText.Text = string.Format(T.TopCount, total);
+        var rank = 0;
+        if (byClass.TryGetValue(cls, out var mine)) foreach (var e in mine) _rows.Add(new Row(e, ++rank));
+        if (_rows.Count > 0) Expand(_rows[0]);
+        EmptyText.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void Reload()
     {
+        if (_sample) return;
         var server = _meter.Data.ServerName(_meter.Tracker.SelfServerId);
         ScopeServer.Content = string.Format(T.TopScopeServer, server.Length > 0 ? server : "?");
         ScopeServer.IsEnabled = server.Length > 0;

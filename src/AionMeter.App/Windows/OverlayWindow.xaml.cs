@@ -691,6 +691,8 @@ public partial class OverlayWindow : Window
     public string Tab => _tab;
     public bool TabActive => _tab != "meter";
     public Views.AtlasView? AtlasView => _atlasView;
+    /// <summary>The view of the tab in front (null on the meter tab); the render tool fills it with sample data.</summary>
+    public System.Windows.Controls.UserControl? TabView => _tab == "meter" ? null : TabHost.Content as System.Windows.Controls.UserControl;
 
     private void Tab_Click(object sender, RoutedEventArgs e)
     {
@@ -778,8 +780,6 @@ public partial class OverlayWindow : Window
                 CharBox.ClearValue(ForegroundProperty); CharBox.ClearValue(BorderBrushProperty);
                 CharBox.ToolTip = t.CharSelectTip;
             }
-            CharViewing.Visibility = other ? Visibility.Visible : Visibility.Collapsed;
-            CharViewing.ToolTip = CharBox.ToolTip;
         }
         finally { _charSync = false; }
     }

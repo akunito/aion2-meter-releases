@@ -87,8 +87,24 @@ public partial class PriceWatchView : UserControl
     private bool _stale;
     private void OnChanged() { if (IsVisible) Dispatcher.BeginInvoke(Reload); else _stale = true; }
 
+    private bool _sample;
+    /// <summary>Render tool (--window prices): these watches instead of the store, icons from <paramref name="icons"/>; nothing polled or saved.</summary>
+    public void ShowSample(IReadOnlyList<PriceWatch> watches, IconCache icons, DateTimeOffset lastPoll)
+    {
+        _sample = true;
+        var rows = new List<Row>(watches.Count);
+        foreach (var w in watches)
+        {
+            var (en, es) = _meter.Names.Both(w.Item);
+            rows.Add(new Row(w, en ?? w.Name) { Alt = es ?? "", Icon = icons.Get(w.Item) });
+        }
+        List.ItemsSource = rows;
+        StatusText.Text = string.Format(T.PricesLastPoll, lastPoll.ToString("HH:mm")) + " · " + T.PricesHourlyNote;
+    }
+
     private void Reload()
     {
+        if (_sample) return;
         var rows = new List<Row>();
         foreach (var w in _meter.Prices.All())
         {

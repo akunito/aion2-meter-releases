@@ -67,6 +67,27 @@ public partial class AtlasView : UserControl
         IsVisibleChanged += (_, e) => { if (e.NewValue is true) Refresh(); };
     }
 
+    // render tool (--window atlas): drawn although never shown, framed on a world point at a fixed zoom, with sample pet levels
+    private bool _sample;
+    private (float X, float Y, double Scale)? _sampleFrame;
+    private Dictionary<int, int>? _samplePets;
+    public void ShowSample(float worldX, float worldY, double scale, Dictionary<int, int> pets)
+    {
+        _sample = true; _sampleFrame = (worldX, worldY, scale); _samplePets = pets;
+        FollowBox.IsChecked = false; PetsBox.IsChecked = true;
+    }
+    public void RenderNow()
+    {
+        Refresh();
+        if (_cal is null || _sampleFrame is not { } f || Viewport.ActualWidth <= 0) return;
+        var (px, py) = _cal.ToPixel(f.X, f.Y);
+        _scale = f.Scale;
+        _tx = Viewport.ActualWidth / 2 - px * _f * _scale; _ty = Viewport.ActualHeight / 2 - py * _f * _scale;
+        Apply();
+        Refresh();
+        StaticLayer.InvalidateVisual();
+    }
+
     private void Refresh()
     {
         var atlas = _meter.Atlas;
@@ -92,7 +113,7 @@ public partial class AtlasView : UserControl
             if (FollowBox.IsChecked == true && _mapShown > 0) _followZoomed = false; else FitWholeMap();
             StaticLayer.InvalidateVisual();
         }
-        if (!IsVisible) return;   // another tab is in front: the 500 ms clock must not rebuild hundreds of elements nobody sees
+        if (!IsVisible && !_sample) return;   // another tab is in front: the 500 ms clock must not rebuild hundreds of elements nobody sees
         Overlay.Children.Clear();
         _labelPts.Clear();
         _ovTx = _tx; _ovTy = _ty; OverlayPan.X = OverlayPan.Y = 0;
@@ -342,7 +363,7 @@ public partial class AtlasView : UserControl
     private void DrawPets()
     {
         if (_cal is null) return;
-        var pets = _meter.Character.Pets;
+        var pets = _samplePets ?? _meter.Character.Pets;
         long key = pets.Count * 1_000_003L; foreach (var kv in pets) key += kv.Key * 7L + kv.Value;
         if (_petLayer is null || _petLayerKey != key)
         {

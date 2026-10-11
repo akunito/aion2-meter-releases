@@ -45,6 +45,19 @@ public partial class CraftView : UserControl
         _searchTick.Tick += (_, _) => { _searchTick.Stop(); Reload(); };
     }
 
+    // render tool (--window craft): stock, market and icons of the sample instead of the live character
+    private Func<int, int>? _sampleCount; private Core.Market.MarketSnapshot? _sampleMarket; private IconCache? _sampleIcons;
+    public void ShowSample(Func<int, int> count, Core.Market.MarketSnapshot market, IconCache icons, string scope, bool profit)
+    {
+        _sampleCount = count; _sampleMarket = market; _sampleIcons = icons;
+        foreach (ComboBoxItem it in ScopeBox.Items) if ((string)it.Tag == scope) { ScopeBox.SelectedItem = it; break; }
+        ProfitBox.IsChecked = profit;
+        Reload();
+    }
+    private Func<int, int> CountOf => _sampleCount ?? _meter.ViewInventory.CountOf;
+    private Core.Market.MarketSnapshot MarketNow => _sampleMarket ?? _meter.Market;
+    private IconCache RowIcons => _sampleIcons ?? _meter.ItemIconCache;
+
     private bool _stale;
     private void OnChanged() { if (IsVisible) Dispatcher.BeginInvoke(Reload); else _stale = true; }   // hidden tab: one reload when it comes back, not one per packet
     // icons land one per 400 ms: redraw at most every 600 ms instead of per icon
@@ -109,10 +122,10 @@ public partial class CraftView : UserControl
     /// <summary>Profit mode: every recipe whose output is on the market, most profitable first (cheapest listings, fee from settings).</summary>
     private void ReloadProfit(Func<int, string> Nm, string q)
     {
-        var m = _meter.Market;
+        var m = MarketNow;
         if (m.Count == 0) { List.ItemsSource = Array.Empty<Row>(); StatusText.Text = T.CraftNoMarket; return; }
         var fee = _meter.Settings.BrokerFeePercent;
-        var all = _meter.Recipes.Profit(m.Price, fee, _meter.ViewInventory.CountOf, _profession.Length == 0 ? null : _profession);
+        var all = _meter.Recipes.Profit(m.Price, fee, CountOf, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(120); var shown = 0; var favs = _meter.Settings.CraftFavourites; var seen = new HashSet<string>();
         foreach (var p in all.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
@@ -126,7 +139,7 @@ public partial class CraftView : UserControl
                       $" → {Kinah(p.Value)} {T.CraftAfterFee} · {T.CraftCost} {Kinah(p.Cost)}" + (p.UnpricedMaterials > 0 ? $" ({p.UnpricedMaterials} {T.CraftUnpriced})" : "") +
                       (p.Times > 0 ? $" · ×{p.Times} {T.CraftNow}" : "") + "\n" + mats;
             var good = p.Profit > 0;
-            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output), Icons = _meter.ItemIconCache });
+            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output), Icons = RowIcons });
         }
         List.ItemsSource = rows;
         StatusText.Text = string.Format(T.CraftMarketFrom, m.Count, m.Server, m.CapturedAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "?", fee.ToString("0.#", CultureInfo.InvariantCulture));
@@ -141,7 +154,7 @@ public partial class CraftView : UserControl
         // Typing searches the whole book (Diego 2026-10-11): the scope only applies while the box is empty
         var scope = q.Length > 0 ? "all" : Scope; var favs = _meter.Settings.CraftFavourites;
         // one pass over every recipe (1,684: cheap); the scope filters, favourites bypass it and lead the list
-        var opts = _meter.Recipes.Evaluate(_meter.ViewInventory.CountOf, 99, _profession.Length == 0 ? null : _profession);
+        var opts = _meter.Recipes.Evaluate(CountOf, 99, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(opts.Count); var craftable = 0; var (keep, variants) = PickTwins(opts, Nm);
         foreach (var o in opts.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
@@ -153,8 +166,8 @@ public partial class CraftView : UserControl
             if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", o.Recipe.Name)) continue;
             var mats = string.Join(", ", o.Recipe.Materials.Select(m => $"{Nm(m.Item)} ×{m.Qty}"));
             var sub = $"{o.Recipe.Profession} {o.Recipe.Level} · {o.Recipe.Grade}" + (variants[o.Recipe.Output] > 1 ? $" · +{variants[o.Recipe.Output] - 1} {T.CraftVariant}" : "") + $" · {mats}";
-            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icons = _meter.ItemIconCache }); }
-            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icons = _meter.ItemIconCache, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
+            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icons = RowIcons }); }
+            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icons = RowIcons, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
         }
         List.ItemsSource = rows;
         StatusText.Text = q.Length > 0 ? string.Format(T.CraftMatches, rows.Count, craftable) : string.Format(T.CraftStatus, craftable, rows.Count - craftable);

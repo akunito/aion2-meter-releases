@@ -15,9 +15,9 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories).</param>
+    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft (that tab inside the overlay card, made-up data).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish).</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
     /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); items: &lt;item id&gt;.png in the same folder; nothing is downloaded.</param>
@@ -123,6 +123,34 @@ public static class SampleRenderer
                 meter.Updates.Preview(release);
                 host = new UpdateWindow(meter.Updates, release, installed: o.Window == "update") { Width = 580, Height = 560 };
                 refresh = () => { };
+                break;
+            case "atlas" or "top" or "prices" or "craft":
+                // a tab inside the overlay card as the player sees it, filled with made-up data (README screenshots); --tab profit: Craft's profit list
+                var card = new OverlayWindow(meter) { Width = o.Width ?? 560, Height = o.Height ?? 820 };
+                var tabIcons = new IconCache(Core.GameDb.ItemIcons.Load(Path.Combine(MeterService.DataDirectory, "gamedb", "item-icons.json")), o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
+                card.SelectTab(o.Window);
+                Action fill = () => { };
+                switch (card.TabView)
+                {
+                    case Views.AtlasView atlasView:
+                        var (ax, ay, pets) = SampleAtlas(meter);
+                        atlasView.ShowSample(ax, ay, 2.5, pets);
+                        fill = atlasView.RenderNow;
+                        break;
+                    case Views.TopDpsView topView:
+                        topView.ShowSample(SampleTop(meter), GameClass.Ranger, meter.Data.ServerName(2305));
+                        break;
+                    case Views.PriceWatchView pricesView:
+                        pricesView.ShowSample(SamplePrices(), tabIcons, DateTimeOffset.Now.AddMinutes(-12));
+                        break;
+                    case Views.CraftView craftView:
+                        var sample = SampleItems();
+                        meter.Settings.CraftFavourites.Add(110240012);   // Expert's Splendent Orichalcum Longsword pinned
+                        craftView.ShowSample(StockOf(sample, sample.CurrentKey), sample.Market, tabIcons, "near", o.Tab == "profit");
+                        break;
+                }
+                host = card;
+                refresh = () => { card.Refresh(); fill(); };
                 break;
             default:
                 if (o.Window == "overlay-update") meter.Updates.Preview(SampleRelease(meter.Updates.Current)); // with the footer's update banner
@@ -337,6 +365,126 @@ public static class SampleRenderer
         var account = new Core.Inventory.AccountWarehouse(null);
         account.Seed("1303", chars.Where(c => c.File is not null).Select(c => (c.Key, c.File!)));
         return new Views.ItemsView.Data("1303-Akunita", "1303", "Vaizel", chars, account.View("1303"), market, now);
+    }
+
+    /// <summary>Verteron at Kernon of the West: the map's own seeded Orichalcum/Inina spots turned into live, out-of-view and emptied
+    /// nodes (respawn learned), Kernon killed with a countdown, made-up pet levels (0-3 by turns).</summary>
+    private static (float X, float Y, Dictionary<int, int> Pets) SampleAtlas(MeterService meter)
+    {
+        const int map = 1010; const uint self = 2; const float cx = -88000, cy = -46000;
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var atlas = meter.Atlas;
+        atlas.SetMap(map);
+        atlas.OnEvent(new SelfIdentifiedEvent(now - 60_000, self, "Sylvaen", 2305, GameClass.Elementalist));
+        var near = atlas.Spots(map).Where(sp => sp.Seeded && sp.Name is "Orichalcum" or "Inina")
+            .OrderBy(sp => (sp.X - cx) * (sp.X - cx) + (sp.Y - cy) * (sp.Y - cy)).Take(9).ToList();
+        atlas.OnEvent(new PositionEvent(now - 3_000, self, cx, cy, 0));
+        uint id = 50_000;
+        for (var i = 0; i < near.Count; i++)
+        {
+            var sp = near[i]; var code = sp.Name == "Inina" ? 1500042 : 1500004; var oid = id++;
+            if (i < 7) atlas.OnEvent(new ObjectSeenEvent(now - 2_000, oid, 1, code, sp.X, sp.Y, 0, i % 3, now - 600_000));
+            if (i is 5 or 6) atlas.OnEvent(new ObjectGoneEvent(now - 1_000, oid, false));   // walked out of view: "N?"
+            if (i >= 7)
+            {
+                // emptied, back 20 min later, emptied again 6 min ago: the countdown says 14 min
+                atlas.OnEvent(new ObjectSeenEvent(now - 2_400_000, oid, 1, code, sp.X, sp.Y, 0, 0, now - 2_700_000));
+                atlas.OnEvent(new ObjectGoneEvent(now - 2_280_000, oid, true));
+                atlas.OnEvent(new ObjectSeenEvent(now - 1_000_000, oid + 100, 1, code, sp.X, sp.Y, 0, 0, now - 2_280_000 + 1_200_000));
+                atlas.OnEvent(new ObjectGoneEvent(now - 360_000, oid + 100, true));
+            }
+        }
+        meter.Timers.SetCurrentServer(2305);
+        meter.Timers.OnNotice(new Core.Combat.BossNotice(2100050, map, null, Core.Combat.BossNoticeKind.Killed, now - 50 * 60_000, ServerId: 2305));
+        meter.Timers.SetRespawn(2305, 2100050, 90);
+        meter.Settings.AtlasZoneKinds.Clear(); meter.Settings.AtlasZoneKinds.Add("orichalcum");
+        var pets = new Dictionary<int, int>();
+        var n = 0;
+        foreach (var p in meter.Pets.All) pets[p.Id] = n++ % 4;
+        return (cx, cy, pets);
+    }
+
+    /// <summary>Made-up "My fights" for the Top DPS tab: ten rangers and a few of every other class on Verteron's field bosses,
+    /// each with a 1.5-3.5 min rotation that repeats a class opener, so opener, repeated sequences and cadence read like real ones.</summary>
+    private static Dictionary<GameClass, List<Core.Ranking.TopEntry>> SampleTop(MeterService meter)
+    {
+        var rnd = new Random(2305);
+        (GameClass Cls, double Dps, int[] Skills, string[] Names)[] classes =
+        [
+            (GameClass.Ranger, 410_000, [14090000, 14010000, 14020000, 14050000, 14070000, 14080000, 14110000, 14130000, 14340000], ["Talwyn", "Kestrel", "Sable", "Nimbus", "Fenra", "Oriel", "Varka", "Lysse", "Corvan", "Ashe"]),
+            (GameClass.Gladiator, 470_000, [11010000, 11020000, 11030000, 11040000], ["Borgrim", "Thrain", "Kael", "Drogo"]),
+            (GameClass.Templar, 300_000, [12010000, 12020000, 12030000], ["Aegisa", "Brann", "Ivor"]),
+            (GameClass.Assassin, 390_000, [13010000, 13020000, 13120000], ["Nyxara", "Vex", "Shade", "Rook", "Mira"]),
+            (GameClass.Sorcerer, 360_000, [15010000, 15020000, 15030000], ["Morwen", "Ilsa", "Quorra"]),
+            (GameClass.Elementalist, 520_000, [16010000, 16020000, 16030000, 16040000, 16140000], ["Sylvaen", "Quill", "Ember", "Tamsin"]),
+            (GameClass.Cleric, 160_000, [17010000, 17020000, 17030000, 17040000], ["Celesta", "Aurel"]),
+            (GameClass.Chanter, 150_000, [18010000, 18020000, 18030000, 18040000], ["Hymnar", "Odo", "Brisa"]),
+        ];
+        (string Boss, int Code)[] bosses = [("Kernon of the West", 2100050), ("Blooming Korin", 2100141), ("Kusan the Mad Gladiator", 2100076), ("Furious Saursus", 2100177), ("Bloodfang Pnyn", 2100178)];
+        var today = DateTimeOffset.Now.Date;
+        var all = new Dictionary<GameClass, List<Core.Ranking.TopEntry>>();
+        foreach (var (cls, baseDps, skills, names) in classes)
+        {
+            var list = new List<Core.Ranking.TopEntry>(names.Length);
+            for (var i = 0; i < names.Length; i++)
+            {
+                var dps = baseDps * (1.18 - i * 0.055) * (0.97 + rnd.NextDouble() * 0.06);
+                var ms = (long)(90_000 + rnd.Next(0, 120_000));
+                var (boss, code) = bosses[rnd.Next(bosses.Length)];
+                // opener = the skill list in order, then the same 4-cast loop with a random skill in between now and then
+                var casts = new List<Core.Ranking.TopCast>(256);
+                var t = 600;
+                foreach (var sk in skills) { casts.Add(new(t, sk)); t += 900 + rnd.Next(400); }
+                var loop = skills.Length >= 4 ? new[] { skills[0], skills[1], skills[2], skills[3] } : skills;
+                for (var k = 0; t < ms; k++)
+                {
+                    casts.Add(new(t, rnd.NextDouble() < 0.2 ? skills[rnd.Next(skills.Length)] : loop[k % loop.Length]));
+                    t += 900 + rnd.Next(500);
+                }
+                var hits = new Dictionary<int, int>();
+                foreach (var c in casts) hits[c.S] = hits.GetValueOrDefault(c.S) + 1;
+                var weights = skills.ToDictionary(sk => sk, sk => hits.GetValueOrDefault(sk) * (0.6 + rnd.NextDouble()));
+                var sum = weights.Values.Sum();
+                var damage = (long)(dps * ms / 1000);
+                var table = skills.Select(sk => new Core.Ranking.TopSkill(sk, meter.Data.SkillName(sk), hits.GetValueOrDefault(sk), (long)(damage * weights[sk] / sum), weights[sk] / sum))
+                    .OrderByDescending(x => x.Damage).ToList();
+                list.Add(new Core.Ranking.TopEntry(names[i], cls, 2305, false, dps, damage, ms, boss, "Verteron", code,
+                    new DateTimeOffset(today.AddDays(-rnd.Next(0, 6)).AddHours(18 + rnd.Next(0, 5)).AddMinutes(rnd.Next(60))), "sample.json", table, casts));
+            }
+            all[cls] = list;
+        }
+        return all;
+    }
+
+    /// <summary>Six made-up watches over items of the sample market (Vaizel, 2026-10-08): two buys and a sell at their price, two not yet, one holding in profit.</summary>
+    private static List<Core.Market.PriceWatch> SamplePrices()
+    {
+        var now = DateTimeOffset.Now;
+        (int Item, string Name, long Max, bool Sell, long Last, long DayAgo, int Listings, int Qty, long Paid)[] rows =
+        [
+            (610511013, "Wrathful Mind", 1_850_000, false, 1_799_990, 1_890_000, 31, 0, 0),
+            (610511014, "Wrathful Will", 250_000, false, 240_000, 236_000, 29, 0, 0),
+            (610620016, "Radiant Orichalcum Ore", 60_000, true, 64_999, 61_500, 39, 40, 52_000),
+            (610610016, "Radiant Odyle", 300_000, false, 355_544, 349_000, 84, 0, 0),
+            (610530010, "Artisan's Ultimate Refining Stone", 200_000, false, 225_000, 241_000, 33, 0, 0),
+            (110240012, "Expert's Splendent Orichalcum Longsword", 3_500_000, true, 2_950_000, 3_020_000, 23, 1, 2_400_000),
+        ];
+        return rows.Select(r => new Core.Market.PriceWatch
+        {
+            Item = r.Item, Name = r.Name, MaxPrice = r.Max, Sell = r.Sell, LastPrice = r.Last, DayAgoPrice = r.DayAgo, LastListings = r.Listings,
+            Quantity = r.Qty, PaidEach = r.Paid, LastCheck = now.AddMinutes(-12), SampledAt = now.AddMinutes(-31),
+        }).ToList();
+    }
+
+    /// <summary>One character's stock from the sample inventories (every container but the equipped set, as the live count does).</summary>
+    private static Func<int, int> StockOf(Views.ItemsView.Data d, string key)
+    {
+        var count = new Dictionary<int, int>();
+        foreach (var c in d.Chars)
+            if (c.Key == key && c.File is { } f)
+                foreach (var st in f.Stacks)
+                    if (st.Container != Core.Inventory.Containers.Equipped) count[st.Item] = count.GetValueOrDefault(st.Item) + st.Count;
+        return item => count.GetValueOrDefault(item);
     }
 
     /// <summary>Irin's open Daevanion nodes (profile) and questlog planner 8602 (plan) from data/gamedb/sample-daevanion.json (build.sh copies the test fixture).</summary>
