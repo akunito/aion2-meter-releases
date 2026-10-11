@@ -72,6 +72,25 @@ public class InventoryTests
     }
 
     [Fact]
+    public void WithdrawalStampsTheVacatedWarehouseSlotSoTheSharedMergeDropsIt()
+    {
+        // 2026-10-11 15:08: withdrawing from the account warehouse sends only the bag slot (same uid); the shared warehouse ignores
+        // unstamped slots, so the item stayed listed there until this stamp existed.
+        var store = new InventoryStore(null);
+        store.OnEvent(new InventoryEvent(1, true, new[] { new ItemStack(1535962, 531110003, 16, Containers.AccountWarehouse, 67, 0) }));
+        store.OnEvent(new InventoryEvent(5_000, false, new[] { new ItemStack(1535962, 531110003, 16, Containers.Bag, 8, 0) }));
+        Assert.Empty(store.Items(Containers.AccountWarehouse));
+        Assert.Equal(5_000, store.SlotStamps(Containers.AccountWarehouse)[67]);
+        var acct = new AccountWarehouse(null);
+        acct.Absorb("1303", "1303-Akunita", 1, new[] { new ItemStack(1535962, 531110003, 16, Containers.AccountWarehouse, 67, 0) }, new Dictionary<byte, long>());
+        Assert.True(acct.Absorb("1303", "1303-Akunita", 1, store.Items(Containers.AccountWarehouse), store.SlotStamps(Containers.AccountWarehouse)));
+        Assert.DoesNotContain(acct.View("1303")!.Slots, sl => sl.Slot == 67 && sl.Count > 0);
+        // a count-0 record (sold / used) stamps its slot the same way
+        store.OnEvent(new InventoryEvent(6_000, false, new[] { new ItemStack(1535962, 531110003, 0, Containers.Bag, 8, 0) }));
+        Assert.Equal(6_000, store.SlotStamps(Containers.Bag)[8]);
+    }
+
+    [Fact]
     public void KinahIsABagStackAndJunkIsDropped()
     {
         var store = new InventoryStore(null);

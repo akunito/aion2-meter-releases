@@ -148,11 +148,13 @@ public sealed class InventoryStore
                 // Shape-scan false positives read misaligned words as ids (855638016 = 0x33000000, 899461376 = 0x359C0000, container 0): real item ids are 9 digits with a non-zero low half.
                 if (!Plausible(s)) continue;
                 Stamp(s.Container, s.Slot, t);
-                if (s.Count <= 0) { Empty(s); continue; }
-                // A uid lives in exactly one slot: a move, a split or a partial refresh must not leave the old copy behind.
+                if (s.Count <= 0) { Empty(s, t); continue; }
+                // A uid lives in exactly one slot: a move, a split or a partial refresh must not leave the old copy behind. The vacated
+                // slot is stamped too: the game sends only the destination of a move (withdrawal 2026-10-11 15:08: bag slot 8 arrived, the
+                // warehouse slot never did), and the shared account warehouse only drops a slot that carries a fresh stamp.
                 foreach (var (cid, cont) in _containers)
                     foreach (var (slot, st) in cont)
-                        if (st.Uid == s.Uid && (cid != s.Container || slot != s.Slot)) { cont.Remove(slot); goto next; }
+                        if (st.Uid == s.Uid && (cid != s.Container || slot != s.Slot)) { cont.Remove(slot); Stamp(cid, slot, t); goto next; }
                 next:
                 if (!_containers.TryGetValue(s.Container, out var c)) _containers[s.Container] = c = new();
                 c[s.Slot] = s;
@@ -182,11 +184,11 @@ public sealed class InventoryStore
 
     /// <summary>Count 0: the stack left its slot. Its uid goes wherever it is; a different stack of the same item in that slot is a copy
     /// from an older login (uids are renumbered per login) and goes too; another item in the slot was written after and stays.</summary>
-    private void Empty(ItemStack s)
+    private void Empty(ItemStack s, long t)
     {
-        foreach (var cont in _containers.Values)
+        foreach (var (cid, cont) in _containers)
             foreach (var (slot, st) in cont)
-                if (st.Uid == s.Uid) { cont.Remove(slot); goto done; }
+                if (st.Uid == s.Uid) { cont.Remove(slot); Stamp(cid, slot, t); goto done; }
         done:
         if (_containers.TryGetValue(s.Container, out var c) && c.TryGetValue(s.Slot, out var cur) && cur.Item == s.Item) c.Remove(s.Slot);
     }
