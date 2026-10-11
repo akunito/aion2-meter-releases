@@ -67,7 +67,27 @@ public partial class CraftView : UserControl
     }
     // aion2hub lists 41 recipe pairs with two output ids for one name and identical materials (faction/version twins, e.g. 510716007/510716019):
     // one row per name + materials + profession + level, so the list never shows the same craft twice (Diego, 2026-10-11)
-    private static string TwinKey(Core.GameDb.Recipe r, string name) => name + "|" + r.Profession + "|" + r.Level + "|" + string.Join(",", r.Materials.Select(m => m.Item + "x" + m.Qty));
+    // 602 of the 1,684 hub recipes share their name with another one: the Elyos/Asmodian item pair (same materials, or the base item
+    // of the other faction) and the two routes of the top gear (level 90 from the previous tier vs level 0 from a token). One row per
+    // name and profession (Diego 2026-10-11, "están duplicadas otra vez"): the variant the character can craft, else the one missing least.
+    private static string TwinKey(Core.GameDb.Recipe r, string name) => name + "|" + r.Profession;
+    /// <summary>Output ids to show: the best variant per twin key, plus how many variants the key has (for the "+N" marker).</summary>
+    private static (HashSet<int> Keep, Dictionary<int, int> Variants) PickTwins(IReadOnlyList<Core.GameDb.CraftOption> opts, Func<int, string> Nm)
+    {
+        var best = new Dictionary<string, Core.GameDb.CraftOption>(opts.Count);
+        var count = new Dictionary<string, int>(opts.Count);
+        foreach (var o in opts)
+        {
+            var key = TwinKey(o.Recipe, Nm(o.Recipe.Output));
+            count[key] = count.TryGetValue(key, out var c) ? c + 1 : 1;
+            if (!best.TryGetValue(key, out var b) || Better(o, b)) best[key] = o;
+        }
+        var keep = new HashSet<int>(best.Count); var variants = new Dictionary<int, int>(best.Count);
+        foreach (var (key, o) in best) { keep.Add(o.Recipe.Output); variants[o.Recipe.Output] = count[key]; }
+        return (keep, variants);
+    }
+    private static bool Better(Core.GameDb.CraftOption a, Core.GameDb.CraftOption b) =>
+        a.Times != b.Times ? a.Times > b.Times : a.Missing.Length != b.Missing.Length ? a.Missing.Length < b.Missing.Length : a.Recipe.Level < b.Recipe.Level;
     private static bool Match(string q, params string[] names) { foreach (var n in names) if (n.Length > 0 && ItemNames.Normalize(n).Contains(q, StringComparison.Ordinal)) return true; return false; }
     private void Profession_Checked(object sender, RoutedEventArgs e) { if (IsLoaded && sender is RadioButton { Tag: string key }) { _profession = key; Reload(); } }
 
@@ -119,17 +139,17 @@ public partial class CraftView : UserControl
         var scope = q.Length > 0 ? "all" : Scope; var favs = _meter.Settings.CraftFavourites;
         // one pass over every recipe (1,684: cheap); the scope filters, favourites bypass it and lead the list
         var opts = _meter.Recipes.Evaluate(_meter.Inventory.CountOf, 99, _profession.Length == 0 ? null : _profession);
-        var rows = new List<Row>(opts.Count); var craftable = 0; var seen = new HashSet<string>();
+        var rows = new List<Row>(opts.Count); var craftable = 0; var (keep, variants) = PickTwins(opts, Nm);
         foreach (var o in opts.OrderByDescending(x => favs.Contains(x.Recipe.Output)))
         {
             var fav = favs.Contains(o.Recipe.Output);
-            if (!seen.Add(TwinKey(o.Recipe, Nm(o.Recipe.Output)))) continue;
+            if (!keep.Contains(o.Recipe.Output)) continue;
             if (!fav && scope == "now" && o.Times == 0) continue;
             if (!fav && scope == "near" && o.Times == 0 && o.Missing.Length > 2) continue;
             var name = Nm(o.Recipe.Output); var (en, es) = _meter.Names.Both(o.Recipe.Output);
             if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", o.Recipe.Name)) continue;
             var mats = string.Join(", ", o.Recipe.Materials.Select(m => $"{Nm(m.Item)} ×{m.Qty}"));
-            var sub = $"{o.Recipe.Profession} {o.Recipe.Level} · {o.Recipe.Grade} · {mats}";
+            var sub = $"{o.Recipe.Profession} {o.Recipe.Level} · {o.Recipe.Grade}" + (variants[o.Recipe.Output] > 1 ? $" · +{variants[o.Recipe.Output] - 1} {T.CraftVariant}" : "") + $" · {mats}";
             if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icons = _meter.ItemIconCache }); }
             else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icons = _meter.ItemIconCache, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
         }

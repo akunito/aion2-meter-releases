@@ -417,6 +417,7 @@ public sealed class UiText
     public string CraftFavTip { get; init; } = "Pin / unpin: pinned recipes always come first, in every mode";
     public string CraftOnlyNowTip { get; init; } = "On: recipes the current inventory covers completely. Off: also the ones short by one or two kinds of material, with what is missing and where it comes from.";
     public string CraftMissing { get; init; } = "missing";
+    public string CraftVariant { get; init; } = "variant (other faction or route)";
     public string CraftStatus { get; init; } = "{0} craftable now · {1} almost";
     public string CraftProfit { get; init; } = "Profit";
     public string CraftProfitTip { get; init; } = "Every recipe whose result sells on the market, most profitable first: cheapest listing of the result (after the broker fee) minus the cheapest listings of the materials. Needs a market file.";
@@ -854,6 +855,7 @@ public sealed class UiText
         CraftAll = "Все",
         CraftShowNear = "и те, где не хватает 1–2 материалов",
         CraftMissing = "не хватает",
+        CraftVariant = "вариант (другая фракция или путь)",
         CraftStatus = "{0} можно скрафтить · {1} почти",
         PopOut = "Открыть эту вкладку в отдельной карточке (у копии есть крестик)",
         CloseCopy = "Закрыть эту карточку",
