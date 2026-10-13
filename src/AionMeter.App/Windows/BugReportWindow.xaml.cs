@@ -16,6 +16,9 @@ public partial class BugReportWindow : Window
         InitializeComponent();
         Controls.DragAnywhere.Attach(this);
         if (prefill is not null) NoteBox.Text = prefill;
+        IncSummary.IsChecked = settings.ReportSummary;
+        IncTopDps.IsChecked = settings.ReportTopDps;
+        IncInventory.IsChecked = settings.ReportInventory;
         Loaded += (_, _) => { NoteBox.Focus(); _tick.Start(); Tick(null, EventArgs.Empty); };
         Unloaded += (_, _) => _tick.Stop();
         _tick.Tick += Tick;
@@ -35,13 +38,23 @@ public partial class BugReportWindow : Window
     }
     private bool _sending;
 
+    /// <summary>The ticks become the next report's defaults (the same switches as Settings → Privacy).</summary>
+    private Core.Diagnostics.SharePolicy Policy()
+    {
+        _settings.ReportSummary = IncSummary.IsChecked == true;
+        _settings.ReportTopDps = IncTopDps.IsChecked == true;
+        _settings.ReportInventory = IncInventory.IsChecked == true;
+        try { _settings.Save(); } catch (IOException ex) { Log.Info($"Report choices not saved: {ex.Message}"); }
+        return _settings.CurrentSharePolicy();
+    }
+
     private void Create_Click(object sender, RoutedEventArgs e)
     {
         CreateButton.IsEnabled = false;
         State.Visibility = Visibility.Visible;
         try
         {
-            var path = BugReport.Create(NoteBox.Text, IncludeState.IsChecked == true);
+            var path = BugReport.Create(NoteBox.Text, Policy());
             State.Text = string.Format(UiText.Current.ReportCreated, path);
             Log.Info($"Bug report created: {path}");
             BugReport.Reveal(path);
@@ -64,7 +77,7 @@ public partial class BugReportWindow : Window
         string? path = null;
         try
         {
-            path = BugReport.Create(NoteBox.Text, IncludeState.IsChecked == true);
+            path = BugReport.Create(NoteBox.Text, Policy());
             State.Text = UiText.Current.ReportSending;
             var id = await BugReport.UploadAsync(path, NoteBox.Text, CancellationToken.None);
             _settings.ReportSends.Add(DateTimeOffset.UtcNow); _settings.Save();

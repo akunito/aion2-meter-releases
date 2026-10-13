@@ -103,7 +103,12 @@ public partial class SettingsView : UserControl
                                                      : string.Format(T.VersionRelease, _meter.Updates.Current.ToString(3), _meter.Updates.ReleaseTag);
         if (s.UpdateChannel == "dev") ChannelDev.IsChecked = true; else ChannelStable.IsChecked = true;
         CheckUpstreamBox.IsChecked = s.CheckUpstream;
-        TelemetryBox.IsChecked = s.Telemetry;
+        ShareUsageBox.IsChecked = s.ShareUsage;
+        ShareBuildsBox.IsChecked = s.ShareBuilds;
+        ShareBackupBox.IsChecked = s.ShareBackup;
+        ReportSummaryBox.IsChecked = s.ReportSummary;
+        ReportTopDpsBox.IsChecked = s.ReportTopDps;
+        ReportInventoryBox.IsChecked = s.ReportInventory;
         ShowBackupCode();
         LoadServer();
         StartWithGameBox.IsChecked = s.StartWithGame;
@@ -151,7 +156,12 @@ public partial class SettingsView : UserControl
         s.AutoInstallUpdates = AutoInstallUpdates.IsChecked == true;
         s.UpdateChannel = ChannelDev.IsChecked == true ? "dev" : "stable";
         s.CheckUpstream = CheckUpstreamBox.IsChecked == true;
-        s.Telemetry = TelemetryBox.IsChecked == true;
+        s.ShareUsage = ShareUsageBox.IsChecked == true;
+        s.ShareBuilds = ShareBuildsBox.IsChecked == true;
+        s.ShareBackup = ShareBackupBox.IsChecked == true;
+        s.ReportSummary = ReportSummaryBox.IsChecked == true;
+        s.ReportTopDps = ReportTopDpsBox.IsChecked == true;
+        s.ReportInventory = ReportInventoryBox.IsChecked == true;
         s.CloseWithGame = CloseWithGameBox.IsChecked == true;
         s.Region = RegionBox.SelectedIndex >= 0 ? ServerContext.Regions[RegionBox.SelectedIndex] : ServerContext.DefaultRegion;
         s.ServerId = ServerBox.SelectedIndex > 0 && ServerBox.SelectedIndex <= _serverIds.Count ? _serverIds[ServerBox.SelectedIndex - 1] : 0;
@@ -221,10 +231,20 @@ public partial class SettingsView : UserControl
         // the render tool's throw-away settings have no id: a fixed sample keeps the picture stable
         var id = _meter.Settings.Transient ? (_meter.Settings.InstallId.Length > 0 ? _meter.Settings.InstallId : "3f9c0a12b7e44d85a6c1e09f2b7d5e31") : _meter.Settings.EnsureInstallId();
         BackupCodeBox.Text = Core.Builds.BackupCode.Format(id);
-        BackupOffText.Visibility = TelemetryBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
+        ShowShareWarnings();
     }
 
-    private void Telemetry_Click(object sender, RoutedEventArgs e) => BackupOffText.Visibility = TelemetryBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
+    /// <summary>Backup copy off: restore stops working for this PC; builds off: restore brings back only the watch list and favourites.</summary>
+    private void ShowShareWarnings()
+    {
+        var backup = ShareBackupBox.IsChecked == true;
+        var builds = ShareBuildsBox.IsChecked == true;
+        BackupOffText.Visibility = backup ? Visibility.Collapsed : Visibility.Visible;
+        ShareBackupWarn.Text = !backup ? T.ShareBackupOff : !builds ? T.ShareBuildsOffBackup : "";
+        ShareBackupWarn.Visibility = backup && builds ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void Share_Click(object sender, RoutedEventArgs e) => ShowShareWarnings();
 
     private void CopyCode_Click(object sender, RoutedEventArgs e)
     {

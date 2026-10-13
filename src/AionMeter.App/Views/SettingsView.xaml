@@ -253,9 +253,6 @@
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding UpdateChannelHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="CheckUpstreamBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
                                       Content="{Binding CheckUpstream, Source={x:Static s:UiText.Current}}" />
-                            <CheckBox x:Name="TelemetryBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0" Click="Telemetry_Click"
-                                      Content="{Binding TelemetryOptIn, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock Style="{StaticResource Hint}" Text="{Binding TelemetryHint, Source={x:Static s:UiText.Current}}" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock x:Name="VersionText" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0" />
                                 <Button x:Name="CheckNowButton" Style="{StaticResource GhostButton}" Click="CheckNow_Click"
@@ -266,7 +263,33 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Backup (A2M-30): the install id is the code; the cloud copy rides on the telemetry switch -->
+                    <!-- Privacy (A2M-45): one switch per kind sent to Diego's server; Telemetry refuses what is off -->
+                    <Border Style="{StaticResource Section}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding SecPrivacy, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,6" Text="{Binding PrivacyIntro, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="ShareUsageBox" Style="{StaticResource DarkCheck}"
+                                      Content="{Binding ShareUsage, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareUsageHint, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="ShareBuildsBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0" Click="Share_Click"
+                                      Content="{Binding ShareBuilds, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareBuildsHint, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="ShareBackupBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0" Click="Share_Click"
+                                      Content="{Binding ShareBackup, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareBackupHint, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock x:Name="ShareBackupWarn" Style="{StaticResource Hint}" Foreground="{StaticResource Red}" Visibility="Collapsed" />
+                            <TextBlock Text="{Binding ShareReports, Source={x:Static s:UiText.Current}}" Margin="0,8,0,0" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,2" Text="{Binding ShareReportsHint, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="ReportSummaryBox" Style="{StaticResource DarkCheck}" Margin="24,2,0,0"
+                                      Content="{Binding ShareReportSummary, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="ReportTopDpsBox" Style="{StaticResource DarkCheck}" Margin="24,2,0,0"
+                                      Content="{Binding ShareReportTopDps, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="ReportInventoryBox" Style="{StaticResource DarkCheck}" Margin="24,2,0,0"
+                                      Content="{Binding ShareReportInventory, Source={x:Static s:UiText.Current}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Backup (A2M-30): the install id is the code; the copy follows Privacy → Backup copy (watch list) and Anonymous builds -->
                     <Border Style="{StaticResource Section}">
                         <StackPanel>
                             <TextBlock Text="{Binding SecBackup, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />

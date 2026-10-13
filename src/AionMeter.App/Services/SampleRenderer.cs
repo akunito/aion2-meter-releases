@@ -15,7 +15,7 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers / fight (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window; fight = the breakdown tab, --tab as breakdown or party; A2M-44: --tab profile|skills|daevanion = the player card without a fight, fight-profile = the fight with its Profile tab).</param>
+    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), report (Report a problem with its include ticks), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers / fight (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window; fight = the breakdown tab, --tab as breakdown or party; A2M-44: --tab profile|skills|daevanion = the player card without a fight, fight-profile = the fight with its Profile tab).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market). Prices: expanded (first row open) or search ("refining stone" in the add-item search, grade chips).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
@@ -120,6 +120,10 @@ public static class SampleRenderer
                 break;
             case "settings":
                 host = new SettingsWindow(meter) { Width = o.Width ?? 640, Height = o.Height ?? 900 };
+                refresh = () => { };
+                break;
+            case "report":   // A2M-45: Report a problem with its three include ticks (settings defaults)
+                host = new BugReportWindow(meter.Settings, "The meter stopped showing names after a loading screen.") { Width = o.Width ?? 520, Height = o.Height ?? 500 };
                 refresh = () => { };
                 break;
             case "restore":

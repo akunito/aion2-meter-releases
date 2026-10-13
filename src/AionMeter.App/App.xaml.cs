@@ -172,7 +172,7 @@ public partial class App : Application
         Dispatcher.BeginInvoke(_overlay.SyncCharBox, DispatcherPriority.ApplicationIdle);
         _meter.Updates.Start();
         Updater.CleanDownloads();
-        if (_meter.Settings.Telemetry && !_meter.Settings.TelemetryNoticeShown)
+        if (_meter.Settings.CurrentSharePolicy().SendsAnything && !_meter.Settings.TelemetryNoticeShown)
         {
             _meter.Settings.TelemetryNoticeShown = true; _meter.Settings.Save();
             Dispatcher.BeginInvoke(() => _tray?.ShowBalloon(AppInfo.Name, UiText.Current.TelemetryNotice, () => ShowSettings()), DispatcherPriority.ApplicationIdle);

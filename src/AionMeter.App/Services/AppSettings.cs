@@ -115,8 +115,22 @@ public sealed class AppSettings
     public string UpdateChannel { get; set; } = "stable";
     /// <summary>Also watch the upstream project's releases (a new one means re-audit + rebase); only Diego turns this on.</summary>
     public bool CheckUpstream { get; set; } = false;
-    /// <summary>A2M-20: one anonymous usage record a day (build, OS, capture health, crashes, tabs; no names). Opt-out; the first start shows a balloon.</summary>
-    public bool Telemetry { get; set; } = true;
+    /// <summary>A2M-20's single switch for usage + builds + backup. Read from older files only: <see cref="Load"/> moves it into the three Share* switches (A2M-45) and it is never written again.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Telemetry { get; set; }
+    /// <summary>A2M-45 Settings → Privacy: daily usage record (build, OS, Npcap, capture health, crash/error counts, tabs; no names).</summary>
+    public bool ShareUsage { get; set; } = true;
+    /// <summary>Anonymous builds (class, skills, levels, notes, Daevanion plan): the "5 most-liked" suggestions.</summary>
+    public bool ShareBuilds { get; set; } = true;
+    /// <summary>The Restore-from-code copy (watch list + favourite recipes, keyed by the install id). Off = restore stops working for this PC.</summary>
+    public bool ShareBackup { get; set; } = true;
+    /// <summary>Bug report parts besides logs + settings (always): character summary, Top DPS rows, inventory. Remembered from the dialog too.</summary>
+    public bool ReportSummary { get; set; } = true;
+    public bool ReportTopDps { get; set; } = true;
+    public bool ReportInventory { get; set; }
+
+    /// <summary>Allocates: call it per send or per report, not per frame.</summary>
+    public Core.Diagnostics.SharePolicy CurrentSharePolicy() => new(ShareUsage, ShareBuilds, ShareBackup, ReportSummary, ReportTopDps, ReportInventory);
     public bool TelemetryNoticeShown { get; set; } = false;
     public DateTimeOffset? TelemetryLastSent { get; set; }
     /// <summary>Random id so installs can be told apart in the telemetry; nothing else is derived from it.</summary>
@@ -218,6 +232,13 @@ public sealed class AppSettings
                     // v4 = English / Russian switch. Earlier builds picked the language from Windows on their own;
                     // the default is now English until the user chooses.
                     s.Language = "en";
+                }
+                if (s.Telemetry is bool legacy)
+                {
+                    // A2M-45: the old single switch decides all three kinds once; the next Save drops it
+                    var p = Core.Diagnostics.SharePolicy.FromLegacyTelemetry(legacy);
+                    s.ShareUsage = p.Usage; s.ShareBuilds = p.Builds; s.ShareBackup = p.Backup;
+                    s.Telemetry = null;
                 }
                 if (s.BuildTelemetryVersion < CurrentBuildTelemetry) { s.BuildTelemetrySent.Clear(); s.BuildTelemetryVersion = CurrentBuildTelemetry; }
                 s.Language = UiText.Normalize(s.Language);

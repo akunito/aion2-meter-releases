@@ -8,8 +8,8 @@ namespace AionMeter.App.Services;
 /// <summary>
 /// Bug reports a clanmate can produce without knowing where anything is (A2M-19, part 1: local bundle; part 2 sends it).
 /// A crash writes logs\crash_&lt;ts&gt;.txt (exception + the last 200 log lines); "Report a problem" zips the last two logs, the
-/// crash files, settings.json without the solver url, state\summary.json, BUILD-INFO.txt and the player's note into
-/// reports\report_&lt;ts&gt;.zip. Character files only when the player ticks "include my character state".
+/// crash files, settings.json without the solver url, BUILD-INFO.txt and the player's note into reports\report_&lt;ts&gt;.zip, plus the
+/// parts the player ticks (A2M-45: character summary, Top DPS rows, inventory; file choice in Core/Diagnostics/BugReportFiles).
 /// </summary>
 public static class BugReport
 {
@@ -33,22 +33,16 @@ public static class BugReport
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
-    /// <summary>Builds the zip; returns its path.</summary>
-    public static string Create(string note, bool includeState)
+    /// <summary>Builds the zip; returns its path. Logs, crash files, settings and the build info always; the rest as the policy's report parts say (A2M-45).</summary>
+    public static string Create(string note, Core.Diagnostics.SharePolicy policy)
     {
         Directory.CreateDirectory(ReportsDir);
         var path = Path.Combine(ReportsDir, $"report_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
         using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
-        zip.CreateEntry("note.txt").Write(note.Trim() + "\n\n" + Environment());
-        var app = AppContext.BaseDirectory;
-        foreach (var f in new[] { "BUILD-INFO.txt", "SHA256SUMS.txt" }) Add(zip, Path.Combine(app, f), f);
-        if (Directory.Exists(Log.Directory))
-        {
-            foreach (var f in Directory.EnumerateFiles(Log.Directory, "aionmeter_*.log").OrderByDescending(x => x).Take(2)) Add(zip, f, "logs/" + Path.GetFileName(f));
-            foreach (var f in Directory.EnumerateFiles(Log.Directory, "crash_*.txt").OrderByDescending(x => x).Take(5)) Add(zip, f, "logs/" + Path.GetFileName(f));
-        }
-        Add(zip, Path.Combine(AppSettings.AppDataDir, "state", "summary.json"), "state/summary.json");
-        Add(zip, Path.Combine(AppSettings.AppDataDir, "top-dps.json"), "top-dps.json");
+        zip.CreateEntry("note.txt").Write(note.Trim() + "\n\n" + Environment() +
+            $"\nincluded: summary={policy.ReportSummary} topdps={policy.ReportTopDps} inventory={policy.ReportInventory}");
+        foreach (var (source, entry) in Core.Diagnostics.BugReportFiles.Select(AppSettings.AppDataDir, AppContext.BaseDirectory, Log.Directory, policy))
+            Add(zip, source, entry);
         try
         {
             // settings without the private solver url (a private-network address, not for the clan)
@@ -60,13 +54,6 @@ public static class BugReport
             }
         }
         catch (JsonException) { }
-        if (includeState)
-        {
-            var chars = Path.Combine(AppSettings.AppDataDir, "characters");
-            if (Directory.Exists(chars))
-                foreach (var f in Directory.EnumerateFiles(chars, "*.json", SearchOption.AllDirectories))
-                    Add(zip, f, "characters/" + Path.GetRelativePath(chars, f).Replace('\\', '/'));
-        }
         return path;
     }
 

@@ -60,7 +60,7 @@ public partial class RestoreWindow : Window
             text += "; " + (!r.StateFound ? T.RestoreNoState : r.WatchRestored ? T.RestoreWatchRestored : T.RestoreWatchKept);
             if (r.FavouritesRestored) text += "; " + T.RestoreFavRestored;
             text += ".";
-            if (!_meter.Settings.Telemetry) text += " " + T.RestoreNoTelemetry;
+            if (!_meter.Settings.ShareBackup) text += " " + T.RestoreNoTelemetry;
             Show(text, "Green");
         }
         finally { RestoreButton.IsEnabled = true; }

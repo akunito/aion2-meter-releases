@@ -6,10 +6,11 @@ using AionMeter.Core.Builds;
 namespace AionMeter.App.Services;
 
 /// <summary>
-/// A2M-20: one anonymous usage record per day to Diego's n8n (opt-out in Settings → Updates, balloon the first time). What development
-/// needs and nothing that names a player: build, Windows version, Npcap present, capture health, crash and error counts, tabs used,
-/// UI language, how many characters and fights. The install id is a random GUID so installs can be told apart; the IP is seen by
-/// n8n like any request and not stored. Same token and host as the bug reports.
+/// A2M-20: one anonymous usage record per day to Diego's n8n (balloon the first time). What development needs and nothing that names a
+/// player: build, Windows version, Npcap present, capture health, crash and error counts, tabs used, UI language, how many characters
+/// and fights. The install id is a random GUID so installs can be told apart; the IP is seen by n8n like any request and not stored.
+/// Same token and host as the bug reports. A2M-45: usage, builds and the backup copy ("watch") each have their own switch in
+/// Settings → Privacy, and every POST goes through <see cref="PostAsync"/>, which refuses a kind the policy denies.
 /// </summary>
 public static class Telemetry
 {
@@ -22,7 +23,7 @@ public static class Telemetry
     public static void Count(string key) => Counters.AddOrUpdate(key, 1, static (_, v) => v + 1);
 
     public static bool Due(AppSettings s, DateTimeOffset now) =>
-        s.Telemetry && (s.TelemetryLastSent is null || now - s.TelemetryLastSent.Value >= TimeSpan.FromHours(24));
+        s.ShareUsage && (s.TelemetryLastSent is null || now - s.TelemetryLastSent.Value >= TimeSpan.FromHours(24));
 
     public static Dictionary<string, object?> Payload(MeterService m, DateTimeOffset now)
     {
@@ -55,7 +56,16 @@ public static class Telemetry
         };
     }
 
-    // ------------------------------------------------------------------ builds (A2M-21, same switch; Diego: on by default)
+    /// <summary>The only way out: a kind switched off in Settings → Privacy (or the render tool's throw-away settings) is never sent (null).</summary>
+    private static async Task<HttpResponseMessage?> PostAsync(AppSettings s, string kind, string body)
+    {
+        if (s.Transient || !s.CurrentSharePolicy().Filter(kind)) { Log.Info($"Telemetry \"{kind}\" not sent: off in Settings → Privacy"); return null; }
+        using var req = new HttpRequestMessage(HttpMethod.Post, Url) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+        req.Headers.Add("X-Meter-Token", BugReport.UploadToken);
+        return await Http.SendAsync(req).ConfigureAwait(false);
+    }
+
+    // ------------------------------------------------------------------ builds (A2M-21; own switch since A2M-45, on by default)
 
     private static readonly object BuildLock = new();
     private static readonly Dictionary<string, (Build Build, string Class, int Level, string Key)> PendingBuilds = new();
@@ -69,7 +79,7 @@ public static class Telemetry
     /// <param name="characterKey">Key of the character whose store holds the build ("" = shared folder): only its hash is sent.</param>
     public static void QueueBuild(AppSettings s, Build b, string installClass, int characterLevel, string characterKey)
     {
-        if (!s.Telemetry || s.Transient || b.Id.Length == 0) return;
+        if (!s.ShareBuilds || s.Transient || b.Id.Length == 0) return;
         lock (BuildLock)
         {
             PendingBuilds[b.Id] = (b, installClass, characterLevel, characterKey);
@@ -90,7 +100,7 @@ public static class Telemetry
 
     /// <summary>Not sent in the last 24 h and changed since the last send.</summary>
     public static bool BuildDue(AppSettings s, Build b, DateTimeOffset now) =>
-        s.Telemetry && (!s.BuildTelemetrySent.TryGetValue(b.Id, out var last) || (last.Updated != b.UpdatedAt && now - last.Sent >= BuildEvery));
+        s.ShareBuilds && (!s.BuildTelemetrySent.TryGetValue(b.Id, out var last) || (last.Updated != b.UpdatedAt && now - last.Sent >= BuildEvery));
 
     public static Dictionary<string, object?> BuildPayload(AppSettings s, Build b, string installClass, int characterLevel, string characterKey, DateTimeOffset now)
     {
@@ -130,9 +140,8 @@ public static class Telemetry
         try
         {
             var body = JsonSerializer.Serialize(BuildPayload(s, build, installClass, characterLevel, characterKey, now));
-            using var req = new HttpRequestMessage(HttpMethod.Post, Url) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
-            req.Headers.Add("X-Meter-Token", BugReport.UploadToken);
-            using var resp = await Http.SendAsync(req).ConfigureAwait(false);
+            using var resp = await PostAsync(s, "build", body).ConfigureAwait(false);
+            if (resp is null) return false;
             if (!resp.IsSuccessStatusCode) { Log.Info($"Build telemetry refused: {(int)resp.StatusCode}"); return false; }
             // settings are written from the UI thread elsewhere: the dictionary changes there too, never under a serializer
             void Record()
@@ -193,7 +202,7 @@ public static class Telemetry
     public static void QueueState(MeterService m)
     {
         var s = m.Settings;
-        if (!s.Telemetry || s.Transient) return;
+        if (!s.ShareBackup || s.Transient) return;
         lock (StateLock)
         {
             _stateMeter = m;
@@ -210,7 +219,7 @@ public static class Telemetry
     public static async Task SendStateAsync(MeterService m, bool daily)
     {
         var s = m.Settings;
-        if (!s.Telemetry || s.Transient || Interlocked.Exchange(ref _stateSending, 1) == 1) return;
+        if (!s.ShareBackup || s.Transient || Interlocked.Exchange(ref _stateSending, 1) == 1) return;
         try
         {
             // the favourites list is edited on the UI thread: read it there
@@ -221,9 +230,8 @@ public static class Telemetry
             // an empty state never overwrites a stored one unless something was sent from here before (a fresh PC before its restore)
             if (s.StateTelemetryHash.Length == 0 && data == BackupState.ToJson([], [])) return;
             var body = "{\"kind\":\"watch\",\"install\":" + JsonSerializer.Serialize(s.EnsureInstallId()) + ",\"ts\":\"" + now.UtcDateTime.ToString("o") + "\",\"data\":" + data + "}";
-            using var req = new HttpRequestMessage(HttpMethod.Post, Url) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
-            req.Headers.Add("X-Meter-Token", BugReport.UploadToken);
-            using var resp = await Http.SendAsync(req).ConfigureAwait(false);
+            using var resp = await PostAsync(s, "watch", body).ConfigureAwait(false);
+            if (resp is null) return;
             if (!resp.IsSuccessStatusCode) { Log.Info($"State telemetry refused: {(int)resp.StatusCode}"); return; }
             void Record() { s.StateTelemetrySent = now; s.StateTelemetryHash = hash; try { s.Save(); } catch (IOException ex) { Log.Info($"State telemetry: settings not saved: {ex.Message}"); } }
             if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess()) await d.InvokeAsync(Record);
@@ -253,26 +261,38 @@ public static class Telemetry
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException) { Log.Info($"Restore failed: {ex.Message}"); return (0, "", ex.Message); }
     }
 
-    /// <summary>Sends the day's record when due; records the time only on a 2xx so a failed send retries next tick.</summary>
+    /// <summary>When the daily backup copy and the build sweep last ran in this process: they run whether or not the usage record is on.</summary>
+    private static DateTimeOffset _dailyExtras;
+
+    /// <summary>
+    /// The 15-minute tick: the day's usage record when due and allowed (time recorded only on a 2xx so a failed send retries next tick),
+    /// then, at most once a day per process, the backup copy and the sweep of unsent builds, each under its own switch.
+    /// </summary>
     public static async Task SendIfDueAsync(MeterService m)
     {
         var now = DateTimeOffset.UtcNow;
-        if (!Due(m.Settings, now) || Interlocked.Exchange(ref _sending, 1) == 1) return;
+        if (Interlocked.Exchange(ref _sending, 1) == 1) return;
         try
         {
-            var payload = Payload(m, now);
-            using var req = new HttpRequestMessage(HttpMethod.Post, Url) { Content = new StringContent(JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json") };
-            req.Headers.Add("X-Meter-Token", BugReport.UploadToken);
-            using var resp = await Http.SendAsync(req);
-            if (resp.IsSuccessStatusCode)
+            var usageOk = false;
+            if (Due(m.Settings, now))
             {
-                m.Settings.TelemetryLastSent = now; m.Settings.Save();
-                Counters.Clear(); Log.ResetErrors();
-                Log.Info("Telemetry sent");
-                await SendStateAsync(m, daily: true);
-                await SweepBuildsAsync(m.Settings);
+                using var resp = await PostAsync(m.Settings, "usage", JsonSerializer.Serialize(Payload(m, now)));
+                if (resp is { IsSuccessStatusCode: true })
+                {
+                    m.Settings.TelemetryLastSent = now; m.Settings.Save();
+                    Counters.Clear(); Log.ResetErrors();
+                    Log.Info("Telemetry sent");
+                    usageOk = true;
+                }
+                else if (resp is not null) Log.Info($"Telemetry refused: {(int)resp.StatusCode}");
             }
-            else Log.Info($"Telemetry refused: {(int)resp.StatusCode}");
+            if (usageOk || now - _dailyExtras >= TimeSpan.FromHours(24))
+            {
+                _dailyExtras = now;
+                if (m.Settings.ShareBackup) await SendStateAsync(m, daily: true);
+                if (m.Settings.ShareBuilds) await SweepBuildsAsync(m.Settings);
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException) { Log.Info($"Telemetry not sent: {ex.Message}"); }
         finally { Interlocked.Exchange(ref _sending, 0); }
