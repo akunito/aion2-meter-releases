@@ -144,7 +144,7 @@ public partial class App : Application
             BossTimers: ShowBossTimers,
             Atlas: ShowAtlas,
             Top: ShowTop,
-            Settings: ShowSettings,
+            Settings: () => ShowSettings(),
             Demo: () => _meter.StartDemo(),
             Replay: PickReplay,
             ToggleLanguage: ToggleLanguage,
@@ -600,14 +600,35 @@ public partial class App : Application
         _helpWindow.ShowTab(tab);
     }
 
-    public void ShowSettings()
+    /// <summary>
+    /// Gear, tray "Settings…", telemetry balloon (A2M-46): the settings tab of <paramref name="card"/> (the gear's own card) or of the
+    /// overlay while it is shown; the window with the overlay hidden. An open window always wins, so there is one editor at a time.
+    /// </summary>
+    public void ShowSettings(OverlayWindow? card = null)
     {
         if (_settingsWindow is { IsLoaded: true })
         {
             Activate(_settingsWindow);
             return;
         }
-        _settingsWindow = new SettingsWindow(_meter);
+        card ??= _overlay.IsVisible ? _overlay : null;
+        if (card is not null) card.SelectTab("settings");
+        else OpenSettingsWindow(null);
+    }
+
+    /// <summary>The stand-alone window; <paramref name="view"/> = the settings tab popped out with its unsaved edits.</summary>
+    public void OpenSettingsWindow(Views.SettingsView? view)
+    {
+        if (_settingsWindow is { IsLoaded: true })
+        {
+            view?.Discard();
+            Activate(_settingsWindow);
+            return;
+        }
+        // a settings tab left open in a hidden card would be a second editor of the same settings
+        _overlay.CloseSettingsTab();
+        foreach (var w in _extras) w.CloseSettingsTab();
+        _settingsWindow = new SettingsWindow(_meter, view);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         WindowPinning.KeepAboveGame(_settingsWindow);
         _settingsWindow.Show();

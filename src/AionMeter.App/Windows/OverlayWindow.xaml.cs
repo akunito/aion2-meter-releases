@@ -154,6 +154,8 @@ public partial class OverlayWindow : Window
     public void OnLanguageChanged()
     {
         _vm.LanguageChanged();
+        // the settings view binds UiText.Current once: reopen it in the new language (unsaved edits go, as the chip is a deliberate switch)
+        if (_tab == "settings") { DropSettingsView(); TabHost.Content = _settingsView = Wire(new Views.SettingsView(_meter, hosted: true), v => v.CloseRequested += SettingsClosed); }
         ShowUpdateBanner();
         ApplyHotkeyTips();
         Refresh();
@@ -705,6 +707,8 @@ public partial class OverlayWindow : Window
     private Views.ItemsView? _itemsView;
     private Views.BossTimersView? _timersView;
     private Views.BreakdownView? _fightView;
+    private Views.SettingsView? _settingsView;   // fresh on every visit: it loads the settings as they are now
+    private string _beforeSettings = "meter";     // Back / Cancel / Save return here
     private object? _fightKey;   // segment id, saved fight file name or the view itself: the stand-alone window's key on pop-out
 
     public string Tab => _tab;
@@ -716,7 +720,7 @@ public partial class OverlayWindow : Window
     private void Tab_Click(object sender, RoutedEventArgs e)
     {
         if (_drag.JustDragged) { SyncTabChecks(); return; }
-        if (sender is ToggleButton { Tag: string tab }) SelectTab(tab == _tab ? "meter" : tab);
+        if (sender is ToggleButton { Tag: string tab }) SelectTab(tab != _tab ? tab : tab == "settings" ? _beforeSettings : "meter");
     }
 
     /// <summary>Shows one of the tabs inside the card; the card keeps its size whatever the tab (Diego, 2026-10-10).</summary>
@@ -724,6 +728,8 @@ public partial class OverlayWindow : Window
     {
         if (tab == "fight" && _fightView?.HasPlayer != true) tab = "meter";   // the card needs a fight or a profile: reached from ShowFight / ShowProfile only
         if (tab == _tab) { SyncTabChecks(); return; }
+        if (tab == "settings") _beforeSettings = _tab;
+        else if (_tab == "settings") DropSettingsView();   // leaving the tab any way but Save discards, as closing the window did
         _tab = tab;
         Services.Telemetry.Count("tab." + tab);
         FooterStatusLine.Visibility = tab == "meter" ? Visibility.Visible : Visibility.Collapsed;   // DPS status + fight links belong to the meter tab only
@@ -743,6 +749,7 @@ public partial class OverlayWindow : Window
                 "items" => _itemsView ??= Wire(new Views.ItemsView(_meter), v => { v.CloseRequested += () => SelectTab("meter"); v.OpenInCraft += OpenInCraft; }),
                 "timers" => _timersView ??= Wire(new Views.BossTimersView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
                 "fight" => _fightView!,
+                "settings" => _settingsView ??= Wire(new Views.SettingsView(_meter, hosted: true), v => v.CloseRequested += SettingsClosed),
                 _ => _pricesView ??= Wire(new Views.PriceWatchView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
             };
             TabHost.Visibility = Visibility.Visible;
@@ -825,6 +832,22 @@ public partial class OverlayWindow : Window
         ShowFight(view, actor, key);
     }
 
+    private void SettingsClosed() => SelectTab(_beforeSettings);
+
+    private void DropSettingsView()
+    {
+        if (_settingsView is not { } v) return;
+        v.CloseRequested -= SettingsClosed;
+        _settingsView = null;
+        v.Discard();
+    }
+
+    /// <summary>The settings window is opening elsewhere (tray with this card hidden): one editor at a time.</summary>
+    public void CloseSettingsTab()
+    {
+        if (_tab == "settings") SelectTab(_beforeSettings);
+    }
+
     private bool IsFightShown(PickItem item) =>
         item.Saved is { } h ? _fightKey is string file && file == h.FileName : _fightKey is Guid seg && seg == item.Segment;
 
@@ -902,6 +925,15 @@ public partial class OverlayWindow : Window
             AppHost.Current.ShowProfileWindow(card, _fightView.CurrentTab, null);
             SelectTab("meter");
         }
+        else if (_tab == "settings" && _settingsView is { } settings)
+        {
+            // the view moves into the window with its unsaved edits; this card goes back to where it was
+            settings.CloseRequested -= SettingsClosed;
+            _settingsView = null;
+            TabHost.Content = null;
+            SelectTab(_beforeSettings);
+            AppHost.Current.OpenSettingsWindow(settings);
+        }
         else AppHost.Current.PopOut(_tab, Width, Height);
     }
 
@@ -914,6 +946,8 @@ public partial class OverlayWindow : Window
         TabMeter.IsChecked = _tab == "meter"; TabAtlas.IsChecked = _tab == "atlas"; TabTop.IsChecked = _tab == "top"; TabPrices.IsChecked = _tab == "prices"; TabCraft.IsChecked = _tab == "craft"; TabBuild.IsChecked = _tab == "build"; TabItems.IsChecked = _tab == "items"; TabTimers.IsChecked = _tab == "timers";
         TabFight.IsChecked = _tab == "fight";
         TabFight.Visibility = _tab == "fight" ? Visibility.Visible : Visibility.Collapsed;
+        TabSettings.IsChecked = _tab == "settings";
+        TabSettings.Visibility = _tab == "settings" ? Visibility.Visible : Visibility.Collapsed;
         if (TabPrices.IsChecked == true) TabPrices.Foreground = (Brush)FindResource("Text");
     }
 
@@ -967,7 +1001,13 @@ public partial class OverlayWindow : Window
         ApplyLock();
     }
 
-    private void Settings_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowSettings();
+    /// <summary>The gear: this card's settings tab (A2M-46), or back to the previous tab when it is already in front.</summary>
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (_drag.JustDragged) return;
+        if (_tab == "settings") SelectTab(_beforeSettings);
+        else AppHost.Current.ShowSettings(this);
+    }
 
     private void Hide_Click(object sender, RoutedEventArgs e) => AppHost.Current.SetOverlayVisible(false);
 

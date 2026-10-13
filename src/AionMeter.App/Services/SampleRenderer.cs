@@ -198,6 +198,7 @@ public static class SampleRenderer
                 var overlay = new OverlayWindow(meter) { Width = o.Width ?? 560, Height = o.Height ?? 820 };
                 // --tab viewing: the selector while Akunita plays and Irin is viewed (eye + amber); --tab current: viewing the logged-in one
                 if (o.Tab is "viewing" or "current") overlay.SampleCharacters(["2001-Akunita", "2001-Arielka", "2001-Irin"], "2001-Akunita", o.Tab == "viewing" ? "2001-Irin" : "2001-Akunita");
+                if (o.Tab == "settings") overlay.SelectTab("settings");   // A2M-46: Settings as the card's tab (the gear)
                 host = overlay;
                 refresh = overlay.Refresh;
                 break;
