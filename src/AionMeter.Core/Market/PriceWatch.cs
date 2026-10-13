@@ -49,12 +49,18 @@ public sealed class PriceWatchStore : IDisposable
     public PriceWatchStore(string? path)
     {
         _path = path;
+        History = new PriceHistory(path is null ? null : Path.Combine(Path.GetDirectoryName(path) ?? "", "price-history.json"));
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("AION2DpsMeter/0.1 (private build; one price read per hour per watched item)");
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         Load();
     }
 
     public event Action? Changed;
+
+    /// <summary>30-day hourly series per watched item for the expanded row's chart, fed by every poll (price-history.json).</summary>
+    public PriceHistory History { get; }
+    /// <summary>Cheapest current listings for the expanded row; unconfigured until the site's per-listing call is known (Listings.cs).</summary>
+    public IListingsSource Listings { get; set; } = UnconfiguredListingsSource.Instance;
 
     public int ExchangeServerId { get; set; } = 11303;
     public int IntervalMinutes { get; set; } = 60;
@@ -112,7 +118,9 @@ public sealed class PriceWatchStore : IDisposable
             {
                 // Through the Cloudflare solver when the site walls off a plain client; expectJson peels its <pre> wrapper.
                 var json = await CloudflareHttp.GetStringAsync(_http, $"{SiteUrl}/api/items/{w.Item}/prices?server={ExchangeServerId}&window=7d", ct, expectJson: true).ConfigureAwait(false);
-                Apply(w, ParsePrices(json), DateTimeOffset.Now);
+                var points = ParsePrices(json);
+                Apply(w, points, DateTimeOffset.Now);
+                History.Merge(w.Item, points, DateTimeOffset.Now);
                 AppendHistory(w);
             }
             catch (Exception e) when (e is not OperationCanceledException)
@@ -125,6 +133,8 @@ public sealed class PriceWatchStore : IDisposable
             if (w.Hit) hits.Add(w);
         }
         LastPollStats = (items, Net.CloudflareHttp.SolverUses - solverBefore, errors, sw.ElapsedMilliseconds);
+        lock (_gate) History.RetainOnly(_watches.Select(static x => x.Item));
+        History.Save();
         Save();
         Changed?.Invoke();
         return hits;

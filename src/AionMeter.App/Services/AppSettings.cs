@@ -157,6 +157,8 @@ public sealed class AppSettings
     public bool AtlasShowPets { get; set; } = true;   // on unless the user switches it off (Diego, 2026-10-10)
     /// <summary>Language of the item-name search in the Prices window ("en" / "es"), independent of the interface language.</summary>
     public string PriceSearchLanguage { get; set; } = "en";
+    /// <summary>Prices tab, expanded row: chart range "24h", "7d" or "30d".</summary>
+    public string PricesRange { get; set; } = "7d";
     /// <summary>Build tab: language of skill names and descriptions ("en" / "es"); Spanish by default on a Spanish Windows.</summary>
     public string SkillLanguage { get; set; } = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en";
     /// <summary>Build tab: list skills already at the build's level (off hides them from the library and dims them on the bar).</summary>

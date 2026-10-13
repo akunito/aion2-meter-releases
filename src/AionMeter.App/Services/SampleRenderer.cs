@@ -149,7 +149,7 @@ public static class SampleRenderer
                         topView.ShowSample(SampleTop(meter), GameClass.Ranger, meter.Data.ServerName(2305));
                         break;
                     case Views.PriceWatchView pricesView:
-                        pricesView.ShowSample(SamplePrices(), tabIcons, DateTimeOffset.Now.AddMinutes(-12));
+                        pricesView.ShowSample(SamplePrices(), tabIcons, DateTimeOffset.Now.AddMinutes(-12), o.Tab == "expanded");   // --tab expanded: first row open (listings + 30-day chart)
                         break;
                     case Views.BossTimersView timersView:
                         FeedTimers(meter);
