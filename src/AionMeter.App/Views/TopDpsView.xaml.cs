@@ -39,7 +39,6 @@ public partial class TopDpsView : UserControl
     public sealed class Row : ObservableObject
     {
         private bool _expanded;
-        private string _profileText = "";
 
         public Row(TopEntry e, int rank)
         {
@@ -79,13 +78,13 @@ public partial class TopDpsView : UserControl
         public Brush NameBrush { get; }
         public Brush FrameBrush { get; }
         public Visibility RotationVisibility => Entry is null ? Visibility.Collapsed : Visibility.Visible;
+        public Visibility BoardVisibility => Board is null ? Visibility.Collapsed : Visibility.Visible;
         public bool Expanded { get => _expanded; set { if (Set(ref _expanded, value)) Raise(nameof(DetailVisibility)); } }
         public Visibility DetailVisibility => Expanded ? Visibility.Visible : Visibility.Collapsed;
         public string SkillsText { get; set; } = "";
         public string OpeningText { get; set; } = "";
         public string RepeatedText { get; set; } = "";
         public string CadenceText { get; set; } = "";
-        public string ProfileText { get => _profileText; set => Set(ref _profileText, value); }
     }
 
     public TopDpsView(MeterService meter)
@@ -228,47 +227,64 @@ public partial class TopDpsView : UserControl
 
     private void Row_Click(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: Row row })
-        {
-            if (row.Expanded) row.Expanded = false;
-            else Expand(row);
-        }
+        if (sender is not FrameworkElement { DataContext: Row row }) return;
+        if (row.Board is not null) { OpenProfile(row); return; }   // a ranking row has nothing else to unfold (A2M-44)
+        if (row.Expanded) row.Expanded = false;
+        else Expand(row);
     }
 
-    /// <summary>Opens the saved fight's breakdown for this player (the full skill table with crit/back rates).</summary>
+    /// <summary>Opens the saved fight's breakdown for this player (the full skill table with crit/back rates; Profile tabs when known).</summary>
     private void Open_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: Row row }) return;
-        if (row.Entry is null) return;
-        var path = Path.Combine(_meter.History.Directory, row.Entry.Fight);
-        var record = _meter.History.Load(path);
-        if (record is null) return;
-        var who = record.Details.FirstOrDefault(d => d.Name == row.Entry.Name && d.Class == row.Entry.Class);
-        if (who is null) return;
-        AppHost.Current.ShowBreakdown(new RecordFightView(record), who.ActorId);
+        if (sender is FrameworkElement { DataContext: Row { Entry: { } entry } }) OpenFight(entry);
     }
 
-    /// <summary>Official character page for this player: stats, gear, Dp skills, Daevanion sums, skill levels of the rotation.</summary>
-    private async void Profile_Click(object sender, RoutedEventArgs e)
+    private Views.BreakdownView? OpenFight(TopEntry entry)
     {
-        if (sender is not FrameworkElement { DataContext: Row row }) return;
+        var record = _meter.History.Load(Path.Combine(_meter.History.Directory, entry.Fight));
+        var who = record?.Details.FirstOrDefault(d => d.Name == entry.Name && d.Class == entry.Class);
+        return record is null || who is null ? null : AppHost.Current.ShowBreakdown(new RecordFightView(record), who.ActorId);
+    }
+
+    private void Profile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: Row row }) OpenProfile(row);
+    }
+
+    /// <summary>
+    /// A2M-44: the player card on its Profile tab — a "My fights" row opens its fight with the profile tabs beside the fight's, a ranking
+    /// row the card alone (CP / item level / rank / seen). What is known locally shows at once; the official page is asked when nothing
+    /// is cached or the cache is older than the armory's max age, and the card updates when it answers.
+    /// </summary>
+    private async void OpenProfile(Row row)
+    {
         var server = ServerOf(row);
         // A ranking row names its server; when the name is ambiguous across regions (no own server yet) the search matches it by name.
         var serverName = row.Entry is null ? row.ServerName : null;
-        if (server == 0 && string.IsNullOrEmpty(serverName)) { row.ProfileText = string.Format(T.TopProfileMissing, row.Name, "?"); return; }
+        var known = server != 0 ? _meter.KnownProfile(row.Name, server) : null;
+        var fresh = known is not null && DateTimeOffset.UtcNow - known.FetchedAt < _meter.Armory.MaxAge;
+        Views.BreakdownView? fightView = row.Entry is { } entry ? OpenFight(entry) : null;
+        PlayerCard card = row.Board is { } b
+            ? PlayerCard.Of(b) with { ServerId = server }
+            : new PlayerCard(row.Name, row.Entry!.Class, server != 0 ? _meter.Data.ServerName(server) : null, server);
+        if (known is not null) card = card.With(known);
+        Views.BreakdownView view;
+        if (fightView is not null) { view = fightView; view.ShowTab("profile"); }
+        else view = AppHost.Current.ShowProfile(card, "profile", known is null ? T.TopProfileLoading : null);
+        if (fresh) return;
+        if (server == 0 && string.IsNullOrEmpty(serverName)) { view.UpdateCard(card, string.Format(T.TopProfileMissing, row.Name, "?")); return; }
         var where = server != 0 ? $"{_meter.Data.ServerName(server)} ({server})" : serverName!;
-        var cached = server != 0 ? _meter.Armory.Cached(row.Name, server) : null;
-        if (cached is not null) row.ProfileText = ProfileFormatter.Text(cached, row.Entry, _meter.Data);
-        row.ProfileText = cached is null ? T.TopProfileLoading : row.ProfileText;
         try
         {
             var p = await _meter.Armory.LookupAsync(row.Name, server, serverName: serverName);
-            row.ProfileText = p is null ? string.Format(T.TopProfileMissing, row.Name, where) : ProfileFormatter.Text(p, row.Entry, _meter.Data);
+            if (fightView is not null) { if (p is not null) view.RefreshProfile(); return; }
+            if (p is not null) view.UpdateCard(card.With(p), null);
+            else if (known is null) view.UpdateCard(card, string.Format(T.TopProfileMissing, row.Name, where));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
             Log.Error("Armory lookup failed", ex);
-            if (cached is null) row.ProfileText = string.Format(T.TopProfileFailed, ex.Message);
+            if (known is null && fightView is null) view.UpdateCard(card, string.Format(T.TopProfileFailed, ex.Message));
         }
     }
 

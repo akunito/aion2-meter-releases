@@ -9,6 +9,7 @@ using AionMeter.App.Controls;
 using AionMeter.App.Services;
 using AionMeter.App.ViewModels;
 using AionMeter.Core;
+using AionMeter.Core.Armory;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Events;
 using AionMeter.Core.Game;
@@ -16,9 +17,10 @@ using AionMeter.Core.Game;
 namespace AionMeter.App.Views;
 
 /// <summary>
-/// One fight's breakdown for one player (party list, stat tiles, DPS / Accuracy / Rotation / Defense). Shown inside the overlay card
-/// as the "fight" tab (<paramref name="hosted"/>: Back + Esc return to the DPS tab) and as the content of the stand-alone
-/// <see cref="Windows.BreakdownWindow"/> (A2M-43).
+/// The player card: one fight's breakdown for one player (party list, stat tiles, DPS / Accuracy / Rotation / Defense) and, since A2M-44,
+/// the character's official profile (Profile / Skills / Daevanion) when one is known — or the profile alone, without a fight (Top DPS rows;
+/// header tiles CP / ITEM LEVEL / RANK / SEEN). Tabs without data are hidden. Shown inside the overlay card as the "fight" tab
+/// (<paramref name="hosted"/>: Back + Esc return to the DPS tab) and as the content of the stand-alone <see cref="Windows.BreakdownWindow"/> (A2M-43).
 /// </summary>
 public partial class BreakdownView : UserControl
 {
@@ -72,9 +74,37 @@ public partial class BreakdownView : UserControl
 
     public IFightView? Fight => _view;
     public uint Actor => _actor;
-
-    public BreakdownView(GameData data, SkillIcons icons, BossPortraits? portraits, Func<Guid, string?>? fightNote, bool hosted)
+    /// <summary>The card shown without a fight (null while a fight is shown).</summary>
+    public PlayerCard? Card => _view is null ? _card : null;
+    public bool HasPlayer => _view is not null || _card is not null;
+    /// <summary>The tab in front, as <see cref="ShowTab"/> takes it.</summary>
+    public string CurrentTab => CheckedTab() switch
     {
+        var t when t == TabAccuracy => "accuracy",
+        var t when t == TabRotation => "rotation",
+        var t when t == TabDefense => "defense",
+        var t when t == TabProfile => "profile",
+        var t when t == TabSkills => "skills",
+        var t when t == TabDaev => "daevanion",
+        _ => "dps",
+    };
+
+    // A2M-44: profile tabs
+    private readonly ProfileDeps? _deps;
+    private readonly ProfilePages? _pages;
+    private PlayerCard? _card;                    // the fight's selected player, or the card shown without a fight
+    private CharacterProfile? _profile;           // what Profile / Skills / Daevanion show
+    private string? _status;                      // "Loading…", not found, failed — while there is no profile
+    private CharacterProfile? _builtFor;          // pages built for this profile at this width bucket
+    private int _builtBucket = -1;
+    private string? _wantTab;                     // asked for before its data arrived (Top DPS → Profile while the page loads)
+    private readonly Dictionary<uint, CharacterProfile?> _actorProfiles = new();
+    private readonly DispatcherTimer _iconTick = new() { Interval = TimeSpan.FromMilliseconds(600) };
+
+    public BreakdownView(GameData data, SkillIcons icons, BossPortraits? portraits, Func<Guid, string?>? fightNote, bool hosted, ProfileDeps? deps = null)
+    {
+        _deps = deps;
+        _pages = deps is null ? null : new ProfilePages(deps);
         _fightNote = fightNote;
         _skillName = data.SkillName;
         _serverName = data.ServerName;
@@ -96,29 +126,51 @@ public partial class BreakdownView : UserControl
             else if (_fightNote is not null && FightRank.Visibility != Visibility.Visible && ++_noteWaits <= 30) ShowRank(_fightNote(_fightId));
             else _timer.Stop();
         };
+        _iconTick.Tick += (_, _) => { _iconTick.Stop(); _pages?.RetryIcons(); };
         Loaded += (_, _) =>
         {
             _icons.IconReady += OnIconReady;
             if (_portraits is not null) _portraits.PortraitReady += OnIconReady;
+            if (_deps is not null) _deps.Icons.Loaded += OnProfileIcon;
             if (IsVisible) Start();
         };
         Unloaded += (_, _) =>
         {
             _timer.Stop();
+            _iconTick.Stop();
             _icons.IconReady -= OnIconReady;
             if (_portraits is not null) _portraits.PortraitReady -= OnIconReady;
+            if (_deps is not null) _deps.Icons.Loaded -= OnProfileIcon;
         };
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true) Start();
             else _timer.Stop();
         };
-        SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
+        // Never re-layout inside the layout pass (7ab0a13: a SizeChanged feedback loop overflowed the stack on Diego's PC): queue it.
+        SizeChanged += (_, _) => QueueWidth(false);
+    }
+
+    private void OnProfileIcon() { if (!_iconTick.IsEnabled && IsVisible) _iconTick.Start(); }
+
+    private bool _widthQueued, _widthForce;
+    /// <summary>Width layout after the current layout pass (Background priority), once however many size changes arrive.</summary>
+    private void QueueWidth(bool force)
+    {
+        _widthForce |= force;
+        if (_widthQueued) return;
+        _widthQueued = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            _widthQueued = false;
+            if (_widthForce) { _widthForce = false; _layout = -1; }
+            if (ActualWidth > 0) ApplyWidth(ActualWidth);
+        }, DispatcherPriority.Background);
     }
 
     private void Start()
     {
-        if (_view is null) return;
+        if (_view is null) { if (_card is not null) ShowCard(); return; }
         Reload();
         if (_view.IsLive || _fightNote is not null) _timer.Start();
     }
@@ -127,8 +179,12 @@ public partial class BreakdownView : UserControl
     public void SetFight(IFightView view, uint actorId)
     {
         if (ReferenceEquals(view, _view)) { Select(actorId); return; }
+        var wasCard = _view is null;
         _view = view;
         _actor = actorId;
+        _card = null; _profile = null; _status = null;
+        _actorProfiles.Clear();
+        if (wasCard) { ApplyTabs(); QueueWidth(true); }
         _noteWaits = 0;
         ShowRank(null);
         SetPartyOpen(false);
@@ -136,6 +192,149 @@ public partial class BreakdownView : UserControl
     }
 
     public bool Shows(IFightView view) => ReferenceEquals(view, _view);
+
+    /// <summary>
+    /// A2M-44: the card without a fight (a Top DPS row): header from <paramref name="card"/> with the CP / ITEM LEVEL / RANK / SEEN tiles,
+    /// the profile tabs its profile has data for, <paramref name="status"/> in the body while there is no profile yet.
+    /// </summary>
+    public void ShowCard(PlayerCard card, string tab = "profile", string? status = null)
+    {
+        _view = null;
+        _timer.Stop();
+        _card = card; _profile = card.Profile; _status = status; _wantTab = tab;
+        _actorProfiles.Clear();
+        SetPartyOpen(false);
+        ShowCard();
+        QueueWidth(true);
+    }
+
+    /// <summary>A late answer for the card shown: true when it still shows that character (else the answer is dropped).</summary>
+    public bool UpdateCard(PlayerCard card, string? status)
+    {
+        if (_view is not null || _card is null || !_card.SameCharacter(card)) return false;
+        _card = card; _profile = card.Profile; _status = status;
+        ShowCard();
+        return true;
+    }
+
+    /// <summary>Fight shown: forget the selected player's profile and look it up again (Top DPS fetched a newer one).</summary>
+    public void RefreshProfile()
+    {
+        _actorProfiles.Remove(_actor);
+        if (IsVisible || !IsLoaded) Reload();
+    }
+
+    private void ShowCard()
+    {
+        if (_card is not { } c) return;
+        TitleChanged?.Invoke($"{c.Name} — {T.ProfCardTitle} · {AppInfo.Name}");
+        HeaderGlyph.Class = c.Class;
+        PlayerName.Text = c.Name;
+        PlayerMeta.Text = CardLayout.Meta(T.ClassName(c.Class), c) + (c.Title is { Length: > 0 } title ? $" · \u201C{title}\u201D" : "");
+        var tiles = CardLayout.Tiles(c, DateTimeOffset.Now);
+        var borders = TileBorders();
+        var labels = TileLabels();
+        var values = TileValues();
+        PlaceTile.ClearValue(Border.BackgroundProperty);
+        PlaceTile.ClearValue(Border.BorderBrushProperty);
+        PlaceLabel.ClearValue(TextBlock.ForegroundProperty);
+        for (var i = 0; i < borders.Length; i++)
+        {
+            if (i >= tiles.Count) { borders[i].Visibility = Visibility.Collapsed; continue; }
+            var (tile, value) = tiles[i];
+            borders[i].Visibility = Visibility.Visible;
+            labels[i].Text = tile switch { CardTile.CombatPower => T.TileCp, CardTile.ItemLevel => T.TileItemLevel, CardTile.Rank => T.TileRank, _ => T.TileSeen };
+            values[i].Text = tile == CardTile.Seen && value != "now" ? string.Format(T.TileSeenAgo, value) : value;
+            values[i].Foreground = (Brush)FindResource(tile == CardTile.CombatPower ? "GoldBright" : "Text");
+        }
+        ChatButton.Visibility = Visibility.Collapsed;
+        ApplyTabs();
+    }
+
+    private Border[] TileBorders() => [PlaceTile, DamageTile, DpsTile, ShareTile, TimeTile];
+    private TextBlock[] TileLabels() => [PlaceLabel, DamageLabel, DpsLabel, ShareLabel, TimeLabel];
+    private TextBlock[] TileValues() => [StatPlace, StatDamage, StatDps, StatShare, StatTime];
+
+    /// <summary>Tabs with data visible, the others hidden; a hidden checked tab hands over to the first visible one (or the one asked for).</summary>
+    private void ApplyTabs()
+    {
+        var tabs = CardLayout.Tabs(_view is not null, _profile);
+        var fight = _view is not null ? Visibility.Visible : Visibility.Collapsed;
+        TabDps.Visibility = TabAccuracy.Visibility = TabRotation.Visibility = TabDefense.Visibility = fight;
+        TabProfile.Visibility = tabs.Contains(CardTab.Profile) ? Visibility.Visible : Visibility.Collapsed;
+        TabSkills.Visibility = tabs.Contains(CardTab.Skills) ? Visibility.Visible : Visibility.Collapsed;
+        TabDaev.Visibility = tabs.Contains(CardTab.Daevanion) ? Visibility.Visible : Visibility.Collapsed;
+        if (_wantTab is not null && TabFor(_wantTab) is { Visibility: Visibility.Visible } wanted)
+        {
+            _wantTab = null;
+            wanted.IsChecked = true;
+        }
+        else if (CheckedTab() is not { Visibility: Visibility.Visible })
+        {
+            var first = AllTabs().FirstOrDefault(t => t.Visibility == Visibility.Visible);
+            if (first is not null) first.IsChecked = true;
+            else foreach (var t in AllTabs()) t.IsChecked = false;
+        }
+        var status = _view is null && _profile is null ? _status : null;
+        ProfileStatus.Text = status ?? "";
+        ProfileStatus.Visibility = status is null ? Visibility.Collapsed : Visibility.Visible;
+        ShowPages();
+    }
+
+    private RadioButton[] AllTabs() => [TabDps, TabAccuracy, TabRotation, TabDefense, TabProfile, TabSkills, TabDaev];
+    private RadioButton? CheckedTab() => AllTabs().FirstOrDefault(t => t.IsChecked == true);
+
+    private RadioButton? TabFor(string name) => name.ToLowerInvariant() switch
+    {
+        "dps" => TabDps,
+        "accuracy" => TabAccuracy,
+        "rotation" => TabRotation,
+        "defense" => TabDefense,
+        "profile" => TabProfile,
+        "skills" => TabSkills,
+        "daevanion" or "daev" => TabDaev,
+        _ => null,
+    };
+
+    /// <summary>The selected fight player's profile, looked up once per player (cache only, never the network).</summary>
+    private CharacterProfile? ProfileOf(CombatantDetail d)
+    {
+        if (_actorProfiles.TryGetValue(d.ActorId, out var p)) return p;
+        p = d.ActorId == Combatant.UnknownSummonsId || _deps?.Lookup is null ? null : _deps.Lookup(d.Name, d.ServerId);
+        _actorProfiles[d.ActorId] = p;
+        return p;
+    }
+
+    private bool _pagesQueued;
+    private void QueuePages()
+    {
+        if (_pagesQueued || _pages is null || _profile is null) return;
+        _pagesQueued = true;
+        Dispatcher.BeginInvoke(() => { _pagesQueued = false; EnsurePages(); }, DispatcherPriority.Background);
+    }
+
+    /// <summary>Builds the profile page in front when its profile or the width bucket changed; hidden pages wait until shown.</summary>
+    private void EnsurePages()
+    {
+        if (_pages is null || _profile is not { } p || _card is not { } card) return;
+        var shown = TabProfile.IsChecked == true || TabSkills.IsChecked == true || TabDaev.IsChecked == true;
+        if (!shown) return;
+        var avail = BodyWidth();
+        var bucket = (avail >= ProfilePages.GearWidth + 16 + ProfilePages.StatsMinWidth ? 2 : 0) | (avail >= 700 ? 1 : 0);
+        if (ReferenceEquals(p, _builtFor) && bucket == _builtBucket) return;
+        _builtFor = p; _builtBucket = bucket;
+        _pages.Clear();
+        PageProfile.Content = TabProfile.Visibility == Visibility.Visible ? _pages.Profile(card, p, avail) : null;
+        PageSkills.Content = TabSkills.Visibility == Visibility.Visible ? _pages.Skills(p) : null;
+        PageDaev.Content = TabDaev.Visibility == Visibility.Visible ? _pages.Daevanion(p, avail) : null;
+    }
+
+    private double BodyWidth()
+    {
+        var w = ActualWidth > 0 ? ActualWidth : 900;
+        var side = _view is not null && (_layout & 1) == 0 ? SideWidth : 0;
+        return Math.Max(200, w - 2 - side - 32 - 8);
+    }
 
     /// <summary>Overlay only: shows the "Fights ▾" chip (the overlay's fight list opens this view on the fight picked).</summary>
     public void EnableFightPicker() => FightsButton.Visibility = Visibility.Visible;
@@ -153,17 +352,12 @@ public partial class BreakdownView : UserControl
         });
     }
 
-    /// <summary>dps | accuracy | rotation | defense</summary>
+    /// <summary>dps | accuracy | rotation | defense | profile | skills | daevanion</summary>
     public void ShowTab(string name)
     {
-        var tab = name.ToLowerInvariant() switch
-        {
-            "accuracy" => TabAccuracy,
-            "rotation" => TabRotation,
-            "defense" => TabDefense,
-            _ => TabDps,
-        };
-        tab.IsChecked = true;
+        var tab = TabFor(name) ?? TabDps;
+        if (tab.Visibility == Visibility.Visible) { _wantTab = null; tab.IsChecked = true; }
+        else _wantTab = name;   // its data has not arrived yet (ApplyTabs checks it then)
     }
 
     public void Select(uint actorId)
@@ -186,7 +380,8 @@ public partial class BreakdownView : UserControl
 
     private void Reload()
     {
-        var summary = _view?.Summary();
+        if (_view is null) return;   // the card without a fight is drawn by ShowCard (never from here: ApplyWidth → Reload → ShowCard looped)
+        var summary = _view.Summary();
         if (summary is null) return;
 
         FightTitle.Text = summary.Title;
@@ -218,11 +413,32 @@ public partial class BreakdownView : UserControl
         var detail = _view!.Detail(_actor);
         if (detail is null) return;
         ShowDetail(summary, detail);
+        SetFightProfile(summary, detail);
         if (ActualWidth > 0) ApplyWidth(ActualWidth);   // the tiles' natural width changes with their numbers
+    }
+
+    /// <summary>The selected player as a card (fight tiles + the profile known for them): the profile tabs follow the selection.</summary>
+    private void SetFightProfile(EncounterSnapshot summary, CombatantDetail d)
+    {
+        var p = ProfileOf(d);
+        var server = d.ServerId != 0 ? _serverName(d.ServerId) : null;
+        var place = 0;
+        for (var i = 0; i < summary.Combatants.Count; i++) if (summary.Combatants[i].ActorId == d.ActorId) { place = i + 1; break; }
+        var card = new PlayerCard(d.Name, d.Class, server, d.ServerId) { Fight = new FightStats(place, summary.PlayerCount, d.Damage, d.Dps, d.Share, d.CombatMs) };
+        _card = p is null ? card : card.With(p);
+        if (ReferenceEquals(p, _profile)) { if (p is not null) EnsurePages(); return; }
+        _profile = p;
+        ApplyTabs();
     }
 
     private void ShowDetail(EncounterSnapshot summary, CombatantDetail d)
     {
+        var borders = TileBorders();
+        for (var i = 0; i < borders.Length; i++) borders[i].Visibility = Visibility.Visible;
+        PlaceLabel.Text = T.TilePlace; DamageLabel.Text = T.TileDamage; DpsLabel.Text = T.TileDps; ShareLabel.Text = T.TileContrib; TimeLabel.Text = T.TileTime;
+        StatDps.Foreground = (Brush)FindResource("GoldBright");
+        StatDamage.Foreground = StatShare.Foreground = StatTime.Foreground = (Brush)FindResource("Text");
+        ChatButton.Visibility = Visibility.Visible;
         TitleChanged?.Invoke($"{d.Name} — {summary.Title} · {AppInfo.Name}");
         HeaderGlyph.Class = d.Class;
         PlayerName.Text = T.CombatantLabel(d.ActorId, d.Name, d.Class);
@@ -317,8 +533,9 @@ public partial class BreakdownView : UserControl
     private void ApplyWidth(double width)
     {
         if (width <= 0) return;
-        var narrow = width < NarrowBelow;
-        var main = width - 2 - (narrow ? 0 : SideWidth);
+        var cardOnly = _view is null;   // A2M-44: no fight, no party panel
+        var narrow = !cardOnly && width < NarrowBelow;
+        var main = width - 2 - (narrow || cardOnly ? 0 : SideWidth);
         var compact = main < CompactTablesBelow;
         // natural width of the tiles beside everything else on the header line
         Tiles.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -327,14 +544,19 @@ public partial class BreakdownView : UserControl
         var leftW = (_hosted ? BackButton.DesiredSize.Width + 8 : 0) + (narrow ? Math.Max(PartyToggle.DesiredSize.Width, 70) + 8 : 0);   // collapsed before the first narrow pass: 0 wide
         var fixedW = 20 + leftW + 44 + 20 + HeaderButtons.DesiredSize.Width + NameMin;
         var tilesBelow = main < fixedW + Tiles.DesiredSize.Width;
-        var layout = (narrow ? 1 : 0) | (compact ? 2 : 0) | (tilesBelow ? 4 : 0);
-        if (layout == _layout) return;
+        var layout = (narrow ? 1 : 0) | (compact ? 2 : 0) | (tilesBelow ? 4 : 0) | (cardOnly ? 8 : 0);
+        if (layout == _layout) { QueuePages(); return; }
         var compactChanged = _layout < 0 || ((layout ^ _layout) & 2) != 0;
         _layout = layout;
 
-        SideColumn.Width = new GridLength(narrow ? 0 : SideWidth);
+        SideColumn.Width = new GridLength(narrow || cardOnly ? 0 : SideWidth);
         PartyToggle.Visibility = narrow ? Visibility.Visible : Visibility.Collapsed;
-        if (narrow)
+        if (cardOnly)
+        {
+            SidePanel.Visibility = Visibility.Collapsed;
+            PartyToggle.IsChecked = false;
+        }
+        else if (narrow)
         {
             // a dropdown under the header, over the tabs and the body
             Grid.SetColumn(SidePanel, 1); Grid.SetRow(SidePanel, 1); Grid.SetRowSpan(SidePanel, 2);
@@ -367,6 +589,7 @@ public partial class BreakdownView : UserControl
         Tiles.HorizontalAlignment = tilesBelow ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
         Tiles.Margin = tilesBelow ? new Thickness(-6, 0, 4, 10) : new Thickness(0);
 
+        QueuePages();
         if (!compactChanged) return;
         Resources["ColAvg"] = new GridLength(compact ? 0 : 64);
         Resources["ColMax"] = new GridLength(compact ? 0 : 64);
@@ -481,13 +704,20 @@ public partial class BreakdownView : UserControl
         Reload();
     }
 
-    private void Tab_Checked(object sender, RoutedEventArgs e)
+    private void Tab_Checked(object sender, RoutedEventArgs e) => ShowPages();
+
+    private void ShowPages()
     {
-        if (PageDps is null) return;
-        PageDps.Visibility = TabDps.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        PageAccuracy.Visibility = TabAccuracy.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        PageRotation.Visibility = TabRotation.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        PageDefense.Visibility = TabDefense.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (PageDaev is null) return;   // during InitializeComponent
+        static Visibility On(RadioButton t) => t.IsChecked == true && t.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
+        PageDps.Visibility = On(TabDps);
+        PageAccuracy.Visibility = On(TabAccuracy);
+        PageRotation.Visibility = On(TabRotation);
+        PageDefense.Visibility = On(TabDefense);
+        PageProfile.Visibility = On(TabProfile);
+        PageSkills.Visibility = On(TabSkills);
+        PageDaev.Visibility = On(TabDaev);
+        EnsurePages();
     }
 
     // ------------------------------------------------------------ header buttons

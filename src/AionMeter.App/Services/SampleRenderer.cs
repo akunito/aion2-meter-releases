@@ -15,7 +15,7 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers / fight (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window; fight = the breakdown tab, --tab as breakdown or party).</param>
+    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers / fight (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window; fight = the breakdown tab, --tab as breakdown or party; A2M-44: --tab profile|skills|daevanion = the player card without a fight, fight-profile = the fight with its Profile tab).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market). Prices: expanded (first row open) or search ("refining stone" in the add-item search, grade chips).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
@@ -137,9 +137,23 @@ public static class SampleRenderer
                 var card = new OverlayWindow(meter) { Width = o.Width ?? 560, Height = o.Height ?? 820 };
                 var tabIcons = new IconCache(Core.GameDb.ItemIcons.Load(Path.Combine(MeterService.DataDirectory, "gamedb", "item-icons.json")), o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
                 Action fill = () => { };
-                if (o.Window == "fight")
+                if (o.Window == "fight" && o.Tab is "profile" or "skills" or "daevanion")
                 {
-                    // A2M-43: the breakdown as the card's fight tab (what "Open the fight" shows); --tab dps|accuracy|rotation|defense, or party (the narrow dropdown open)
+                    // A2M-44: the player card without a fight, as a Top DPS ranking row opens it (Teinmeir's profile of 2026-10-13, #201 EU, seen 5 h ago)
+                    var sampleProfile = SampleCardProfile();
+                    meter.CardDeps = new Views.ProfileDeps(tabIcons, meter.Skills, () => "en", (_, _) => sampleProfile);
+                    var row = new Core.Leaderboard.LeaderboardRow(201, "Teinmeir", "eu", "Vaizel", "vaizel", "TEMPLAR", 45, sampleProfile.CombatPower, sampleProfile.ItemLevel, DateTimeOffset.Now.AddHours(-5));
+                    card.ShowProfile(Core.Armory.PlayerCard.Of(row).With(sampleProfile) with { ServerId = 1303 }, o.Tab, null);
+                }
+                else if (o.Window == "fight")
+                {
+                    // A2M-43: the breakdown as the card's fight tab (what "Open the fight" shows); --tab dps|accuracy|rotation|defense, or party (the narrow dropdown open);
+                    // A2M-44 --tab fight-profile: the same fight with the sample profile known for the selected player (Profile tab in front)
+                    if (o.Tab == "fight-profile")
+                    {
+                        var sampleProfile = SampleCardProfile();
+                        meter.CardDeps = new Views.ProfileDeps(tabIcons, meter.Skills, () => "en", (_, _) => sampleProfile);
+                    }
                     var fightSegment = meter.Tracker.Segments()[0].Id;
                     card.ShowFight(new ViewModels.LiveFightView(meter.Tracker, fightSegment), 2, fightSegment);
                 }
@@ -160,6 +174,7 @@ public static class SampleRenderer
                         break;
                     case Views.BreakdownView fightView:
                         if (o.Tab == "party") fightView.SampleOpenParty();
+                        else if (o.Tab == "fight-profile") fightView.ShowTab("profile");
                         else if (o.Tab is { } fightTab) fightView.ShowTab(fightTab);
                         fill = fightView.ReloadNow;
                         break;
@@ -256,8 +271,12 @@ public static class SampleRenderer
         root.Measure(new Size(host.Width, host.Height));
         root.Arrange(new Rect(0, 0, host.Width, host.Height));
         root.UpdateLayout();
+        Pump();
         refresh();
         root.UpdateLayout();
+        // views queue width-dependent layout after the layout pass (BeginInvoke Background, never inside SizeChanged): let it run, twice
+        // (a width layout can queue a page rebuild)
+        for (var i = 0; i < 2; i++) { Pump(); root.UpdateLayout(); }
 
         var bmp = new RenderTargetBitmap((int)(host.Width * o.Scale), (int)(host.Height * o.Scale), 96 * o.Scale, 96 * o.Scale, PixelFormats.Pbgra32);
         if (Backdrop(host, o.Backdrop) is { } backdrop)
@@ -274,6 +293,8 @@ public static class SampleRenderer
         using var file = File.Create(path);
         encoder.Save(file);
     }
+
+    private static void Pump() => System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(static () => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
 
     /// <summary>What shows through the translucent overlay card; other windows draw their own background.</summary>
     private static Brush? Backdrop(Window host, string backdrop)
@@ -350,6 +371,11 @@ public static class SampleRenderer
     }
 
     /// <summary>Irin's official profile of 2026-10-10 as far as skills go (Ranger 45): current levels, four build skills not acquired.</summary>
+    /// <summary>A2M-44: Teinmeir's cached official profile (test fixture profile-teinmeir.json, copied by build.sh as data\gamedb\sample-profile.json).</summary>
+    private static Core.Armory.CharacterProfile SampleCardProfile() =>
+        System.Text.Json.JsonSerializer.Deserialize<Core.Armory.CharacterProfile>(File.ReadAllText(Path.Combine(MeterService.DataDirectory, "gamedb", "sample-profile.json")))!
+        with { Portrait = null };   // the portrait is a per-character download: the emblem stands in
+
     private static Core.Armory.CharacterProfile SampleProfile()
     {
         (int Id, string Cat, int Level)[] have =

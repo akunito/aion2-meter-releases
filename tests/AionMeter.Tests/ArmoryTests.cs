@@ -42,6 +42,13 @@ public class ArmoryTests
         Assert.Equal(["Empyrean Lord's Punishment", "Doom Shield", "Noble Armor", "Battlefield Banner"], p.EquippedDp.Select(s => s.Name).ToArray());
         Assert.Equal(14, p.Skills.First(s => s.Id == 12240000).Level); // Judgment: the meter's cast code joins the skill level
         Assert.Equal("Karnif lv3", p.Pet);
+        // A2M-44: icons for the card's pet/wing chips and the header portrait
+        Assert.Equal("https://assets.playnccdn.com/static-aion2-gamedata/resources/UT_Vehicle_Portrait_Kalnif_01.png", p.PetIcon);
+        Assert.Equal("https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_WingB_001A.png", p.WingIcon);
+        Assert.Equal("Unique", p.WingGrade);
+        Assert.StartsWith("https://profileimg.plaync.com/game_profile_images/", p.Portrait);
+        var roundTrip = System.Text.Json.JsonSerializer.Deserialize<CharacterProfile>(System.Text.Json.JsonSerializer.Serialize(p))!;
+        Assert.Equal(p.WingIcon, roundTrip.WingIcon);   // the cache keeps them (init properties beside the positional ones)
         Assert.Equal(89, p.Daevanion.Count(n => n.BoardId == 21)); // 88 nodes + the Start cell; the 136 empty cells are dropped
         Assert.Equal(49, p.Daevanion.Count(n => n.BoardId == 21 && n.Open));
         Assert.Contains("Judgment +1", p.DaevanionEffects);
@@ -56,6 +63,8 @@ public class ArmoryTests
         Assert.Equal("", p.ClassName);
         Assert.Empty(p.Equipment);
         Assert.Empty(p.Skills);
+        Assert.Null(p.PetIcon);
+        Assert.Null(p.Portrait);
         Assert.Empty(ArmoryParser.ParseSearch("{\"list\":null}"));
     }
 }

@@ -207,34 +207,34 @@
                             <TextBlock x:Name="StatPlace" Style="{StaticResource TileValue}" />
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="1" Style="{StaticResource StatTile}">
+                    <Border x:Name="DamageTile" Grid.Column="1" Style="{StaticResource StatTile}">
                         <StackPanel>
-                            <TextBlock Text="{Binding TileDamage, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
+                            <TextBlock x:Name="DamageLabel" Text="{Binding TileDamage, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
                             <TextBlock x:Name="StatDamage" Style="{StaticResource TileValue}" />
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="2" Style="{StaticResource StatTile}">
+                    <Border x:Name="DpsTile" Grid.Column="2" Style="{StaticResource StatTile}">
                         <StackPanel>
-                            <TextBlock Text="{Binding TileDps, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
+                            <TextBlock x:Name="DpsLabel" Text="{Binding TileDps, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
                             <TextBlock x:Name="StatDps" Style="{StaticResource TileValue}" Foreground="{StaticResource GoldBright}" />
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="3" Style="{StaticResource StatTile}">
+                    <Border x:Name="ShareTile" Grid.Column="3" Style="{StaticResource StatTile}">
                         <StackPanel>
-                            <TextBlock Text="{Binding TileContrib, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
+                            <TextBlock x:Name="ShareLabel" Text="{Binding TileContrib, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
                             <TextBlock x:Name="StatShare" Style="{StaticResource TileValue}" />
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="4" Style="{StaticResource StatTile}">
+                    <Border x:Name="TimeTile" Grid.Column="4" Style="{StaticResource StatTile}">
                         <StackPanel>
-                            <TextBlock Text="{Binding TileTime, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
+                            <TextBlock x:Name="TimeLabel" Text="{Binding TileTime, Source={x:Static s:UiText.Current}}" Style="{StaticResource TileLabel}" />
                             <TextBlock x:Name="StatTime" Style="{StaticResource TileValue}" />
                         </StackPanel>
                     </Border>
                 </Grid>
                 <StackPanel x:Name="HeaderButtons" Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0"
                             WindowChrome.IsHitTestVisibleInChrome="True">
-                    <Button Style="{StaticResource IconButton}" Content="&#xE8BD;" Click="CopyChat_Click" ToolTip="{Binding TipChat, Source={x:Static s:UiText.Current}}" />
+                    <Button x:Name="ChatButton" Style="{StaticResource IconButton}" Content="&#xE8BD;" Click="CopyChat_Click" ToolTip="{Binding TipChat, Source={x:Static s:UiText.Current}}" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE8C8;" Click="CopyImage_Click" ToolTip="{Binding TipCopyImage, Source={x:Static s:UiText.Current}}" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE897;" Click="Help_Click" ToolTip="{Binding TipHelp, Source={x:Static s:UiText.Current}}" />
                     <Button x:Name="MinimizeButton" Style="{StaticResource IconButton}" Content="&#xE921;" Click="Minimize_Click" ToolTip="{Binding TipMinimize, Source={x:Static s:UiText.Current}}" />
@@ -249,6 +249,10 @@
                     <RadioButton x:Name="TabAccuracy" Style="{StaticResource TabToggle}" Content="{Binding TabAccuracy, Source={x:Static s:UiText.Current}}" Checked="Tab_Checked" />
                     <RadioButton x:Name="TabRotation" Style="{StaticResource TabToggle}" Content="{Binding TabRotation, Source={x:Static s:UiText.Current}}" Checked="Tab_Checked" />
                     <RadioButton x:Name="TabDefense" Style="{StaticResource TabToggle}" Content="{Binding TabDefense, Source={x:Static s:UiText.Current}}" Checked="Tab_Checked" />
+                    <!-- A2M-44: only when a profile is known; hidden tabs have no data (ApplyTabs) -->
+                    <RadioButton x:Name="TabProfile" Style="{StaticResource TabToggle}" Content="{Binding TabProfile, Source={x:Static s:UiText.Current}}" Checked="Tab_Checked" Visibility="Collapsed" />
+                    <RadioButton x:Name="TabSkills" Style="{StaticResource TabToggle}" Content="{Binding TabSkills, Source={x:Static s:UiText.Current}}" Checked="Tab_Checked" Visibility="Collapsed" />
+                    <RadioButton x:Name="TabDaev" Style="{StaticResource TabToggle}" Content="{Binding TabDaevanion, Source={x:Static s:UiText.Current}}" Checked="Tab_Checked" Visibility="Collapsed" />
                 </StackPanel>
             </Border>
 
@@ -412,6 +416,12 @@
                         <c:RotationStrip x:Name="Rotation" Margin="0,0,8,0" />
                     </ScrollViewer>
                 </Grid>
+
+                <!-- A2M-44: profile pages (ProfilePages builds them) and the status line while a profile loads or failed -->
+                <ScrollViewer x:Name="PageProfile" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" />
+                <ScrollViewer x:Name="PageSkills" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" />
+                <ScrollViewer x:Name="PageDaev" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" />
+                <TextBlock x:Name="ProfileStatus" Visibility="Collapsed" Foreground="{StaticResource TextDim}" FontSize="12.5" TextWrapping="Wrap" Margin="2,6,0,0" />
 
                 <!-- Defense -->
                 <StackPanel x:Name="PageDefense" Visibility="Collapsed">

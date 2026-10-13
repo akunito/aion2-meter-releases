@@ -81,7 +81,13 @@ public static class ArmoryParser
 
         return new CharacterProfile(r, Str(profile, "className"), Int(profile, "characterLevel"), Long(profile, "combatPower"),
             NullableStr(profile, "titleName"), NullableStr(profile, "regionName"), NullableStr(profile, "raceName"),
-            stats, itemLevel, boards, items, pet, wing, skills, nodes, boardEffects, fetchedAt);
+            stats, itemLevel, boards, items, pet, wing, skills, nodes, boardEffects, fetchedAt)
+        {
+            PetIcon = NullableStr(Prop(petwing, "pet"), "icon"),
+            WingIcon = NullableStr(Prop(petwing, "wing"), "icon"),
+            WingGrade = NullableStr(Prop(petwing, "wing"), "grade"),
+            Portrait = NullableStr(profile, "profileImage"),
+        };
     }
 
     private static JsonElement Prop(JsonElement e, string name) =>

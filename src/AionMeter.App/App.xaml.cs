@@ -368,19 +368,45 @@ public partial class App : Application
     public void ShowBreakdown(Guid segmentId, uint actorId) =>
         ShowBreakdown(segmentId, new LiveFightView(_meter.Tracker, segmentId), actorId);
 
-    public void ShowBreakdown(IFightView view, uint actorId) => ShowBreakdown(view, view, actorId);
+    public Views.BreakdownView ShowBreakdown(IFightView view, uint actorId) => ShowBreakdown(view, view, actorId);
 
     /// <summary>
     /// A2M-43: the fight tab of the card the click came from (a popped-out copy under the mouse, else the main overlay) while that
     /// card is visible; the separate window only when no card is shown.
     /// </summary>
-    private void ShowBreakdown(object key, IFightView view, uint actorId)
+    private Views.BreakdownView ShowBreakdown(object key, IFightView view, uint actorId) =>
+        CardHost() is { } card ? card.ShowFight(view, actorId, key) : ShowBreakdownWindow(key, view, actorId).View;
+
+    /// <summary>The card a click came from: a popped-out copy under the mouse, else the main overlay while visible; null = use a window.</summary>
+    private OverlayWindow? CardHost()
     {
-        OverlayWindow? card = null;
-        for (var i = 0; i < _extras.Count; i++) if (_extras[i].IsVisible && _extras[i].IsMouseOver) { card = _extras[i]; break; }
-        card ??= _overlay.IsVisible ? _overlay : null;
-        if (card is not null) card.ShowFight(view, actorId, key);
-        else ShowBreakdownWindow(key, view, actorId);
+        for (var i = 0; i < _extras.Count; i++) if (_extras[i].IsVisible && _extras[i].IsMouseOver) return _extras[i];
+        return _overlay.IsVisible ? _overlay : null;
+    }
+
+    /// <summary>
+    /// A2M-44: the player card without a fight (Top DPS rows) on <paramref name="tab"/>, routed like a breakdown; <paramref name="status"/>
+    /// fills the body while the profile loads. The view returned takes the late answer through <see cref="Views.BreakdownView.UpdateCard"/>.
+    /// </summary>
+    public Views.BreakdownView ShowProfile(Core.Armory.PlayerCard card, string tab = "profile", string? status = null) =>
+        CardHost() is { } host ? host.ShowProfile(card, tab, status) : ShowProfileWindow(card, tab, status).View;
+
+    /// <summary>The card in its own window (pop-out, overlay hidden); one window per character.</summary>
+    public BreakdownWindow ShowProfileWindow(Core.Armory.PlayerCard card, string tab, string? status)
+    {
+        var key = "profile:" + card.Name.ToLowerInvariant() + "@" + (card.Server ?? "").ToLowerInvariant();
+        if (_breakdowns.TryGetValue(key, out var existing))
+        {
+            existing.View.ShowCard(card, tab, status);
+            Activate(existing);
+            return existing;
+        }
+        var w = new BreakdownWindow(card, tab, status, _meter.Data, _meter.Icons, _meter.CardDeps);
+        _breakdowns[key] = w;
+        w.Closed += (_, _) => _breakdowns.Remove(key);
+        WindowPinning.KeepAboveGame(w);
+        w.Show();
+        return w;
     }
 
     /// <summary>The fight in its own window (pop-out from the fight tab, --open-last); one window per fight.</summary>
@@ -392,7 +418,7 @@ public partial class App : Application
             Activate(existing);
             return existing;
         }
-        var w = new BreakdownWindow(view, actorId, _meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor);
+        var w = new BreakdownWindow(view, actorId, _meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor, _meter.CardDeps);
         _breakdowns[key] = w;
         w.Closed += (_, _) => _breakdowns.Remove(key);
         WindowPinning.KeepAboveGame(w);

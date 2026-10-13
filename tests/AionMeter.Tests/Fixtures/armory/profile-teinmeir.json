@@ -1,0 +1,1109 @@
+{
+ "Ref": {
+  "CharacterId": "ZOFzGjNorPtjdJSy8Gneu3BEpXz-GLw31ejSCOymtUU%3D",
+  "Name": "Teinmeir",
+  "PcId": 9,
+  "Level": 45,
+  "ServerId": 1303,
+  "ServerName": "Vaizel",
+  "Region": "eu"
+ },
+ "ClassName": "Templar",
+ "Level": 45,
+ "CombatPower": 151574,
+ "Title": "At Your Own Pace",
+ "Legion": "Pandamonium",
+ "Race": "Elyos",
+ "Stats": [
+  {
+   "Type": "STR",
+   "Name": "Might",
+   "Value": "97",
+   "Effects": [
+    "Attack increase +9.7%"
+   ]
+  },
+  {
+   "Type": "DEX",
+   "Name": "Dexterity",
+   "Value": "101",
+   "Effects": [
+    "Evasion increase +10.1%",
+    "Block increase +10.1%",
+    "Critical Hit Resist increase +10.1%"
+   ]
+  },
+  {
+   "Type": "INT",
+   "Name": "Intelligence",
+   "Value": "17",
+   "Effects": [
+    "Status Effect Chance +1.7%"
+   ]
+  },
+  {
+   "Type": "CON",
+   "Name": "Constitution",
+   "Value": "13",
+   "Effects": [
+    "HP increase +1.3%"
+   ]
+  },
+  {
+   "Type": "AGI",
+   "Name": "Precision",
+   "Value": "50",
+   "Effects": [
+    "Accuracy increase +5%",
+    "Critical Hit increase +5%"
+   ]
+  },
+  {
+   "Type": "WIS",
+   "Name": "Willpower",
+   "Value": "0",
+   "Effects": []
+  },
+  {
+   "Type": "Justice",
+   "Name": "Justice [Nezekan]",
+   "Value": "41",
+   "Effects": [
+    "Defense increase +4.1%",
+    "Perfect Chance +4.1%"
+   ]
+  },
+  {
+   "Type": "Freedom",
+   "Name": "Freedom [Vaizel]",
+   "Value": "38",
+   "Effects": [
+    "Accuracy increase +3.8%",
+    "Evasion increase +3.8%"
+   ]
+  },
+  {
+   "Type": "Illusion",
+   "Name": "Illusion [Kaisinel]",
+   "Value": "24",
+   "Effects": [
+    "Cooldown -2.4%",
+    "Endurance Penetration +2.4%"
+   ]
+  },
+  {
+   "Type": "Life",
+   "Name": "Life [Yustiel]",
+   "Value": "47",
+   "Effects": [
+    "HP increase +4.7%",
+    "Regeneration +4.7%"
+   ]
+  },
+  {
+   "Type": "Time",
+   "Name": "Time [Siel]",
+   "Value": "64",
+   "Effects": [
+    "Combat Speed +6.4%",
+    "Double Resist +6.4%"
+   ]
+  },
+  {
+   "Type": "Destruction",
+   "Name": "Destruction [Zikel]",
+   "Value": "28",
+   "Effects": [
+    "Attack increase +2.8%",
+    "Perfect Resist +2.8%"
+   ]
+  },
+  {
+   "Type": "Death",
+   "Name": "Death [Triniel]",
+   "Value": "61",
+   "Effects": [
+    "Critical Hit increase +6.1%",
+    "Regeneration Penetration +6.1%"
+   ]
+  },
+  {
+   "Type": "Wisdom",
+   "Name": "Wisdom [Lumiel]",
+   "Value": "47",
+   "Effects": [
+    "MP Cost -4.7%",
+    "Double Chance +4.7%"
+   ]
+  },
+  {
+   "Type": "Destiny",
+   "Name": "Destiny [Marchutan]",
+   "Value": "24",
+   "Effects": [
+    "MP increase +2.4%",
+    "Endurance +2.4%"
+   ]
+  },
+  {
+   "Type": "Space",
+   "Name": "Space [Israphel]",
+   "Value": "38",
+   "Effects": [
+    "Move Speed +3.8%",
+    "Block increase +3.8%"
+   ]
+  },
+  {
+   "Type": "ItemLevel",
+   "Name": "아이템레벨",
+   "Value": "2658",
+   "Effects": []
+  }
+ ],
+ "ItemLevel": 2658,
+ "Boards": [
+  {
+   "Id": 21,
+   "Name": "Nezekan",
+   "Open": 64,
+   "Total": 88
+  },
+  {
+   "Id": 22,
+   "Name": "Zikel",
+   "Open": 54,
+   "Total": 88
+  },
+  {
+   "Id": 23,
+   "Name": "Vaizel",
+   "Open": 55,
+   "Total": 88
+  },
+  {
+   "Id": 24,
+   "Name": "Triniel",
+   "Open": 75,
+   "Total": 116
+  },
+  {
+   "Id": 26,
+   "Name": "Azphel",
+   "Open": 24,
+   "Total": 152
+  }
+ ],
+ "Equipment": [
+  {
+   "SlotPos": 1,
+   "Slot": "MainHand",
+   "Name": "Enraged Kromede Sword",
+   "Grade": "Unique",
+   "Enchant": 15,
+   "Exceed": 2,
+   "Id": 110230051,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_WP_SW_0041_T06.png"
+  },
+  {
+   "SlotPos": 2,
+   "Slot": "SubHand",
+   "Name": "Nuakum Guard",
+   "Grade": "Unique",
+   "Enchant": 15,
+   "Exceed": 2,
+   "Id": 115030053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Weapon_Guarder_L_012.png"
+  },
+  {
+   "SlotPos": 5,
+   "Slot": "Torso",
+   "Name": "Vakron Breastplate",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 210130052,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Equip_AR_L_0028_T05_Torso.png"
+  },
+  {
+   "SlotPos": 6,
+   "Slot": "Pants",
+   "Name": "Nuakum Greaves",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 210230053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Equip_AR_L_Idris_01_Pants.png"
+  },
+  {
+   "SlotPos": 3,
+   "Slot": "Helmet",
+   "Name": "Nuakum Helm",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 210330053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Equip_AR_L_Idris_01_Helmet.png"
+  },
+  {
+   "SlotPos": 4,
+   "Slot": "Shoulder",
+   "Name": "Vakron Pauldrons",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 210430052,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Equip_AR_L_0028_T05_Shoulder.png"
+  },
+  {
+   "SlotPos": 7,
+   "Slot": "Gloves",
+   "Name": "Vakron Gloves",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 210530052,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Equip_AR_L_0028_T05_Gloves.png"
+  },
+  {
+   "SlotPos": 8,
+   "Slot": "Boots",
+   "Name": "Vakron Boots",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 210630052,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Equip_AR_L_0028_T05_Boots.png"
+  },
+  {
+   "SlotPos": 19,
+   "Slot": "Cape",
+   "Name": "Nuakum Cloak",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 210730053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Equip_AR_L_Idris_01_Cape.png"
+  },
+  {
+   "SlotPos": 17,
+   "Slot": "Belt",
+   "Name": "Noble Belt",
+   "Grade": "Unique",
+   "Enchant": 0,
+   "Exceed": 0,
+   "Id": 215230001,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Acc_Belt_C_022.png"
+  },
+  {
+   "SlotPos": 10,
+   "Slot": "Necklace",
+   "Name": "Enraged Kromede Necklace",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 310130051,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_ACC_NL_0053.png"
+  },
+  {
+   "SlotPos": 11,
+   "Slot": "Earring1",
+   "Name": "Enraged Kromede Earrings",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 310230053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_ACC_ER_0053.png"
+  },
+  {
+   "SlotPos": 12,
+   "Slot": "Earring2",
+   "Name": "Enraged Kromede Earrings",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 310230053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_ACC_ER_0053.png"
+  },
+  {
+   "SlotPos": 13,
+   "Slot": "Ring1",
+   "Name": "Enraged Kromede Ring",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 310330053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_ACC_Ring_0053.png"
+  },
+  {
+   "SlotPos": 14,
+   "Slot": "Ring2",
+   "Name": "Enraged Kromede Ring",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 310330053,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_ACC_Ring_0053.png"
+  },
+  {
+   "SlotPos": 15,
+   "Slot": "Bracelet1",
+   "Name": "Ascension Bracelet",
+   "Grade": "Unique",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 310430046,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Acc_Bracelet_R_027.png"
+  },
+  {
+   "SlotPos": 16,
+   "Slot": "Bracelet2",
+   "Name": "Pilgrim Bracelet",
+   "Grade": "Legend",
+   "Enchant": 10,
+   "Exceed": 0,
+   "Id": 310440017,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_ACC_Bracelet_0071.png"
+  },
+  {
+   "SlotPos": 23,
+   "Slot": "Rune1",
+   "Name": "Clash Rune",
+   "Grade": "Special",
+   "Enchant": 3,
+   "Exceed": 0,
+   "Id": 310900001,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Acc_Rune_R_002.png"
+  },
+  {
+   "SlotPos": 24,
+   "Slot": "Rune2",
+   "Name": "Clash Rune",
+   "Grade": "Special",
+   "Enchant": 2,
+   "Exceed": 0,
+   "Id": 310900001,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Acc_Rune_R_002.png"
+  },
+  {
+   "SlotPos": 22,
+   "Slot": "Amulet",
+   "Name": "Revelation Amulet",
+   "Grade": "Unique",
+   "Enchant": 0,
+   "Exceed": 0,
+   "Id": 311030001,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Item_Craft_Conversion_Crystal_L_lv5_01.png"
+  },
+  {
+   "SlotPos": 41,
+   "Slot": "Arcana1",
+   "Name": "Chalice of Vigor",
+   "Grade": "Unique",
+   "Enchant": 3,
+   "Exceed": 0,
+   "Id": 810130001,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Arcana_Card_Grail_u_PveSet2.png"
+  },
+  {
+   "SlotPos": 42,
+   "Slot": "Arcana2",
+   "Name": "Parchment of Vigor",
+   "Grade": "Unique",
+   "Enchant": 2,
+   "Exceed": 0,
+   "Id": 810230001,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Arcana_Card_Parchment_u_PveSet2.png"
+  },
+  {
+   "SlotPos": 43,
+   "Slot": "Arcana3",
+   "Name": "Compass of Magic",
+   "Grade": "Unique",
+   "Enchant": 3,
+   "Exceed": 0,
+   "Id": 810330002,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Arcana_Card_Compass_u_DefenceSet2.png"
+  },
+  {
+   "SlotPos": 44,
+   "Slot": "Arcana4",
+   "Name": "Bell of Magic",
+   "Grade": "Unique",
+   "Enchant": 2,
+   "Exceed": 0,
+   "Id": 810430002,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Arcana_Card_Bell_u_DefenceSet2.png"
+  },
+  {
+   "SlotPos": 45,
+   "Slot": "Arcana5",
+   "Name": "Mirror of Magic",
+   "Grade": "Unique",
+   "Enchant": 2,
+   "Exceed": 0,
+   "Id": 810530002,
+   "Icon": "https://assets.playnccdn.com/static-aion2-gamedata/resources/Icon_Arcana_Card_Mirror_u_DefenceSet2.png"
+  }
+ ],
+ "Pet": "Silver Blade Rotan lv2",
+ "Wing": "Dark Veil Wings +0",
+ "Skills": [
+  {
+   "Category": "Active",
+   "Name": "Vicious Strike",
+   "Level": 16,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12010000
+  },
+  {
+   "Category": "Active",
+   "Name": "Pummel",
+   "Level": 18,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12040000
+  },
+  {
+   "Category": "Active",
+   "Name": "Poach",
+   "Level": 12,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12130000
+  },
+  {
+   "Category": "Active",
+   "Name": "Shield Smite",
+   "Level": 17,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12100000
+  },
+  {
+   "Category": "Active",
+   "Name": "Judgment",
+   "Level": 14,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12240000
+  },
+  {
+   "Category": "Active",
+   "Name": "Flash Rampage",
+   "Level": 14,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12340000
+  },
+  {
+   "Category": "Active",
+   "Name": "Debilitating Smash",
+   "Level": 14,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12270000
+  },
+  {
+   "Category": "Active",
+   "Name": "Warding Strike",
+   "Level": 15,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12350000
+  },
+  {
+   "Category": "Active",
+   "Name": "Shield Rush",
+   "Level": 12,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12430000
+  },
+  {
+   "Category": "Active",
+   "Name": "Annihilate",
+   "Level": 16,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12300000
+  },
+  {
+   "Category": "Active",
+   "Name": "Punishment",
+   "Level": 15,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12090000
+  },
+  {
+   "Category": "Active",
+   "Name": "Defiance",
+   "Level": 12,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12260000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Enhance Health",
+   "Level": 14,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12710000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Warding Shield",
+   "Level": 14,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12720000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Punishing Benediction",
+   "Level": 14,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12730000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Ironclad Defense",
+   "Level": 12,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12740000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Guarding Seal",
+   "Level": 12,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12750000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Impact Hit",
+   "Level": 11,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12760000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Insulting Roar",
+   "Level": 15,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12770000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Fury",
+   "Level": 16,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12780000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Survival Willpower",
+   "Level": 12,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12790000
+  },
+  {
+   "Category": "Passive",
+   "Name": "Block Pain",
+   "Level": 15,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12800000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Empyrean Lord's Punishment",
+   "Level": 20,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12310000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Nezekan's Shield",
+   "Level": 0,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12320000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Shield of Protection",
+   "Level": 0,
+   "Equipped": false,
+   "Acquired": false,
+   "Id": 12110000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Taunt",
+   "Level": 0,
+   "Equipped": false,
+   "Acquired": true,
+   "Id": 12120000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Armor of Balance",
+   "Level": 0,
+   "Equipped": false,
+   "Acquired": false,
+   "Id": 12200000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Second Skin",
+   "Level": 0,
+   "Equipped": true,
+   "Acquired": false,
+   "Id": 12190000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Doom Shield",
+   "Level": 10,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12070000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Noble Armor",
+   "Level": 0,
+   "Equipped": false,
+   "Acquired": false,
+   "Id": 12230000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Executing Blade",
+   "Level": 15,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12410000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Comrade in Arms",
+   "Level": 0,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12250000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Grapple",
+   "Level": 0,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12220000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Assault Fury",
+   "Level": 0,
+   "Equipped": false,
+   "Acquired": false,
+   "Id": 12700000
+  },
+  {
+   "Category": "Dp",
+   "Name": "Battlefield Banner",
+   "Level": 8,
+   "Equipped": true,
+   "Acquired": true,
+   "Id": 12450000
+  }
+ ],
+ "Daevanion": [
+  {
+   "BoardId": 21,
+   "Row": 3,
+   "Col": 5,
+   "NodeId": 210035,
+   "Open": true,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Critical Hit Resist",
+   "Effects": [
+    "Critical Hit Resist +5"
+   ]
+  },
+  {
+   "BoardId": 21,
+   "Row": 3,
+   "Col": 4,
+   "NodeId": 210034,
+   "Open": true,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Attack",
+   "Effects": [
+    "Attack Bonus +3"
+   ]
+  },
+  {
+   "BoardId": 21,
+   "Row": 5,
+   "Col": 5,
+   "NodeId": 210065,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Max HP",
+   "Effects": [
+    "HP +100"
+   ]
+  },
+  {
+   "BoardId": 21,
+   "Row": 5,
+   "Col": 4,
+   "NodeId": 210064,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Defense",
+   "Effects": [
+    "Defense Bonus +30"
+   ]
+  },
+  {
+   "BoardId": 22,
+   "Row": 11,
+   "Col": 13,
+   "NodeId": 220163,
+   "Open": true,
+   "Grade": "Legend",
+   "Type": "SkillLevel",
+   "Name": "Skill Level Up - Debilitating Smash",
+   "Effects": [
+    "Debilitating Smash +1"
+   ]
+  },
+  {
+   "BoardId": 22,
+   "Row": 11,
+   "Col": 12,
+   "NodeId": 220162,
+   "Open": true,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Max MP",
+   "Effects": [
+    "MP +50"
+   ]
+  },
+  {
+   "BoardId": 22,
+   "Row": 12,
+   "Col": 3,
+   "NodeId": 220168,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Critical Hit Resist",
+   "Effects": [
+    "Critical Hit Resist +5"
+   ]
+  },
+  {
+   "BoardId": 22,
+   "Row": 12,
+   "Col": 9,
+   "NodeId": 220174,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Max MP",
+   "Effects": [
+    "MP +50"
+   ]
+  },
+  {
+   "BoardId": 23,
+   "Row": 3,
+   "Col": 5,
+   "NodeId": 230035,
+   "Open": true,
+   "Grade": "Rare",
+   "Type": "SkillLevel",
+   "Name": "Skill Level Up - Enhance Health",
+   "Effects": [
+    "Enhance Health +1"
+   ]
+  },
+  {
+   "BoardId": 23,
+   "Row": 3,
+   "Col": 4,
+   "NodeId": 230034,
+   "Open": true,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Critical Hit Resist",
+   "Effects": [
+    "Critical Hit Resist +5"
+   ]
+  },
+  {
+   "BoardId": 23,
+   "Row": 3,
+   "Col": 9,
+   "NodeId": 230039,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Attack",
+   "Effects": [
+    "Attack Bonus +3"
+   ]
+  },
+  {
+   "BoardId": 23,
+   "Row": 3,
+   "Col": 8,
+   "NodeId": 230038,
+   "Open": false,
+   "Grade": "Legend",
+   "Type": "SkillLevel",
+   "Name": "Skill Level Up - Flash Rampage",
+   "Effects": [
+    "Flash Rampage +1"
+   ]
+  },
+  {
+   "BoardId": 24,
+   "Row": 9,
+   "Col": 11,
+   "NodeId": 240131,
+   "Open": true,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Defense",
+   "Effects": [
+    "Defense Bonus +30"
+   ]
+  },
+  {
+   "BoardId": 24,
+   "Row": 9,
+   "Col": 10,
+   "NodeId": 240130,
+   "Open": true,
+   "Grade": "Legend",
+   "Type": "SkillLevel",
+   "Name": "Skill Level Up - Judgment",
+   "Effects": [
+    "Judgment +1"
+   ]
+  },
+  {
+   "BoardId": 24,
+   "Row": 10,
+   "Col": 6,
+   "NodeId": 240141,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Max MP",
+   "Effects": [
+    "MP +50"
+   ]
+  },
+  {
+   "BoardId": 24,
+   "Row": 10,
+   "Col": 12,
+   "NodeId": 240147,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Attack",
+   "Effects": [
+    "Attack Bonus +3"
+   ]
+  },
+  {
+   "BoardId": 26,
+   "Row": 7,
+   "Col": 9,
+   "NodeId": 260099,
+   "Open": true,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "PvP Attack",
+   "Effects": [
+    "PvP Attack +3"
+   ]
+  },
+  {
+   "BoardId": 26,
+   "Row": 7,
+   "Col": 8,
+   "NodeId": 260098,
+   "Open": true,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "Max HP",
+   "Effects": [
+    "HP +100"
+   ]
+  },
+  {
+   "BoardId": 26,
+   "Row": 7,
+   "Col": 7,
+   "NodeId": 260097,
+   "Open": false,
+   "Grade": "Rare",
+   "Type": "Stat",
+   "Name": "PvP Attack, PvP Defense",
+   "Effects": [
+    "PvP Attack +3",
+    "PvP Defense +30"
+   ]
+  },
+  {
+   "BoardId": 26,
+   "Row": 7,
+   "Col": 6,
+   "NodeId": 260096,
+   "Open": false,
+   "Grade": "Common",
+   "Type": "Stat",
+   "Name": "PvP Evasion",
+   "Effects": [
+    "PvP Evasion +3"
+   ]
+  }
+ ],
+ "DaevanionEffects": [
+  "Vicious Strike +1",
+  "Ironclad Defense +2",
+  "Debilitating Smash +1",
+  "Pummel +1",
+  "Shield Smite +1",
+  "Flash Rampage +1",
+  "Punishing Benediction +2",
+  "Annihilate +1",
+  "Enhance Health +2",
+  "Poach +1",
+  "Shield Rush +1",
+  "Guarding Seal +2",
+  "Judgment +1",
+  "Defiance +1",
+  "Punishment +1",
+  "Warding Strike +1",
+  "Warding Shield +2",
+  "HP +600",
+  "MP +350",
+  "Critical Hit Resist +35",
+  "Attack Bonus +21",
+  "Critical Hit +30",
+  "Cooldown Reduction +3%",
+  "Defense Bonus +150",
+  "Combat Speed +3%",
+  "Vicious Strike +1",
+  "Shield Rush +1",
+  "Block Pain +2",
+  "Judgment +1",
+  "Fury +2",
+  "Survival Willpower +2",
+  "Debilitating Smash +1",
+  "Pummel +1",
+  "Insulting Roar +2",
+  "Shield Smite +1",
+  "Punishment +1",
+  "Flash Rampage +1",
+  "Annihilate +1",
+  "HP +500",
+  "Damage Tolerance +3%",
+  "MP +250",
+  "Damage Boost +3%",
+  "Critical Hit Resist +30",
+  "Attack Bonus +18",
+  "Critical Hit +25",
+  "Defense Bonus +180",
+  "Vicious Strike +1",
+  "Ironclad Defense +1",
+  "Block Pain +1",
+  "Survival Willpower +1",
+  "Debilitating Smash +1",
+  "Pummel +1",
+  "Insulting Roar +1",
+  "Shield Smite +1",
+  "Annihilate +1",
+  "Punishing Benediction +1",
+  "Enhance Health +1",
+  "Guarding Seal +1",
+  "Judgment +1",
+  "Fury +1",
+  "Punishment +1",
+  "Warding Strike +1",
+  "Impact Hit +1",
+  "Warding Shield +1",
+  "HP +500",
+  "Critical Damage Boost +3%",
+  "MP +200",
+  "Critical Hit Resist +35",
+  "Attack Bonus +15",
+  "Critical Hit +40",
+  "Critical Damage Tolerance +3%",
+  "Defense Bonus +120",
+  "Vicious Strike +1",
+  "Ironclad Defense +1",
+  "Block Pain +1",
+  "Survival Willpower +1",
+  "Insulting Roar +1",
+  "Pummel +1",
+  "Shield Smite +1",
+  "Punishing Benediction +1",
+  "Annihilate +1",
+  "Enhance Health +1",
+  "Poach +1",
+  "Guarding Seal +1",
+  "Fury +1",
+  "Judgment +1",
+  "Defiance +1",
+  "Punishment +1",
+  "Warding Strike +1",
+  "Impact Hit +1",
+  "Warding Shield +1",
+  "HP +1000",
+  "MP +400",
+  "Multi-hit Resist +4.5%",
+  "Critical Hit Resist +40",
+  "Attack Bonus +24",
+  "Critical Hit +35",
+  "Multi-hit Chance +4.5%",
+  "Defense Bonus +270",
+  "HP +200",
+  "PvP Defense +90",
+  "PvP Damage Boost +1.5%",
+  "Status Effect Resist +2%",
+  "PvP Critical Hit Resist +10",
+  "PvP Critical Hit +5",
+  "MP +100",
+  "PvP Damage Tolerance +1.5%",
+  "PvP Evasion +12",
+  "PvP Accuracy +15",
+  "PvP Attack +15"
+ ],
+ "FetchedAt": "2026-10-13T08:38:27.0027264+00:00"
+}

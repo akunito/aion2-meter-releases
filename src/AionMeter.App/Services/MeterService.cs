@@ -234,6 +234,13 @@ public sealed class MeterService : IDisposable
 
     /// <summary>Item icons on demand for the Craft and Prices rows (A2M-26).</summary>
     public IconCache ItemIconCache { get; private set; } = new(ItemIcons.Empty);
+    private Views.ProfileDeps? _cardDeps;
+    /// <summary>A2M-44: what the player card needs for its profile tabs (item/skill icons, skill catalogue, profiles known without the network).</summary>
+    public Views.ProfileDeps CardDeps
+    {
+        get => _cardDeps ??= new Views.ProfileDeps(ItemIconCache, Skills, () => Settings.SkillLanguage, KnownProfile);
+        set => _cardDeps = value;   // render tool: sample profile and icon folder
+    }
     public event Action? MarketChanged;
     /// <summary>Copies the export next to the state and reloads it; false when the file does not parse as an export.</summary>
     public bool ImportMarket(string path)
@@ -604,6 +611,26 @@ public sealed class MeterService : IDisposable
             }
             catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { return null; }
         }
+    }
+
+    /// <summary>
+    /// A2M-44: the profile the meter has for a character without asking the network — an own character's folder (profile.json with the
+    /// captured login lists laid over it, as <see cref="CurrentProfile"/>), else the armory cache; null when neither exists.
+    /// </summary>
+    public CharacterProfile? KnownProfile(string name, int serverId)
+    {
+        if (serverId <= 0) serverId = Tracker.SelfServerId;   // a fight row without a server id: same server as us (as Top DPS assumes)
+        if (serverId <= 0 || name.Length == 0) return null;
+        var key = serverId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + name;
+        if (string.Equals(CharacterKey, key, StringComparison.OrdinalIgnoreCase) && CurrentProfile is { } current) return current;
+        var path = Path.Combine(AppSettings.AppDataDir, "characters", key, "profile.json");
+        try
+        {
+            if (File.Exists(path) && System.Text.Json.JsonSerializer.Deserialize<CharacterProfile>(File.ReadAllText(path)) is { } own)
+                return (string.Equals(key, _boundKey, StringComparison.OrdinalIgnoreCase) ? Character.Captured : CapturedFor(key)).Apply(own);
+        }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { }
+        return Armory.Cached(name, serverId);
     }
 
     /// <summary>Fetches the viewed character's official profile now, ignoring the cache's age (Build tab → refresh). False when nothing was fetched.</summary>

@@ -35,6 +35,12 @@ public sealed record CharacterProfile(
     IReadOnlyList<string> DaevanionEffects,
     DateTimeOffset FetchedAt)
 {
+    // A2M-44: read since 2026-10-13 (petwing icons/grade, info.profile.profileImage); profiles cached before that have them null.
+    public string? PetIcon { get; init; }
+    public string? WingIcon { get; init; }
+    public string? WingGrade { get; init; }
+    public string? Portrait { get; init; }
+
     public IEnumerable<SkillLine> EquippedDp => Skills.Where(s => s.Category == "Dp" && s.Equipped);
     public StatLine? Stat(string type) => Stats.FirstOrDefault(s => s.Type == type);
 }
