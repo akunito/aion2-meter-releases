@@ -299,28 +299,14 @@ public partial class ItemsView : UserControl
         var shut = _collapsed.Contains(key);
         var daily = GameReset.NextDaily(now); var weekly = GameReset.NextWeekly(now);
         p.Tickets.TryGetValue(60_000_001, out var odyle); p.Tickets.TryGetValue(1, out var keys);
-        var right = (odyle is not null ? TicketBook.Of(odyle.Key).Name(_lang) + " " + odyle.Base + "+" + odyle.Bonus + " · " : "")
+        var right = (odyle is not null ? TicketBook.Of(odyle.Key).Name(_lang) + " " + TicketBook.Value(odyle, TicketBook.Of(odyle.Key)) + " · " : "")
                   + (keys is not null ? TicketBook.Of(keys.Key).Name(_lang) + " " + keys.Total + " · " : "") + "reset " + Span(daily - now);
         rows.Add(Head(key, T.ItemsToday, T.ItemsTodaySub, null, Mute, right, 0, shut, toggle: false));
         if (shut) return;
         rows.Add(Card(Hint(string.Format(T.ItemsTodayReset, daily.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture), Span(daily - now),
             weekly.ToLocalTime().ToString("ddd dd HH:mm", CultureInfo.InvariantCulture)))));
         if (p.Tickets.Count == 0) { rows.Add(Card(Hint(T.ItemsTodayNone))); rows.Add(Card(new Border { Height = 6 }, bottom: true)); return; }
-        var list = new List<ContentTicket>(p.Tickets.Values);
-        list.Sort((a, b) => a.Key.CompareTo(b.Key));
-        var unnamed = new List<string>();
-        foreach (var group in new[] { TicketBook.Odyle, TicketBook.Keys, TicketBook.Raid, TicketBook.Dungeon, TicketBook.Corridor, TicketBook.Time })
-            foreach (var t in list)
-            {
-                var info = TicketBook.Of(t.Key);
-                if (info.Group != group || !TicketBook.IsNamed(t.Key) || TicketBook.IsStub(t.Key)) continue;
-                if (group == TicketBook.Corridor && t.Time == 0) continue;   // only the corridors the faction holds carry time
-                rows.Add(Card(TicketRow(t, info)));
-            }
-        foreach (var t in list)
-            if (!TicketBook.IsNamed(t.Key) && !TicketBook.IsStub(t.Key))
-                unnamed.Add(t.Key.ToString(CultureInfo.InvariantCulture) + " = " + (t.IsTime ? Span(TimeSpan.FromMilliseconds(t.Time)) : t.Base + (t.Bonus > 0 ? "+" + t.Bonus : "")));
-        if (unnamed.Count > 0) rows.Add(Card(Hint(string.Format(T.ItemsTodayUnnamed, string.Join(" · ", unnamed)))));
+        foreach (var (t, info) in TicketBook.Today(p.Tickets)) rows.Add(Card(TicketRow(t, info)));
         // Daeva Pass / event pass levels: the 810 rows count pass EXP and their claimed step is the reward level (A2M-15)
         foreach (var (id, label) in new[] { (810_433_000, T.ItemsDaevaPass), (810_435_000, T.ItemsEventPass) })
         {
@@ -335,12 +321,13 @@ public partial class ItemsView : UserControl
     {
         var g = new Grid { Margin = new Thickness(12, 0, 12, 0), Height = 26 };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
-        var name = Cell(g, 0, info.Name(_lang), info.Inferred ? Dim : Text, 12.5);
+        var name = Cell(g, 0, info.Stars > 0 ? info.Name(_lang) + " " + new string('★', info.Stars) : info.Name(_lang), info.Inferred ? Dim : Text, 12.5);
         if (info.Inferred) name.ToolTip = T.ItemsTodayInferred + " (" + t.Key.ToString(CultureInfo.InvariantCulture) + ")";
-        var value = t.IsTime ? string.Format(T.ItemsTodayLeft, Span(TimeSpan.FromMilliseconds(t.Time)))
-                  : t.Bonus > 0 ? t.Base.ToString(CultureInfo.InvariantCulture) + " + " + t.Bonus.ToString(CultureInfo.InvariantCulture) : t.Base.ToString(CultureInfo.InvariantCulture);
-        Cell(g, 1, value, t.Total == 0 && !t.IsTime || t.IsTime && t.Time == 0 ? Faint : Num, 12.5, true);
+        if (info.Chest > 0) Cell(g, 1, string.Format(T.ItemsTodayChest, info.Chest), Faint, 11.5);
+        var value = t.IsTime ? string.Format(T.ItemsTodayLeft, Span(TimeSpan.FromMilliseconds(t.Time))) : TicketBook.Value(t, info);
+        Cell(g, 2, value, t.Total == 0 && !t.IsTime || t.IsTime && t.Time == 0 ? Faint : Num, 12.5, true);
         return new Border { BorderBrush = RowLine, BorderThickness = new Thickness(0, 0, 0, 0.8), Child = g };
     }
 

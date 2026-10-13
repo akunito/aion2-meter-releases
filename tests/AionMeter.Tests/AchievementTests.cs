@@ -131,7 +131,9 @@ public class AchievementTests
         Assert.Equal(0, k[6].Mask);                                             // spent: no fields at all
         Assert.Equal(1, k[90_000_002].Base);                                    // Ludra boss clear left this week
         Assert.Equal("Odyle energy", TicketBook.Of(60_000_001).En);
-        Assert.Equal("Krao Cave", TicketBook.Of(60_000_101).En);
+        Assert.Equal("Krao Cave (exploration)", TicketBook.Of(60_000_101).En);
+        Assert.Equal(TicketBook.Explore, TicketBook.Of(60_000_101).Mode);
+        Assert.Equal((TicketBook.Conquest, 2, 21), (TicketBook.Of(60_007_201).Mode, TicketBook.Of(60_007_201).Stars, TicketBook.Of(60_007_201).Chest));
         Assert.Equal("Ticket 7", TicketBook.Of(7).En);
 
         var odyle = One<ContentTicketsEvent>(Opcodes.TicketUpdate, Bin("ticket-0c61-odyle.bin"));   // opt 01 → u32 after the reason byte
@@ -145,6 +147,32 @@ public class AchievementTests
         Assert.Equal(73, state.Tickets.Count);
         Assert.Equal(800, state.Tickets[60_000_001].Base);
         Assert.Equal(14, state.Tickets[1].Total);
+    }
+
+    [Fact]
+    public void Today_card_lists_conquest_dungeons_not_exploration()
+    {
+        // Akunita's login snapshot; Expedition window of 2026-10-13: Conquest tab Krao★ Draupnir★ Urugugu★★ Vakron★★ Fire Temple★★★ Horn Den★★★
+        // (guaranteed chest 0/14, 0/14, 18/21, 15/21, 0/28, 0/28), "cube rewards 10/10", header Odyle "75 (+1110)/840"
+        var snap = One<ContentTicketsEvent>(Opcodes.TicketList, Bin("tickets-0b61.bin"));
+        var rows = TicketBook.Today(snap.Tickets.ToDictionary(t => t.Key));
+        var keys = rows.Select(r => r.T.Key).ToList();
+        Assert.DoesNotContain(keys, k => TicketBook.Of(k).Mode == TicketBook.Explore);
+        Assert.DoesNotContain(60_004_201, keys);                               // conquest key with no Expedition window entry
+        Assert.DoesNotContain(7, keys);                                        // unnamed: character.json only
+        Assert.DoesNotContain(10_000_007, keys);
+        Assert.Equal(new[] { 60_000_201, 60_003_201, 60_001_201, 60_007_201, 60_002_201, 60_009_201 },
+            rows.Where(r => r.Info.Mode == TicketBook.Conquest && r.Info.Stars > 0).Select(r => r.T.Key));
+        Assert.Equal(new[] { 60_005_301, 60_006_301 }, rows.Where(r => r.Info.Mode == TicketBook.Transcendence).Select(r => r.T.Key));
+        Assert.Equal(60_000_001, keys[0]);
+        Assert.Equal(1, keys[1]);
+        Assert.True(keys.IndexOf(90_000_006) < keys.IndexOf(60_000_008));    // raids before dungeons
+        Assert.True(keys.IndexOf(60_000_009) < keys.IndexOf(60_000_201));    // shared conquest counters before the dungeons
+        var odyle = rows[0];
+        Assert.Equal("240/840 + 110", TicketBook.Value(odyle.T, odyle.Info));
+        var cube = rows.Single(r => r.T.Key == 60_000_009);
+        Assert.Equal("10/10", TicketBook.Value(cube.T, cube.Info));
+        Assert.Equal(new[] { 14, 14, 21, 21, 28, 28 }, rows.Where(r => r.Info.Stars > 0).Select(r => r.Info.Chest));
     }
 
     [Fact]

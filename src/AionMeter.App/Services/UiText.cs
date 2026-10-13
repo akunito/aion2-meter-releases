@@ -479,10 +479,10 @@ public sealed class UiText
     public string ItemsAcctNoFull { get; init; } = "No full list yet: open the warehouse once with any character of this server.";
     public string ItemsNothing { get; init; } = "Nothing seen here yet.";
     public string ItemsToday { get; init; } = "Today";
-    public string ItemsTodaySub { get; init; } = "dungeon and content tickets";
+    public string ItemsTodaySub { get; init; } = "raids, Conquest dungeons and content tickets";
     public string ItemsTodayReset { get; init; } = "Daily reset {0} (in {1}) · weekly {2} (Wednesday, assumed)";
     public string ItemsTodayNone { get; init; } = "No ticket list yet: it arrives when the character logs in with the meter running.";
-    public string ItemsTodayUnnamed { get; init; } = "Unnamed keys (base+bonus or time left): {0}";
+    public string ItemsTodayChest { get; init; } = "guaranteed chest at {0}";
     public string ItemsTodayInferred { get; init; } = "name inferred from the id numbering; meaning of the number not verified";
     public string ItemsTodayLeft { get; init; } = "{0} left";
     public string ItemsDaevaPass { get; init; } = "Daeva Pass";
