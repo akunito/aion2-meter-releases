@@ -33,7 +33,8 @@ public partial class ItemsView : UserControl
         ProgressData? Progress = null);
 
     /// <summary>A2M-15 cards: the viewed character's achievement rows and content tickets (live for the bound one, its character.json otherwise).</summary>
-    public sealed record ProgressData(IReadOnlyDictionary<int, AchievementRow> Achievements, IReadOnlyDictionary<int, ContentTicket> Tickets, AchievementCatalog Catalog);
+    public sealed record ProgressData(IReadOnlyDictionary<int, AchievementRow> Achievements, IReadOnlyDictionary<int, ContentTicket> Tickets, AchievementCatalog Catalog,
+        IReadOnlyDictionary<int, ExpeditionChest>? Chests = null);
 
     private static UiText T => UiText.Current;
     private static readonly Brush Text = SkillTile.Frozen(0xFA, 0xFA, 0xFA), Dim = SkillTile.Frozen(0xAF, 0xAF, 0xAF), Mute = SkillTile.Frozen(0x7D, 0x7D, 0x7D),
@@ -147,7 +148,7 @@ public partial class ItemsView : UserControl
                 f = new InventoryFile(store.All(), store.SeenAll(), written);
             }
             else f = _meter.OtherInventories.Get(path);
-            var progress = k == bound ? new CharacterProgress(_meter.Character.Achievements, _meter.Character.Tickets, _meter.Character.UpdatedMs)
+            var progress = k == bound ? new CharacterProgress(_meter.Character.Achievements, _meter.Character.Tickets, _meter.Character.UpdatedMs, _meter.Character.Chests)
                 : _charFiles.Get(Path.Combine(AppSettings.AppDataDir, "characters", k, "character.json"));
             chars.Add(new CharData(k, ClassLine(k), f, progress));
         }
@@ -155,7 +156,7 @@ public partial class ItemsView : UserControl
         if (_meter.Market.Server.Length > 0 && serverName == server) serverName = _meter.Market.Server;
         var viewed = cur.Length > 0 ? chars.Find(c => c.Key == cur)?.Progress : null;
         return new Data(cur, server, serverName, chars, server.Length > 0 ? _meter.Account.View(server) : null, _meter.Market, DateTimeOffset.Now,
-            viewed is null ? null : new ProgressData(viewed.Achievements, viewed.Tickets, _meter.AchievementBook));
+            viewed is null ? null : new ProgressData(viewed.Achievements, viewed.Tickets, _meter.AchievementBook, viewed.Chests));
     }
 
     /// <summary>"Ranger lv45  ·  combat power …" (profile.txt, first line) → "Ranger 45"; re-read only when the file changes.</summary>
@@ -306,7 +307,7 @@ public partial class ItemsView : UserControl
         rows.Add(Card(Hint(string.Format(T.ItemsTodayReset, daily.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture), Span(daily - now),
             weekly.ToLocalTime().ToString("ddd dd HH:mm", CultureInfo.InvariantCulture)))));
         if (p.Tickets.Count == 0) { rows.Add(Card(Hint(T.ItemsTodayNone))); rows.Add(Card(new Border { Height = 6 }, bottom: true)); return; }
-        foreach (var (t, info) in TicketBook.Today(p.Tickets)) rows.Add(Card(TicketRow(t, info)));
+        foreach (var (t, info) in TicketBook.Today(p.Tickets)) rows.Add(Card(TicketRow(t, info, p.Chests)));
         // Daeva Pass / event pass levels: the 810 rows count pass EXP and their claimed step is the reward level (A2M-15)
         foreach (var (id, label) in new[] { (810_433_000, T.ItemsDaevaPass), (810_435_000, T.ItemsEventPass) })
         {
@@ -317,7 +318,7 @@ public partial class ItemsView : UserControl
         rows.Add(Card(new Border { Height = 6 }, bottom: true));
     }
 
-    private FrameworkElement TicketRow(ContentTicket t, TicketInfo info)
+    private FrameworkElement TicketRow(ContentTicket t, TicketInfo info, IReadOnlyDictionary<int, ExpeditionChest>? chests)
     {
         var g = new Grid { Margin = new Thickness(12, 0, 12, 0), Height = 26 };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -325,7 +326,16 @@ public partial class ItemsView : UserControl
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
         var name = Cell(g, 0, info.Stars > 0 ? info.Name(_lang) + " " + new string('★', info.Stars) : info.Name(_lang), info.Inferred ? Dim : Text, 12.5);
         if (info.Inferred) name.ToolTip = T.ItemsTodayInferred + " (" + t.Key.ToString(CultureInfo.InvariantCulture) + ")";
-        if (info.Chest > 0) Cell(g, 1, string.Format(T.ItemsTodayChest, info.Chest), Faint, 11.5);
+        if (info.Chest > 0)
+        {
+            // A2M-41: the 6000N201 ticket value (7/14) is not the chest bar and is never shown; the bar comes from 12 57
+            var p = TicketBook.ChestProgress(info, chests);
+            if (p >= info.Chest) Cell(g, 1, T.ItemsTodayClaimable, Green, 11.5, true);
+            var chest = Cell(g, 2, string.Format(T.ItemsTodayChest, p?.ToString(CultureInfo.InvariantCulture) ?? "?", info.Chest.ToString(CultureInfo.InvariantCulture)),
+                p is null ? Faint : p >= info.Chest ? Green : p > 0 ? Num : Dim, 12.5, true);
+            chest.ToolTip = p is null ? T.ItemsTodayChestUnknown : T.ItemsTodayChestTip;
+            return new Border { BorderBrush = RowLine, BorderThickness = new Thickness(0, 0, 0, 0.8), Child = g };
+        }
         var value = t.IsTime ? string.Format(T.ItemsTodayLeft, Span(TimeSpan.FromMilliseconds(t.Time))) : TicketBook.Value(t, info);
         Cell(g, 2, value, t.Total == 0 && !t.IsTime || t.IsTime && t.Time == 0 ? Faint : Num, 12.5, true);
         return new Border { BorderBrush = RowLine, BorderThickness = new Thickness(0, 0, 0, 0.8), Child = g };

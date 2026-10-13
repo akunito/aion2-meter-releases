@@ -482,7 +482,10 @@ public sealed class UiText
     public string ItemsTodaySub { get; init; } = "raids, Conquest dungeons and content tickets";
     public string ItemsTodayReset { get; init; } = "Daily reset {0} (in {1}) · weekly {2} (Wednesday, assumed)";
     public string ItemsTodayNone { get; init; } = "No ticket list yet: it arrives when the character logs in with the meter running.";
-    public string ItemsTodayChest { get; init; } = "guaranteed chest at {0}";
+    public string ItemsTodayChest { get; init; } = "chest {0}/{1}";
+    public string ItemsTodayClaimable { get; init; } = "claimable";
+    public string ItemsTodayChestUnknown { get; init; } = "Guaranteed-chest progress not received for this character yet: it comes with the next login or zone change.";
+    public string ItemsTodayChestTip { get; init; } = "Expedition window guaranteed chest: +2 per Conquest clear here; claiming it sets the bar back to 0.";
     public string ItemsTodayInferred { get; init; } = "name inferred from the id numbering; meaning of the number not verified";
     public string ItemsTodayLeft { get; init; } = "{0} left";
     public string ItemsDaevaPass { get; init; } = "Daeva Pass";

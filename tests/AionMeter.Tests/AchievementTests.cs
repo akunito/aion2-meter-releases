@@ -175,6 +175,72 @@ public class AchievementTests
         Assert.Equal(new[] { 14, 14, 21, 21, 28, 28 }, rows.Where(r => r.Info.Stars > 0).Select(r => r.Info.Chest));
     }
 
+    // ------------------------------------------------------------------ A2M-41: Expedition guaranteed chests (12 57)
+
+    [Fact]
+    public void Expedition_chests_from_1257_match_the_window()
+    {
+        // Akunita's login batch of 2026-10-13 08:30:51; the window at 09:21 showed Urugugu 18/21, Vakron 15/21 and every other conquest bar at 0
+        var e = One<ExpeditionChestsEvent>(Opcodes.ExpeditionChests, Bin("chests-1257-akunita-20261013-0830.bin"));
+        var c = e.Chests.ToDictionary(x => x.Dungeon);
+        Assert.Equal(6, c.Count);
+        Assert.Equal((18, 0), (c[600_012].Progress, c[600_012].Flag));   // Urugugu conquest
+        Assert.Equal((15, 0), (c[600_072].Progress, c[600_072].Flag));   // Vakron conquest
+        Assert.Equal((0, 0), (c[600_001].Progress, c[600_001].Flag));    // Krao conquest, claimed before 10-12 14:01
+        Assert.All(new[] { 600_021, 600_031, 600_071 }, d => Assert.Equal(1, c[d].Flag));   // exploration chests the window marked ✓
+
+        var other = One<ExpeditionChestsEvent>(Opcodes.ExpeditionChests, Bin("chests-1257-other-20261012-2157.bin"));
+        Assert.Equal(new[] { (600_031, 1), (600_032, 8) }, other.Chests.Select(x => (x.Dungeon, x.Progress)));
+
+        var events = new List<GameEvent>();
+        var parser = new PacketParser(GameData.Empty, events.Add);
+        parser.Handle(Opcodes.ExpeditionChests, Bin("chests-1257-akunita-20261013-0830.bin")[..^1]);   // one byte short
+        parser.Handle(Opcodes.ExpeditionChests, [0x01, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00]);             // id 1: not an expedition dungeon
+        Assert.Empty(events.OfType<ExpeditionChestsEvent>());
+    }
+
+    [Fact]
+    public void Today_conquest_rows_show_the_chest_bar_not_the_ticket_value()
+    {
+        var snap = One<ContentTicketsEvent>(Opcodes.TicketList, Bin("tickets-0b61.bin"));
+        var state = new CharacterState(null);
+        state.OnEvent(snap);
+        int?[] Bars() => TicketBook.Today(state.Tickets).Where(r => r.Info.Stars > 0).Select(r => TicketBook.ChestProgress(r.Info, state.Chests)).ToArray();
+        Assert.Equal(new int?[] { null, null, null, null, null, null }, Bars());   // no 12 57 yet: "chest ?/14", never the 7/14 ticket value
+
+        state.OnEvent(One<ExpeditionChestsEvent>(Opcodes.ExpeditionChests, Bin("chests-1257-akunita-20261012-1821.bin")));
+        Assert.Equal(new int?[] { 0, 0, 16, 11, 0, 0 }, Bars());                 // Krao, Draupnir, Urugugu, Vakron, Fire Temple, Horn
+        state.OnEvent(One<ExpeditionChestsEvent>(Opcodes.ExpeditionChests, Bin("chests-1257-akunita-20261013-0830.bin")));
+        Assert.Equal(new int?[] { 0, 0, 18, 15, 0, 0 }, Bars());                 // the window of 10-13 09:21
+
+        Assert.Equal(new[] { 600_001, 600_032, 600_012, 600_072, 600_022, 600_092 },
+            TicketBook.Today(state.Tickets).Where(r => r.Info.Stars > 0).Select(r => r.Info.Dungeon));
+        var vakron = TicketBook.Of(60_007_201);
+        var full = new Dictionary<int, ExpeditionChest> { [600_072] = new(600_072, 21, 0) };
+        Assert.True(TicketBook.ChestProgress(vakron, full) >= vakron.Chest);     // 21/21: claimable
+        Assert.Null(TicketBook.ChestProgress(TicketBook.Of(60_000_008), full));  // not a window dungeon row
+    }
+
+    [Fact]
+    public void Expedition_chests_round_trip_through_character_json()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "a2m-chests-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(dir, "character.json");
+        try
+        {
+            var state = new CharacterState(path);
+            state.OnEvent(One<ContentTicketsEvent>(Opcodes.TicketList, Bin("tickets-0b61.bin"), 1791670024000));
+            state.OnEvent(One<ExpeditionChestsEvent>(Opcodes.ExpeditionChests, Bin("chests-1257-akunita-20261013-0830.bin"), 1791670024001));
+            state.Bind(path);
+            var p = new CharacterFiles().Get(path);
+            Assert.Equal(18, p!.Chests![600_012].Progress);
+            Assert.Equal(15, new CharacterState(path).Chests![600_072].Progress);
+            state.Bind(Path.Combine(dir, "other", "character.json"));             // another character: nothing known about its chests
+            Assert.Null(state.Chests);
+        }
+        finally { try { Directory.Delete(dir, true); } catch (IOException) { } }
+    }
+
     [Fact]
     public void Reset_boundaries_are_16_00_Seoul_and_Wednesday()
     {

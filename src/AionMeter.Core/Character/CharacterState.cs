@@ -36,6 +36,8 @@ public sealed class CharacterState
     public List<AchievementGroup> AchievementGroups { get; private set; } = new();
     /// <summary>Content tickets by key (<c>0b 61</c> at login, <c>0c 61</c> deltas).</summary>
     public Dictionary<int, ContentTicket> Tickets { get; private set; } = new();
+    /// <summary>Expedition guaranteed-chest bars by dungeon id (<c>12 57</c>); null = none received for this character yet.</summary>
+    public Dictionary<int, ExpeditionChest>? Chests { get; private set; }
     /// <summary>Bumped on every achievement or ticket change, live ones included (achievements.json / the Items cards refresh on it).</summary>
     public int ProgressVersion { get; private set; }
     public long UpdatedMs { get; private set; }
@@ -80,6 +82,10 @@ public sealed class CharacterState
                 }
                 case ContentTicketsEvent t when t.Snapshot:
                     Tickets = t.Tickets.ToDictionary(x => x.Key, x => x);
+                    ProgressVersion++;
+                    break;
+                case ExpeditionChestsEvent c:
+                    Chests = c.Chests.ToDictionary(x => x.Dungeon, x => x);
                     ProgressVersion++;
                     break;
                 case ContentTicketsEvent t:
@@ -135,7 +141,7 @@ public sealed class CharacterState
             _path = path; _mirror = mirror;
             // the stat sheet in memory is the previous character's (49 36 always follows the identity record, the new one comes next)
             if (keep) { _dirty = true; Captured = Captured with { AttributesMs = 0, Attributes = new() }; }
-            else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); AchievementGroups = new(); Tickets = new(); UpdatedMs = 0; Captured = CapturedProfile.Empty; Load(); _dirty = true; }
+            else { EquippedPet = 0; Pets = new(); Titles = new(); Achievements = new(); AchievementGroups = new(); Tickets = new(); Chests = null; UpdatedMs = 0; Captured = CapturedProfile.Empty; Load(); _dirty = true; }
             ProgressVersion++;
         }
         Save();
@@ -143,10 +149,10 @@ public sealed class CharacterState
     }
 
     private sealed record Snapshot(int EquippedPet, Dictionary<int, int> Pets, List<int> Titles, List<AchievementRow> Achievements, long UpdatedMs,
-        CapturedProfile? Captured = null, List<AchievementGroup>? AchievementGroups = null, List<ContentTicket>? Tickets = null);
+        CapturedProfile? Captured = null, List<AchievementGroup>? AchievementGroups = null, List<ContentTicket>? Tickets = null, List<ExpeditionChest>? Chests = null);
 
     // Only the fields ReadProgress needs: the serializer skips Captured/Pets/Titles (~150 KB) without building them.
-    private sealed record ProgressSnapshot(List<AchievementRow>? Achievements, long UpdatedMs, List<ContentTicket>? Tickets);
+    private sealed record ProgressSnapshot(List<AchievementRow>? Achievements, long UpdatedMs, List<ContentTicket>? Tickets, List<ExpeditionChest>? Chests = null);
 
     /// <summary>Achievements, tickets and UpdatedMs of another character's character.json (Items cards and the Tickets table); null when missing or unreadable.</summary>
     public static CharacterProgress? ReadProgress(string path)
@@ -160,7 +166,7 @@ public sealed class CharacterState
             if (s.Achievements is not null) foreach (var r in s.Achievements) a[r.Id] = r;
             var t = new Dictionary<int, ContentTicket>(s.Tickets?.Count ?? 0);
             if (s.Tickets is not null) foreach (var x in s.Tickets) t[x.Key] = x;
-            return new CharacterProgress(a, t, s.UpdatedMs);
+            return new CharacterProgress(a, t, s.UpdatedMs, s.Chests?.ToDictionary(x => x.Dungeon, x => x));
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
     }
@@ -187,6 +193,7 @@ public sealed class CharacterState
             Captured = s.Captured ?? CapturedProfile.Empty;
             AchievementGroups = s.AchievementGroups ?? new();
             Tickets = s.Tickets?.ToDictionary(x => x.Key, x => x) ?? new();
+            Chests = s.Chests?.ToDictionary(x => x.Dungeon, x => x);
         }
         catch (Exception ex) when (ex is IOException or JsonException) { }
     }
@@ -201,7 +208,7 @@ public sealed class CharacterState
         lock (_gate)
         {
             if (!_dirty) return;
-            text = JsonSerializer.Serialize(new Snapshot(EquippedPet, Pets, Titles.ToList(), Achievements.Values.ToList(), UpdatedMs, Captured, AchievementGroups, Tickets.Values.ToList()), Json);
+            text = JsonSerializer.Serialize(new Snapshot(EquippedPet, Pets, Titles.ToList(), Achievements.Values.ToList(), UpdatedMs, Captured, AchievementGroups, Tickets.Values.ToList(), Chests?.Values.ToList()), Json);
             _dirty = false;
         }
         try

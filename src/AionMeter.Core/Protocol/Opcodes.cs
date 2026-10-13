@@ -56,6 +56,8 @@ public static class Opcodes
     // Content tickets (ContentsTickets_NT, Waffle Meter's layout): record = {mask u8, key u32, [&1 u64], [&2 u64], [&4 varint base], [&8 varint bonus]}
     public const ushort TicketList = 0x0B61;        // count varint (73), records; consumed exactly
     public const ushort TicketUpdate = 0x0C61;      // opt u8 (0/1), one record, reason u8, [opt&1: u32]
+    // A2M-41: Expedition guaranteed-chest bars, right after 0b 61 in every login-list batch: count u8, {dungeon u32, progress u8, flag u8} × count
+    public const ushort ExpeditionChests = 0x1257;
     // 91 56 is the Black Cloud random shop (usmap RandomShopInfo_NT, SkeeveAN), not the player market: every pet on a page costs exactly
     // 100,000 and the "level" is a 10/20/30/50 % discount tier (fixtures of 2026-10-08). The player market never crosses port 13328 (HTTPS
     // NcMarketPlaceAPI, docs/23 dimkk), so there is no market opcode to decode (docs/27).
@@ -86,6 +88,7 @@ public static class Opcodes
         AchievementClaim => "AchievementClaim",
         TicketList => "Tickets",
         TicketUpdate => "TicketUpd",
+        ExpeditionChests => "ExpeditionChests",
         ShopPage => "Shop",
         DaevanionBoards => "Daevanion",
         SkillList => "Skills",

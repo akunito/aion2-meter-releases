@@ -84,6 +84,10 @@ public sealed class PacketParser
                 ParseTickets(body, opcode == Opcodes.TicketList);
                 ScanDefault(body);
                 break;
+            case Opcodes.ExpeditionChests:
+                ParseExpeditionChests(body);
+                ScanDefault(body);
+                break;
             case Opcodes.ShopPage:
                 ParseShopPage(body);
                 break;
@@ -658,6 +662,20 @@ public sealed class PacketParser
         o = 1;
         if (!TryTicket(b, ref o, TimeMs, out var one)) return;
         if (b.Length - o == 1 + ((opt & 1) != 0 ? 4 : 0)) Emit(new ContentTicketsEvent(TimeMs, false, [one]));
+    }
+
+    /// <summary><c>count u8, {dungeon u32, progress u8, flag u8} × count</c>, consumed exactly; dungeon ids are the 6000xx expedition ids.</summary>
+    private void ParseExpeditionChests(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 1 || b.Length != 1 + b[0] * 6) return;
+        var list = new List<Character.ExpeditionChest>(b[0]);
+        for (var o = 1; o < b.Length; o += 6)
+        {
+            var id = BitConverter.ToInt32(b.Slice(o, 4));
+            if (id is < 600_000 or > 699_999) return;
+            list.Add(new Character.ExpeditionChest(id, b[o + 4], b[o + 5]));
+        }
+        Emit(new ExpeditionChestsEvent(TimeMs, list));
     }
 
     // ------------------------------------------------------------------ login lists (26 e2, 00 51, 00 39, 8c e2, 49 36) — A2M-35, docs/27

@@ -12,9 +12,19 @@ public sealed record ContentTicket(int Key, byte Mask, long Time, long Time2, in
     public int Total => Base + Bonus;
 }
 
+/// <summary>
+/// One entry of <c>12 57</c> (sent in the login-list batch right after <c>0b 61</c>, i.e. at login and on every zone load): the
+/// Expedition window's guaranteed-reward bar of one dungeon. <paramref name="Dungeon"/> = expedition dungeon id (600012 = Urugugu conquest),
+/// <paramref name="Progress"/> = the bar's points (Urugugu 18, Vakron 15 = "18/21", "15/21" in Diego's screenshots of 2026-10-13 09:21;
+/// +2 per conquest clear, measured 8→10→12→14→16→18 on 2026-10-12). A dungeon left out of the list is at 0. <paramref name="Flag"/>: 1 on the
+/// three exploration chests the window showed as claimed (✓), 0 on every conquest entry, the claimed Krao one included (supposed: "claimed").
+/// </summary>
+public sealed record ExpeditionChest(int Dungeon, int Progress, byte Flag);
+
 /// <summary><paramref name="Max"/> &gt; 0 = the game shows the value as "x/Max". <paramref name="Stars"/> = difficulty stars in the Expedition
-/// window (0 = not in it); <paramref name="Chest"/> = clears that fill its guaranteed-reward bar (Diego's screenshots 2026-10-13).</summary>
-public sealed record TicketInfo(string En, string Es, string Group, bool Time = false, bool Inferred = false, string Mode = "", int Max = 0, int Stars = 0, int Chest = 0)
+/// window (0 = not in it); <paramref name="Chest"/> = points that fill its guaranteed-reward bar (Diego's screenshots 2026-10-13);
+/// <paramref name="Dungeon"/> = the expedition dungeon id whose <c>12 57</c> entry holds that bar's progress.</summary>
+public sealed record TicketInfo(string En, string Es, string Group, bool Time = false, bool Inferred = false, string Mode = "", int Max = 0, int Stars = 0, int Chest = 0, int Dungeon = 0)
 {
     public string Name(string lang) => lang == "es" && Es.Length > 0 ? Es : En;
 }
@@ -74,10 +84,26 @@ public static class TicketBook
         {
             var b = 60_000_000 + n * 1000;
             m[b + 101] = new(en + " (exploration)", es + " (exploración)", Dungeon, Inferred: true, Mode: Explore);
-            m[b + 201] = new(en + " (conquest)", es + " (conquista)", Dungeon, Inferred: true, Mode: Conquest, Stars: stars, Chest: stars == 0 ? 0 : 7 + 7 * stars);
+            m[b + 201] = new(en + " (conquest)", es + " (conquista)", Dungeon, Inferred: true, Mode: Conquest, Stars: stars, Chest: stars == 0 ? 0 : 7 + 7 * stars,
+                Dungeon: stars == 0 ? 0 : ConquestDungeon(n));
             m[b + 301] = new(en + " (transcendence)", es + " (trascendencia)", Dungeon, Inferred: true, Mode: Transcendence);
         }
         return m;
+    }
+
+    /// <summary>
+    /// Expedition dungeon id of family N's conquest: 600000 + 10 N + 2, except Krao (N = 0) where conquest is 600001 and exploration 600002.
+    /// From the <c>01 97</c> room lists of 2026-10-13 09:21:42–09:22:04: the Conquest tab asked for 600001, 600032, 600012, 600072, 600022,
+    /// 600092 in the window's own order (Krao, Draupnir, Urugugu, Vakron, Fire Temple, Horn), the Exploration tab for 600002, 600011, 600021, …
+    /// </summary>
+    public static int ConquestDungeon(int n) => n == 0 ? 600_001 : 600_000 + n * 10 + 2;
+
+    /// <summary>Guaranteed-chest points of a conquest row: null = no <c>12 57</c> seen for this character yet (or not a window dungeon); a dungeon
+    /// missing from a received list is at 0.</summary>
+    public static int? ChestProgress(TicketInfo info, IReadOnlyDictionary<int, ExpeditionChest>? chests)
+    {
+        if (info.Dungeon == 0 || chests is null) return null;
+        return chests.TryGetValue(info.Dungeon, out var c) ? c.Progress : 0;
     }
 
     public static TicketInfo Of(int key) => Known.TryGetValue(key, out var t) ? t : new TicketInfo("Ticket " + key, "Ticket " + key, Other, Inferred: true);

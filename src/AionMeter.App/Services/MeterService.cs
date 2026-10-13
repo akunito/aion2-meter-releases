@@ -801,7 +801,7 @@ public sealed class MeterService : IDisposable
             currencies = Currencies(),
             inventory = new { updatedAt = invAge, stacks = Inventory.All().Count, containers = Inventory.ContainerIds },
             character = new { updatedAt = chrAge, pets = Character.Pets.Count, titles = Character.Titles.Count, achievements = Character.Achievements.Count,
-                achievementWindow = AchievementWindow(), tickets = TicketSummary(),
+                achievementWindow = AchievementWindow(), tickets = TicketSummary(), expeditionChests = ChestSummary(),
                 capturedAt = Character.Captured.LatestMs > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Character.Captured.LatestMs).ToLocalTime().ToString("O") : null },
             shop = new { offers = Shop.Count },
             prices = new { lastPollAt = Prices.LastPollAt?.ToString("O"), watches = Prices.Count },
@@ -831,6 +831,20 @@ public sealed class MeterService : IDisposable
             if (!TicketBook.IsNamed(t.Key) || TicketBook.IsStub(t.Key)) continue;
             var info = TicketBook.Of(t.Key);
             l.Add(t.IsTime ? new { key = t.Key, name = info.En, remainingMin = t.Time / 60_000 } : (object)new { key = t.Key, name = info.En, @base = t.Base, bonus = t.Bonus });
+        }
+        return l.ToArray();
+    }
+
+    /// <summary>Conquest guaranteed chests of the Expedition window (12 57): progress/cap per dungeon; null before the first 12 57 of this character.</summary>
+    private object[]? ChestSummary()
+    {
+        var chests = Character.Chests;
+        if (chests is null) return null;
+        var l = new List<object>(6);
+        foreach (var (_, info) in TicketBook.Today(Character.Tickets))
+        {
+            if (TicketBook.ChestProgress(info, chests) is not { } p) continue;
+            l.Add(new { dungeon = info.Dungeon, name = info.En, stars = info.Stars, progress = p, cap = info.Chest, claimable = p >= info.Chest });
         }
         return l.ToArray();
     }
@@ -907,7 +921,8 @@ public sealed class MeterService : IDisposable
     {
         if (e is Core.Events.PetListEvent or Core.Events.TitleListEvent or Core.Events.AchievementListEvent or Core.Events.SkillListEvent
             or Core.Events.EquippedSkillsEvent or Core.Events.SkillBarEvent or Core.Events.DaevanionBoardsEvent or Core.Events.AttributesEvent
-            or Core.Events.AchievementUpdateEvent or Core.Events.AchievementClaimEvent or Core.Events.ContentTicketsEvent)
+            or Core.Events.AchievementUpdateEvent or Core.Events.AchievementClaimEvent or Core.Events.ContentTicketsEvent
+            or Core.Events.ExpeditionChestsEvent)
         {
             try { Character.OnEvent(e); } catch (Exception ex) when (ex is not OutOfMemoryException) { Log.Error("Character state failed", ex); }
             // a relog into the same character binds nothing new, so CharacterChanged would not tell the Build tab

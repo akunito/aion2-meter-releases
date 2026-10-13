@@ -1,7 +1,9 @@
 namespace AionMeter.Core.Character;
 
-/// <summary>What the Items tab needs from a character.json: achievement rows (pass levels), content tickets and the last login list time.</summary>
-public sealed record CharacterProgress(IReadOnlyDictionary<int, AchievementRow> Achievements, IReadOnlyDictionary<int, ContentTicket> Tickets, long UpdatedMs);
+/// <summary>What the Items tab needs from a character.json: achievement rows (pass levels), content tickets, the last login list time and the
+/// Expedition chest bars (null = no <c>12 57</c> seen for the character).</summary>
+public sealed record CharacterProgress(IReadOnlyDictionary<int, AchievementRow> Achievements, IReadOnlyDictionary<int, ContentTicket> Tickets, long UpdatedMs,
+    IReadOnlyDictionary<int, ExpeditionChest>? Chests = null);
 
 /// <summary>Other characters' character.json, read-only, parsed again only when the file's write time changes (the Items tab reloads often).</summary>
 public sealed class CharacterFiles

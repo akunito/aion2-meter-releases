@@ -391,14 +391,17 @@ public static class SampleRenderer
                     Tk(60_001_201, 4, 0, 14, 0, 1_500_000), Tk(60_002_201, 4, 0, 14, 0, 1_500_000), Tk(60_003_201, 4, 0, 14, 0, 1_500_000), Tk(60_004_201, 4, 0, 7, 0, 1_500_000),
                     Tk(60_005_301, 4, 0, 4, 0, 1_500_000), Tk(60_006_301, 4, 0, 4, 0, 1_500_000), Tk(60_007_201, 4, 0, 14, 0, 1_500_000), Tk(60_009_201, 4, 0, 14, 0, 1_500_000),
                     Tk(70_000_001, 4, 0, 3, 0, 1_500_000), Tk(10, 4, 0, 14, 0, 1_500_000) }.ToDictionary(t => t.Key),
-            ms - 1_500_000);
+            ms - 1_500_000,
+            // her 12 57 of 2026-10-13 08:30:51 (Urugugu 18/21, Vakron 15/21, Krao claimed → 0; the 6000N1 entries are exploration)
+            new Core.Character.ExpeditionChest[] { new(600_001, 0, 0), new(600_012, 18, 0), new(600_021, 1, 1), new(600_031, 1, 1), new(600_071, 0, 1), new(600_072, 15, 0) }
+                .ToDictionary(c => c.Dungeon));
         var arielka = new Core.Character.CharacterProgress(
             new Dictionary<int, Core.Character.AchievementRow> { [810_433_000] = new(810_433_000, 35_220, ms - 7_200_000, 22), [810_435_000] = new(810_435_000, 11_440, ms - 7_200_000, 16) },
             new[] { Tk(10, 4, 0, 14, 0, 7_300_000), Tk(60_000_001, 12, 0, 840, 100, 7_200_000) }.ToDictionary(t => t.Key), ms - 8_000_000);
         for (var i = 0; i < chars.Count; i++)
             chars[i] = chars[i] with { Progress = chars[i].Key switch { "1303-Akunita" => akunita, "1303-Arielka" => arielka, _ => null } };
         return new Views.ItemsView.Data("1303-Akunita", "1303", "Vaizel", chars, account.View("1303"), market, now,
-            book is null ? null : new Views.ItemsView.ProgressData(akunita.Achievements, akunita.Tickets, book));
+            book is null ? null : new Views.ItemsView.ProgressData(akunita.Achievements, akunita.Tickets, book, akunita.Chests));
     }
 
     /// <summary>Verteron at Kernon of the West: the map's own seeded Orichalcum/Inina spots turned into live, out-of-view and emptied

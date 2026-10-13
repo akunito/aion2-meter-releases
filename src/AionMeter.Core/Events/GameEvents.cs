@@ -148,6 +148,9 @@ public sealed record AchievementClaimEvent(long TimeMs, IReadOnlyList<(int Group
 /// <summary>Content tickets (<c>0b 61</c> snapshot at login = every key, <c>0c 61</c> = one changed key).</summary>
 public sealed record ContentTicketsEvent(long TimeMs, bool Snapshot, IReadOnlyList<Character.ContentTicket> Tickets) : GameEvent(TimeMs);
 
+/// <summary>Expedition guaranteed-chest bars (<c>12 57</c>, the whole list each time; a dungeon left out is at 0).</summary>
+public sealed record ExpeditionChestsEvent(long TimeMs, IReadOnlyList<Character.ExpeditionChest> Chests) : GameEvent(TimeMs);
+
 /// <summary>A page of the Black Cloud random shop (<c>91 56</c>, 10 offers), not the player market: see <see cref="Protocol.Opcodes.ShopPage"/>.</summary>
 public sealed record ShopPageEvent(long TimeMs, int Page, IReadOnlyList<Market.Listing> Listings) : GameEvent(TimeMs);
 

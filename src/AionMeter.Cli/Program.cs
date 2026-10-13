@@ -203,6 +203,9 @@ int Ach(string path, string? catalogPath)
             case AionMeter.Core.Events.AchievementClaimEvent c:
                 foreach (var (g, id, step) in c.Claims) Console.WriteLine($"CLAIM {T(c.TimeMs)} group {g} {id} step {step} {catalog.Get(id)?.NameEn}");
                 break;
+            case AionMeter.Core.Events.ExpeditionChestsEvent x:
+                Console.WriteLine($"CHESTS {T(x.TimeMs)} " + string.Join(" ", x.Chests.Select(c => $"{c.Dungeon}:{c.Progress}/{c.Flag}")));
+                break;
             case AionMeter.Core.Events.ContentTicketsEvent k:
                 foreach (var t in k.Tickets)
                     if (!k.Snapshot || !AionMeter.Core.Character.TicketBook.IsStub(t.Key))
