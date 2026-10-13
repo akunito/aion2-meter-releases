@@ -7,44 +7,17 @@ namespace AionMeter.App.Controls;
 
 public static class ClassVisuals
 {
-    // Bar colours sampled from the in-game class emblems, brightened to read well as fills.
-    private static readonly Dictionary<GameClass, Color> Colors = new()
-    {
-        [GameClass.Gladiator] = Color.FromRgb(0x5F, 0xC0, 0xD6),
-        [GameClass.Templar] = Color.FromRgb(0x6E, 0x91, 0xEE),
-        [GameClass.Ranger] = Color.FromRgb(0x4D, 0xBE, 0x90),
-        [GameClass.Assassin] = Color.FromRgb(0x6F, 0xC8, 0x5F),
-        [GameClass.Sorcerer] = Color.FromRgb(0x9B, 0x66, 0xEC),
-        [GameClass.Elementalist] = Color.FromRgb(0xCF, 0x55, 0xD0),
-        [GameClass.Cleric] = Color.FromRgb(0xE8, 0xBE, 0x52),
-        [GameClass.Chanter] = Color.FromRgb(0xE5, 0x9B, 0x4A),
-        [GameClass.Brawler] = Color.FromRgb(0xDE, 0x3A, 0x41),
-        [GameClass.Unknown] = Color.FromRgb(0x94, 0xA3, 0xB8),
-    };
-
     private static readonly Dictionary<GameClass, ImageSource?> Emblems = new();
 
     private static readonly Geometry UnknownGlyph = Freeze(Geometry.Parse(
         "M12 3.5 A8.5 8.5 0 1 0 12.01 3.5 Z M9.5 9.5 C9.5 6.5 14.5 6.5 14.5 9.5 C14.5 11.5 12 11.5 12 14 M12 17 L12 17.5"));
 
-    // Saturated fills for the full-height damage bars (the emblem hues, pushed so a whole row reads at a glance).
-    private static readonly Dictionary<GameClass, Color> BarColors = new()
-    {
-        [GameClass.Gladiator] = Color.FromRgb(0x1F, 0xA2, 0xC8),
-        [GameClass.Templar] = Color.FromRgb(0x3B, 0x7C, 0xE6),
-        [GameClass.Ranger] = Color.FromRgb(0x1C, 0xAE, 0x7E),
-        [GameClass.Assassin] = Color.FromRgb(0x46, 0xB8, 0x4E),
-        [GameClass.Sorcerer] = Color.FromRgb(0x86, 0x4C, 0xE0),
-        [GameClass.Elementalist] = Color.FromRgb(0xC2, 0x3F, 0xC4),
-        [GameClass.Cleric] = Color.FromRgb(0xD8, 0xA2, 0x2A),
-        [GameClass.Chanter] = Color.FromRgb(0xEA, 0x7D, 0x2C),
-        [GameClass.Brawler] = Color.FromRgb(0xD6, 0x33, 0x3E),
-        [GameClass.Unknown] = Color.FromRgb(0x5E, 0x6B, 0x84),
-    };
+    // A2M-48: the tables live in AionMeter.Service (OverlayPalette), shared with the Linux UI.
+    public static Color ColorOf(GameClass c) => Rgb(AionMeter.Service.Overlay.OverlayPalette.ClassColor(c));
 
-    public static Color ColorOf(GameClass c) => Colors.TryGetValue(c, out var col) ? col : Colors[GameClass.Unknown];
+    public static Color BarColorOf(GameClass c) => Rgb(AionMeter.Service.Overlay.OverlayPalette.BarColor(c));
 
-    public static Color BarColorOf(GameClass c) => BarColors.TryGetValue(c, out var col) ? col : BarColors[GameClass.Unknown];
+    private static Color Rgb(uint v) => Color.FromRgb((byte)(v >> 16), (byte)(v >> 8), (byte)v);
 
     public static string NameOf(GameClass c) => c == GameClass.Unknown ? "Unknown" : c.ToString();
 

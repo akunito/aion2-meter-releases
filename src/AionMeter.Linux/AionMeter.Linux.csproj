@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A2M-48 phase 3: the Linux overlay (Avalonia). Unprivileged: it reads the daemon's Unix socket (OverlayServer), never captures. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AionMeter.Service\AionMeter.Service.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>AionMeter.Linux</AssemblyName>
+    <RootNamespace>AionMeter.Linux</RootNamespace>
+    <Version>0.2.8</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the official class emblems, the same files the WPF overlay embeds -->
+    <AvaloniaResource Include="..\AionMeter.App\Assets\Classes\*.png" Link="Assets\Classes\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

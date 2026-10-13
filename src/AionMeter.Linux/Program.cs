@@ -1,0 +1,40 @@
+using System.Runtime.InteropServices;
+using Avalonia;
+using AionMeter.Linux;
+using AionMeter.Service;
+using AionMeter.Service.Overlay;
+
+// A2M-48 phase 3: the overlay card on Linux. The daemon (CAP_NET_RAW service) captures; this process only reads its socket.
+string? Opt(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+
+if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
+{
+    Console.WriteLine("""
+        AionMeter.Linux [--socket PATH] [--data-dir DIR]
+          --socket    the daemon's UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock)
+          --data-dir  where ui.json (window place, click-through) lives (default $XDG_DATA_HOME/AionMeter)
+        SIGUSR1 toggles click-through; the pid is in $XDG_RUNTIME_DIR/aionmeter-ui.pid (Sway: exec kill -USR1 $(cat $XDG_RUNTIME_DIR/aionmeter-ui.pid)).
+        """);
+    return 0;
+}
+
+if (Opt("--data-dir") is { Length: > 0 } dir) AppSettings.UseAppDataDir(dir);
+App.SocketPath = Opt("--socket") ?? OverlayServer.DefaultPath();
+App.Ui = UiSettings.Load(Path.Combine(AppSettings.AppDataDir, "ui.json"));
+// The game shares the box: a background UI must not compete for CPU with it.
+System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.BelowNormal;
+
+// SIGUSR1 (10 on Linux): raw signal numbers are accepted cast to PosixSignal. The hotkey signals the pid file's process, not `pkill -f`:
+// that would also hit steam-run's bwrap and the shell around it, whose default USR1 action is to die (taking the UI with them).
+var runDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") is { Length: > 0 } rd && Directory.Exists(rd) ? rd : Path.GetTempPath();
+var pidFile = Path.Combine(runDir, "aionmeter-ui.pid");
+try { File.WriteAllText(pidFile, Environment.ProcessId.ToString()); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+using var usr1 = PosixSignalRegistration.Create((PosixSignal)10, c => { c.Cancel = true; App.ToggleClickThroughFromSignal(); });
+
+var rc = AppBuilder.Configure<App>()
+    .UsePlatformDetect()
+    .With(new X11PlatformOptions { WmClass = "aionmeter" })
+    .WithInterFont()
+    .StartWithClassicDesktopLifetime(args);
+try { File.Delete(pidFile); } catch (IOException) { }
+return rc;

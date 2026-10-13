@@ -5,6 +5,7 @@ using AionMeter.Core;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Game;
+using AionMeter.Service.Overlay;
 
 namespace AionMeter.Service;
 
@@ -24,6 +25,12 @@ public sealed class HeadlessOptions
     public bool Offline { get; init; }
     public bool Verbose { get; init; }
     public int StatusEverySeconds { get; init; } = 10;
+    /// <summary>Unix socket for the Linux UI (OverlayServer.DefaultPath() in the daemon); null = no socket.</summary>
+    public string? Socket { get; init; }
+    /// <summary>With <see cref="Replay"/>: keep running (and serving the socket) after the file ends, until cancelled.</summary>
+    public bool Hold { get; init; }
+    /// <summary>With <see cref="Replay"/>: feed the packets at their recorded pace instead of as fast as possible.</summary>
+    public bool RealtimeReplay { get; init; }
 }
 
 /// <summary>
@@ -39,6 +46,9 @@ public sealed class HeadlessMeter : IDisposable
     private readonly object _outGate = new();
     private readonly ArrayBufferWriter<byte> _buf = new(1024);
     private readonly Utf8JsonWriter _w;
+    private readonly OverlayServer? _server;
+    private readonly OverlaySelection _sel = new();
+    private readonly OverlayBuilder _builder = new();
 
     public MeterEngine Engine { get; }
     public AppSettings Settings { get; }
@@ -60,7 +70,7 @@ public sealed class HeadlessMeter : IDisposable
         Core.Net.CloudflareHttp.SolverUrl = Settings.CloudflareSolverUrl;
         var availability = CaptureAvailability.OfThisPc();
         Func<GameData, IEventSource> factory = options.Replay is { } pcap
-            ? data => new PcapReplaySource(data, pcap, realtime: false, () => availability.Present)
+            ? data => new PcapReplaySource(data, pcap, realtime: options.RealtimeReplay, () => availability.Present)
             : data => new LiveCapture(data, new LiveCaptureOptions
             {
                 DeviceName = options.Device ?? Settings.CaptureDevice,
@@ -71,7 +81,12 @@ public sealed class HeadlessMeter : IDisposable
         Engine.FightClosed += OnFightClosed;
         Engine.CharacterChanged += () => Event("character", w => w.WriteString("key", Engine.BoundKey), $"character {Engine.BoundKey}");
         Log.Info($"Daemon started. Data: {Engine.Data.Skills.Count} skills, {Engine.Data.Npcs.Count} npcs; state in {AppSettings.AppDataDir}");
-        Human($"AionMeter daemon · state {AppSettings.AppDataDir} · {Engine.Data.Skills.Count} skills, {Engine.Data.Npcs.Count} npcs{(options.Offline ? " · offline" : "")}");
+        if (options.Socket is { Length: > 0 } sock)
+        {
+            try { _server = new OverlayServer(sock); }
+            catch (Exception e) when (e is System.Net.Sockets.SocketException or IOException or UnauthorizedAccessException) { Log.Error($"UI socket {sock}", e); Human($"UI socket {sock} failed: {e.Message}"); }
+        }
+        Human($"AionMeter daemon · state {AppSettings.AppDataDir} · {Engine.Data.Skills.Count} skills, {Engine.Data.Npcs.Count} npcs{(options.Offline ? " · offline" : "")}{(_server is null ? "" : " · ui " + _server.Path)}");
     }
 
     /// <summary>Ticks every 200 ms (the App's DispatcherTimer) until cancelled, the --once time is up or a replay ended; then disposes the engine (closing and saving the running fight).</summary>
@@ -94,7 +109,9 @@ public sealed class HeadlessMeter : IDisposable
                 {
                     lastState = st.Message;
                     Event("status", w => { w.WriteString("state", st.State.ToString()); w.WriteString("message", st.Message); }, $"capture: {st.Message}");
+                    _server?.Broadcast(StatusLine(st));
                 }
+                if (_server is not null) Serve(st, ticks);
                 if (++ticks % 5 == 0) Alerts();
                 if (_o.StatusEverySeconds > 0 && now - lastStatus >= _o.StatusEverySeconds * 1000L) { lastStatus = now; Heartbeat(st); }
                 if (now >= nextTelemetry) { nextTelemetry = now + 15 * 60_000; _ = Engine.SendTelemetryIfDueAsync(); }
@@ -102,7 +119,7 @@ public sealed class HeadlessMeter : IDisposable
                 if (_o.Replay is not null)
                 {
                     replayRan |= st.State == CaptureState.Capturing;
-                    if (st.State is CaptureState.Stopped or CaptureState.Error && (replayRan || now - start > 2_000)) break;
+                    if (st.State is CaptureState.Stopped or CaptureState.Error && (replayRan || now - start > 2_000) && !_o.Hold) break;
                 }
                 try { await Task.Delay(200, ct).ConfigureAwait(false); } catch (TaskCanceledException) { }
             }
@@ -114,6 +131,7 @@ public sealed class HeadlessMeter : IDisposable
             Engine.Dispose();
 
             Event("stopped", null, "stopped");
+            _server?.Dispose();
             Log.Info("Daemon stopped");
         }
         return 0;
@@ -167,7 +185,8 @@ public sealed class HeadlessMeter : IDisposable
         var title = s.Boss is { } b ? "boss " + b.Name : s.Title;
         var human = string.Create(CultureInfo.InvariantCulture,
             $"fight {Format.ClockShort(s.CombatMs)} {title}: {(self is null ? "you -" : "you " + Format.Compact(self.Dps) + "/s")}{(top is null || ReferenceEquals(top, self) ? "" : $", top {top.Name} {Format.Compact(top.Dps)}/s")} · {s.PlayerCount} players · {s.Reason}{(path is null ? " (not kept)" : "")}");
-        Event("fight", w =>
+        Event("fight", Body, human, "fight-closed");
+        void Body(Utf8JsonWriter w)
         {
             w.WriteString("id", s.Id);
             w.WriteString("title", s.Title);
@@ -182,7 +201,7 @@ public sealed class HeadlessMeter : IDisposable
             if (top is not null) { w.WriteString("topName", top.Name); w.WriteString("topClass", top.Class.ToString()); w.WriteNumber("topDps", Math.Round(top.Dps, 1)); }
             w.WriteNumber("players", s.PlayerCount);
             w.WriteString("file", path);
-        }, human);
+        }
     }
 
     private void Human(string line)
@@ -190,9 +209,12 @@ public sealed class HeadlessMeter : IDisposable
         lock (_outGate) { _human.WriteLine($"{DateTime.Now:HH:mm:ss} {line}"); _human.Flush(); }
     }
 
-    private void Event(string type, Action<Utf8JsonWriter>? body, string human)
+    /// <summary>A human line, the --json-events object (flat) and, with <paramref name="socketType"/>, the same body to the UI socket as `data`.</summary>
+    private void Event(string type, Action<Utf8JsonWriter>? body, string human, string? socketType = null)
     {
         Human(human);
+        if (socketType is not null && _server is { ClientCount: > 0 } srv)
+            srv.Broadcast(SocketLine(socketType, w => { w.WriteStartObject(); body?.Invoke(w); w.WriteEndObject(); }));
         if (_json is null) return;
         lock (_outGate)
         {
@@ -208,6 +230,90 @@ public sealed class HeadlessMeter : IDisposable
             _json.Flush();
         }
     }
+
+    // ------------------------------------------------------------ UI socket (A2M-48 phase 3)
+
+    /// <summary>`{"type":…,"ts":…,"data":…}\n`, one array shared by every client's queue.</summary>
+    private byte[] SocketLine(string type, Action<Utf8JsonWriter>? data)
+    {
+        lock (_outGate)
+        {
+            _buf.ResetWrittenCount();
+            _w.Reset(_buf);
+            _w.WriteStartObject();
+            _w.WriteString("type", type);
+            _w.WriteNumber("ts", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            if (data is not null)
+            {
+                _w.WritePropertyName("data");
+                data(_w);
+            }
+            _w.WriteEndObject();
+            _w.Flush();
+            var line = new byte[_buf.WrittenCount + 1];
+            _buf.WrittenSpan.CopyTo(line);
+            line[^1] = (byte)'\n';
+            return line;
+        }
+    }
+
+    private byte[] StatusLine(CaptureStatus st)
+    {
+        var status = new OverlayStatus(st.State, st.Message, Engine.BoundKey, _builder.Version, AppSettings.AppDataDir, _o.Replay is not null);
+        return SocketLine("status", w => JsonSerializer.Serialize(w, status, OverlayJson.Default.OverlayStatus));
+    }
+
+    /// <summary>Each 200 ms tick: run the clients' commands, then an `overlay` snapshot — every tick (5 Hz) while a fight is live, every
+    /// fifth (1 Hz) when idle, at once after a command or a new client.</summary>
+    private void Serve(CaptureStatus st, int ticks)
+    {
+        var srv = _server!;
+        var force = false;
+        while (srv.Commands.TryDequeue(out var c))
+        {
+            switch (c.Cmd)
+            {
+                case "ping":
+                    c.From.Send(SocketLine("pong", null));
+                    break;
+                case "status":
+                    c.From.Send(StatusLine(st));
+                    break;
+                case "reset":
+                    Engine.Restart();
+                    _sel.SelectLive();
+                    Log.Info("UI: meter restarted");
+                    force = true;
+                    break;
+                case "show-fight":
+                    if (!_sel.Select(Engine, c.Arg ?? "live")) c.From.Send(Error($"no fight {c.Arg}"));
+                    force = true;
+                    break;
+                case "set-measure":
+                    TargetMode? mode = c.Arg?.ToLowerInvariant() switch { "boss" or "bossonly" => TargetMode.BossOnly, "all" => TargetMode.All, _ => null };
+                    if (mode is not { } m) { c.From.Send(Error("mode is boss or all")); break; }
+                    Settings.TargetMode = m;
+                    Engine.ApplySettings();
+                    Settings.Save();
+                    force = true;
+                    break;
+                case "fights":
+                    var list = OverlayBuilder.FightList(Engine, c.Max > 0 ? Math.Min(c.Max, 500) : 40).ToArray();
+                    c.From.Send(SocketLine("fights", w => JsonSerializer.Serialize(w, list, OverlayJson.Default.OverlayFightItemArray)));
+                    break;
+                default:
+                    c.From.Send(Error($"unknown cmd {c.Cmd}"));
+                    break;
+            }
+        }
+        if (srv.ClientCount == 0) return;
+        if (srv.TakeNewClient()) { srv.Broadcast(StatusLine(st)); force = true; }
+        if (!force && ticks % 5 != 0 && Engine.Tracker.Segments() is not [{ IsActive: true }, ..]) return;
+        var model = _builder.Build(Engine, _sel, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        srv.Broadcast(SocketLine("overlay", w => JsonSerializer.Serialize(w, model, OverlayJson.Default.OverlayModel)));
+    }
+
+    private byte[] Error(string message) => SocketLine("error", w => { w.WriteStartObject(); w.WriteString("message", message); w.WriteEndObject(); });
 
     public void Dispose()
     {

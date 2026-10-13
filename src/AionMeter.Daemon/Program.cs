@@ -10,7 +10,7 @@ if (Flag("--help") || Flag("-h"))
 {
     Console.WriteLine("""
         aionmeter-daemon [--data-dir DIR] [--device NAME] [--once SECONDS] [--json-events] [--offline] [--verbose]
-                         [--replay FILE.pcap] [--game-data DIR] [--status-every SECONDS]
+                         [--replay FILE.pcap [--realtime] [--hold]] [--game-data DIR] [--status-every SECONDS] [--socket PATH | --no-socket]
           --data-dir      state folder (default $XDG_DATA_HOME/AionMeter, ~/.local/share/AionMeter)
           --device        libpcap device (default: settings.json CaptureDevice, else the adapter carrying the game)
           --once N        stop after N seconds (default: until SIGTERM / Ctrl+C)
@@ -18,6 +18,8 @@ if (Flag("--help") || Flag("-h"))
           --offline       write state, but no network (profile sync, price polls, Abyss Logs, telemetry)
           --verbose       mirror the log file's lines to the human stream
           --replay FILE   feed a recording through the engine as if live (stores and state files written), stop at its end
+          --realtime      replay at the recorded pace;  --hold  keep running (and serving the UI) after the replay ends
+          --socket PATH   UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock); --no-socket for none
         """);
     return 0;
 }
@@ -34,6 +36,9 @@ var options = new HeadlessOptions
     Offline = Flag("--offline"),
     Verbose = Flag("--verbose"),
     StatusEverySeconds = int.TryParse(Opt("--status-every"), out var every) ? every : 10,
+    Socket = Flag("--no-socket") ? null : Opt("--socket") ?? AionMeter.Service.Overlay.OverlayServer.DefaultPath(),
+    Hold = Flag("--hold"),
+    RealtimeReplay = Flag("--realtime"),
 };
 
 using var cts = new CancellationTokenSource();

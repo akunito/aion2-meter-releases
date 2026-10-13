@@ -14,6 +14,7 @@ using AionMeter.Core.Updates;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Storage;
+using AionMeter.Service.Overlay;
 
 namespace AionMeter.App.Windows;
 
@@ -22,12 +23,10 @@ public partial class OverlayWindow : Window
     private readonly MeterService _meter;
     private readonly AppSettings _settings;
     private readonly OverlayViewModel _vm = new();
-    private Guid? _segment; // in-memory segment; null = live
-    private SavedFight? _saved; // a fight loaded from history (takes precedence over _segment)
+    private readonly OverlaySelection _sel = new(); // live, an in-memory segment, or a saved fight (A2M-48: shared with the Linux daemon)
+    private readonly OverlayBuilder _builder;
     private nint _hwnd;
     private readonly DragAnywhere _drag;
-
-    private sealed record SavedFight(HistoryEntry Entry, FightRecord Record, RecordFightView View, string Title);
 
     /// <summary>The render tool's fight clock for animation frames (Unix ms); null = real time.</summary>
     internal static Func<long>? ClockOverride { get; set; }
@@ -44,6 +43,7 @@ public partial class OverlayWindow : Window
         InitializeComponent();
         _settings.BackgroundOpacity = opacity;
         DataContext = _vm;
+        _builder = new OverlayBuilder { Version = _vm.Version };
 
         Left = _settings.OverlayLeft;
         Top = _settings.OverlayTop;
@@ -96,61 +96,23 @@ public partial class OverlayWindow : Window
     /// <summary>Called by the app's UI timer (≈5 Hz).</summary>
     public void Refresh()
     {
-        _vm.ShowGear = _settings.ShowGear;
         if (TabPrices.IsChecked != true) TabPrices.Foreground = _meter.Prices.AnyHit ? PriceHitBrush : PricePillBrush;   // green tab = something is at or under its maximum
-        // Looking at an old fight when a new pull starts: jump back to live so the fight is never missed.
-        if ((_saved is not null || _segment is not null) &&
-            _meter.Tracker.Segments() is [{ IsActive: true } running, ..] && running.StartedAt > _selectedAt)
-        {
-            _saved = null;
-            _segment = null;
-        }
-
-        if (_saved is { } saved)
-        {
-            _vm.Apply(saved.Record.Summary with { Title = saved.Title, Zone = _meter.DisplayZone(saved.Record.Summary.Zone) },
-                _settings.MaxRows, _settings.BarsRelativeToTop);
-            _vm.SetSegment("saved", saved.Entry.StartedAt.ToString("dd.MM HH:mm"));
-        }
-        else
-        {
-            var now = ClockOverride?.Invoke() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var snap = _meter.Tracker.Snapshot(_segment, now);
-            if (snap is null && _segment is not null)
-            {
-                // The selected segment fell out of the in-memory list.
-                _segment = null;
-                snap = _meter.Tracker.Snapshot(null, now);
-            }
-            _vm.Apply(snap, _settings.MaxRows, _settings.BarsRelativeToTop);
-            _vm.SetSegment(_segment is null ? "live" : "session", snap?.StartedAt.ToString("HH:mm"));
-        }
-        if (!_settings.ShowBossPanel) _vm.HasBoss = false;
-        // The instance's time limit (or the wait after entering), whatever fight is shown: it is about where you are now.
-        var wall = ClockOverride?.Invoke() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        _vm.SetLimit(_meter.Tracker.NextTimer(wall), wall);
-        if (Environment.TickCount64 - _timersLabelAt >= 1_000) UpdateTimersLabel();
-
-        var status = _meter.DemoRunning ? new CaptureStatus(CaptureState.Capturing, "Demo fight running") : _meter.CaptureStatus;
-        // Names are only sent on a loading screen: players already around when the meter started show as #id.
-        var unnamed = _vm.Rows.Any(r => r.Name.Contains('#')); // "Templar #10388": the server has not sent this name yet
-        _vm.Status = status.State != CaptureState.Capturing ? UiText.Current.CaptureStatusText(status.Message)
-            : _vm.MostDamageUnsent && _vm.HasData ? UiText.Current.DamageUnsentTip // the footer says it, its tooltip says why
-            : unnamed ? "Names appear after the next loading screen"
-            : status.Message;
-        // Footer reads like the card's caption; capture problems take its place so they are never missed.
-        FooterText.Text = status.State is CaptureState.Capturing && _vm.HasData
-            ? (unnamed ? _vm.Footer + " · " + UiText.Current.NamesLater : _vm.Footer)
-            : _vm.Status;
+        var now = ClockOverride?.Invoke() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var m = _builder.Build(_meter, _sel, now, gearFits: _vm.GearFits);
+        _vm.Apply(m.Fight);
+        _vm.ApplyHeader(m);
+        SyncEventPills(m.Pills);
+        _vm.Status = m.Status;
+        FooterText.Text = m.FooterText;
         // A2M-38: the last kill's Abyss Logs line for 60 s, under the status line (meter tab only)
-        var rank = _meter.LastAbyssLogs is { } al && Environment.TickCount64 - al.At < 60_000 && FooterStatusLine.Visibility == Visibility.Visible ? al.Text : null;
+        var rank = FooterStatusLine.Visibility == Visibility.Visible ? m.AbyssLogs : null;
         if (rank is not null && !ReferenceEquals(AbyssLogsLine.Text, rank)) AbyssLogsLine.Text = rank;
         AbyssLogsLine.Visibility = rank is null ? Visibility.Collapsed : Visibility.Visible;
-        _vm.StatusBrush = status.State switch
+        _vm.StatusBrush = m.StatusTone switch
         {
-            CaptureState.Capturing => (Brush)FindResource("Green"),
-            CaptureState.Error => (Brush)FindResource("Red"),
-            CaptureState.WaitingForGame or CaptureState.Starting => (Brush)FindResource("Amber"),
+            StatusTone.Good => (Brush)FindResource("Green"),
+            StatusTone.Error => (Brush)FindResource("Red"),
+            StatusTone.Warn => (Brush)FindResource("Amber"),
             _ => (Brush)FindResource("TextMute"),
         };
     }
@@ -158,6 +120,7 @@ public partial class OverlayWindow : Window
     public void OnLanguageChanged()
     {
         _vm.LanguageChanged();
+        _builder.InvalidateTimers();
         // the settings view binds UiText.Current once: reopen it in the new language (unsaved edits go, as the chip is a deliberate switch)
         if (_tab == "settings") { DropSettingsView(); TabHost.Content = _settingsView = Wire(new Views.SettingsView(_meter, hosted: true), v => v.CloseRequested += SettingsClosed); }
         ShowUpdateBanner();
@@ -363,12 +326,12 @@ public partial class OverlayWindow : Window
     /// <summary>A row, "Open the fight" or the row menu: the shown fight in this card's fight tab (A2M-43).</summary>
     private void OpenBreakdown(uint actorId)
     {
-        if (_saved is { } saved) ShowFight(saved.View, actorId, saved.Entry.FileName);
+        if (_sel.Saved is { } saved) ShowFight(new RecordFightView(saved.Record), actorId, saved.Entry.FileName);
         else if (_vm.SegmentId is { } seg) ShowFight(new LiveFightView(_meter.Tracker, seg), actorId, seg);
     }
 
     private EncounterSnapshot? ShownSummary() =>
-        _saved is { } saved
+        _sel.Saved is { } saved
             ? saved.Record.Summary with { Title = saved.Title }
             : _vm.SegmentId is { } seg ? _meter.Tracker.Snapshot(seg, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) : null;
 
@@ -426,44 +389,25 @@ public partial class OverlayWindow : Window
     /// <summary>Newest first: this session's segments, then saved fights not already in the session list.</summary>
     private List<PickItem> BuildFightList(int maxSaved)
     {
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var list = new List<PickItem>();
-        var sessionStarts = new HashSet<long>();
-        foreach (var s in _meter.Tracker.Segments())
-        {
-            var snap = _meter.Tracker.Snapshot(s.Id, now);
-            var selfIndex = snap?.Combatants.ToList().FindIndex(c => c.IsSelf) ?? -1;
-            var self = selfIndex >= 0 ? snap!.Combatants[selfIndex] : null;
-            list.Add(new PickItem(s.Title, s.StartedAt, s.CombatMs, s.Reason, s.IsActive,
-                self?.Dps ?? 0, selfIndex + 1, s.TotalDamage / Math.Max(1.0, s.CombatMs / 1000.0), s.Id, null,
-                snap is null ? null : _meter.PortraitOf(snap)));
-            sessionStarts.Add(s.StartedAt.ToUnixTimeSeconds());
-        }
-        foreach (var h in _meter.History.List(maxSaved + sessionStarts.Count))
-        {
-            if (sessionStarts.Contains(h.StartedAt.ToUnixTimeSeconds())) continue;
-            list.Add(new PickItem(_meter.DisplayTitle(h), h.StartedAt, h.CombatMs, h.Reason, false,
-                h.SelfDps, h.SelfPlace, h.PartyDps, null, h, _meter.PortraitOf(h)));
-            if (list.Count(i => i.Saved is not null) >= maxSaved) break;
-        }
+        var src = OverlayBuilder.FightList(_meter, maxSaved);
+        var list = new List<PickItem>(src.Count);
+        foreach (var f in src)
+            list.Add(new PickItem(f.Title, f.StartedAt, f.CombatMs, f.Reason, f.Active, f.SelfDps, f.Place, f.PartyDps, f.Segment, f.Entry,
+                f.Entry is { } h ? _meter.PortraitOf(h) : f.Snapshot is { } snap ? _meter.PortraitOf(snap) : null));
         return list;
     }
 
     private bool IsSelected(PickItem item) =>
-        item.Saved is { } h ? _saved?.Entry.FileName == h.FileName : _saved is null && _segment == item.Segment;
+        item.Saved is { } h ? _sel.Saved?.Entry.FileName == h.FileName : _sel.Saved is null && _sel.Segment == item.Segment;
 
     private void SelectLive()
     {
-        _saved = null;
-        _segment = null;
+        _sel.SelectLive();
         Refresh();
     }
 
-    private DateTimeOffset _selectedAt = DateTimeOffset.MinValue;
-
     private void Select(PickItem item)
     {
-        _selectedAt = DateTimeOffset.Now;
         if (item.Saved is { } h)
         {
             if (_meter.History.Load(h.Path) is not { } record)
@@ -471,13 +415,11 @@ public partial class OverlayWindow : Window
                 AppHost.Current.ShowHistory(); // file vanished or is unreadable: let the history window refresh
                 return;
             }
-            _saved = new SavedFight(h, record, new RecordFightView(record), _meter.DisplayTitle(h));
-            _segment = null;
+            _sel.SelectSaved(h, record, _meter.DisplayTitle(h));
         }
         else
         {
-            _saved = null;
-            _segment = item.Segment;
+            _sel.SelectSegment(item.Segment);
         }
         Refresh();
     }
@@ -495,7 +437,7 @@ public partial class OverlayWindow : Window
             {
                 Header = PickHeader(UiText.Current.Live, UiText.Current.LiveHint, null, 0, EncounterEndReason.None, active: true, partyDps: 0, portrait: null),
                 IsCheckable = true,
-                IsChecked = _saved is null && _segment is null,
+                IsChecked = _sel.IsLive,
             };
             live.Click += (_, _) => SelectLive();
             menu.Items.Add(live);
@@ -624,7 +566,7 @@ public partial class OverlayWindow : Window
     {
         var items = BuildFightList(SavedInMenu);
         var index = items.FindIndex(IsSelected); // -1 = live
-        if (_saved is null && _segment is null) index = -1;
+        if (_sel.IsLive) index = -1;
         index += e.Delta < 0 ? 1 : -1;
         if (index < 0) SelectLive();
         else if (index < items.Count) Select(items[index]);
@@ -643,29 +585,28 @@ public partial class OverlayWindow : Window
         if (!_drag.JustDragged) SelectTab("timers");
     }
 
-    /// <summary>"Shugo 39m" until the start, "Shugo ● 7m" while it runs; the same list every second, items replaced in place.</summary>
-    private void UpdateEventLabels()
+    /// <summary>The builder's pills ("Shugo 39m", "Shugo ● 7m" while it runs) into the EventPill items, replaced in place (they carry the alert menus).</summary>
+    private void SyncEventPills(OverlayPill[] src)
     {
-        var now = DateTimeOffset.Now;
         var pills = _vm.EventLabels;
-        var i = 0;
-        foreach (var ev in _meter.Events)
+        for (var i = 0; i < src.Length; i++)
         {
-            var (start, end, running) = ev.Next(now, _meter.Settings.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null, _meter.Settings.EventPeriods.TryGetValue(ev.Key, out var pm) ? pm : null);
-            var left = running ? end - now : start - now;
-            var span = Core.Atlas.ScheduledEvent.Countdown(left);
-            var name = UiText.Current.EventName(ev.Key, ev.Name);
-            var text = running ? $"{name} ● {span}" : $"{name} {span}";
-            if (i >= pills.Count || pills[i].Key != ev.Key)
+            var p = src[i];
+            if (i >= pills.Count || pills[i].Key != p.Key)
             {
-                var pill = new EventPill(ev.Key, name, _meter.Settings.AlertFor(ev.Key), _meter.Settings.Save, SyncEventNow, ResetEventSync) { CanSync = ev.EveryMinutes > 0 };
+                var pill = new EventPill(p.Key, p.Name, _meter.Settings.AlertFor(p.Key), _meter.Settings.Save, SyncEventNow, ResetEventSync) { CanSync = p.CanSync };
                 if (i >= pills.Count) pills.Add(pill); else pills[i] = pill;
             }
-            if (pills[i].Text != text) pills[i].Text = text;
-            pills[i].Paint(left, running);
-            i++;
+            if (pills[i].Text != p.Text) pills[i].Text = p.Text;
+            pills[i].Paint(p.Tone);
         }
-        while (pills.Count > i) pills.RemoveAt(pills.Count - 1);
+        while (pills.Count > src.Length) pills.RemoveAt(pills.Count - 1);
+    }
+
+    private void UpdateEventLabels()
+    {
+        _builder.InvalidateTimers();
+        Refresh();
     }
 
     /// <summary>The player saw the event begin: re-phase its cycle from this instant (and log it, to find the packet that announces it later).</summary>
@@ -969,39 +910,12 @@ public partial class OverlayWindow : Window
     private static readonly System.Windows.Media.Brush PricePillBrush = Frozen(0xF3, 0xD5, 0x8F), PriceHitBrush = Frozen(0x8E, 0xE0, 0x8A);
     private static System.Windows.Media.Brush Frozen(byte r, byte g, byte b) { var br = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b)); br.Freeze(); return br; }
 
-    private long _timersLabelAt;
-
-    private readonly List<Core.Atlas.BossSpawn> _pillSpawns = new();
-
-    /// <summary>The next field boss to spawn on the player's map, else on the server: "Gartua 12:34" (rule in FieldBossPill.Pick).</summary>
-    private void UpdateTimersLabel()
-    {
-        UpdateEventLabels();
-        _timersLabelAt = Environment.TickCount64;
-        var now = DateTimeOffset.Now;
-        var timers = _meter.Timers.ForServer(_meter.Timers.CurrentServer);
-        _pillSpawns.Clear();
-        for (var i = 0; i < timers.Count; i++) { var t = timers[i]; _pillSpawns.Add(new(t.NpcCode, t.MapId, t.NextSpawn, t.AliveNow)); }
-        var pick = Core.Atlas.FieldBossPill.Pick(_pillSpawns, _meter.Atlas.MapId, now);
-        var next = pick >= 0 ? timers[pick] : null;
-        if (next?.NextSpawn is not { } at)
-        {
-            _vm.TimersLabel = UiText.Current.TimersButton;
-            return;
-        }
-        var name = next.NpcCode > 0 ? _meter.Data.NpcName(next.NpcCode) : string.Format(UiText.Current.UnknownSlotBoss, -next.NpcCode % 100);
-        var shortName = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? name;
-        var left = at - now;
-        _vm.TimersLabel = $"{shortName} {(left.TotalHours >= 1 ? left.ToString(@"h\:mm\:ss") : left.ToString(@"mm\:ss"))}";
-    }
-
     private void Restart_Click(object sender, RoutedEventArgs e) => AppHost.Current.RestartMeter();
 
     /// <summary>Back to the live view (after a restart of the meter: empty until the next hit).</summary>
     public void ShowLive()
     {
-        _segment = null;
-        _saved = null;
+        _sel.SelectLive();
         Refresh();
     }
 

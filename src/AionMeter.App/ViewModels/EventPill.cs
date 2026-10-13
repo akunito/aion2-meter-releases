@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using AionMeter.App.Services;
+using AionMeter.Service.Overlay;
 
 namespace AionMeter.App.ViewModels;
 
@@ -36,13 +37,16 @@ public sealed class EventPill(string key, string name, AppSettings.EventAlert al
     public bool At10 { get => alert.At10; set { if (alert.At10 != value) { alert.At10 = value; save(); Raise(); } } }
     public bool At5 { get => alert.At5; set { if (alert.At5 != value) { alert.At5 = value; save(); Raise(); } } }
 
-    /// <summary>Colour step for a time to the start (or to the end while running).</summary>
-    public void Paint(TimeSpan left, bool running)
+    /// <summary>Colour step from <see cref="OverlayBuilder.ToneOf"/>.</summary>
+    public void Paint(PillTone tone)
     {
-        var (fill, stroke) = running || left.TotalMinutes < 5 ? (Now, NowStroke)
-            : left.TotalMinutes < 10 ? (Close, CloseStroke)
-            : left.TotalMinutes < 20 ? (Soon, SoonStroke)
-            : (Calm, CalmStroke);
+        var (fill, stroke) = tone switch
+        {
+            PillTone.Now => (Now, NowStroke),
+            PillTone.Close => (Close, CloseStroke),
+            PillTone.Soon => (Soon, SoonStroke),
+            _ => (Calm, CalmStroke),
+        };
         if (!ReferenceEquals(fill, _fill)) { Fill = fill; Stroke = stroke; }
     }
 }

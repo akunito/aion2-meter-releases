@@ -150,7 +150,7 @@ public partial class HistoryWindow : Window
         DetailMeta.Text = $"{s.StartedAt.ToString("dd MMM yyyy HH:mm", T.Culture)} · {Format.ClockPrecise(s.CombatMs)} · " +
                           $"{Format.Compact(s.TotalDamage)} {T.DamageWord} · {Format.Compact(s.PartyDps)}/s {T.Party} · {ReasonText(s.Reason)}";
         var vm = new OverlayViewModel();
-        vm.Apply(s, 50, relativeToTop: true);
+        vm.Apply(AionMeter.Service.Overlay.OverlayBuilder.Fight(s, 50, relativeToTop: true, showGear: true));
         Party.ItemsSource = vm.Rows;
     }
 

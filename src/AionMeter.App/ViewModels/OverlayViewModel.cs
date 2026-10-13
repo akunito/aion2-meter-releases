@@ -5,6 +5,7 @@ using AionMeter.App.Services;
 using AionMeter.Core;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Events;
+using AionMeter.Service.Overlay;
 
 namespace AionMeter.App.ViewModels;
 
@@ -232,7 +233,6 @@ public sealed class OverlayViewModel : ObservableObject
     private string _limitText = "";
     private string _limitTip = "";
     private Brush _limitBrush = LimitAmber;
-    private InstanceTimerEvent? _limitTimer;
     private static readonly Brush LimitAmber = Frozen(Color.FromRgb(0xF0, 0xC0, 0x60));
 
     /// <summary>"54:12": what is left of the instance's countdown (the game's time limit, upstream 0.2.8); empty when none runs.</summary>
@@ -250,22 +250,6 @@ public sealed class OverlayViewModel : ObservableObject
     /// <summary>Amber; red for the last minute or the last tenth of the time.</summary>
     public Brush LimitBrush { get => _limitBrush; private set => Set(ref _limitBrush, value); }
 
-    public void SetLimit(InstanceTimerEvent? timer, long nowMs)
-    {
-        if (timer is null)
-        {
-            LimitText = "";
-            return;
-        }
-        var left = timer.EndMs - nowMs;
-        LimitText = Format.ClockShort(left + 999); // 0:00 only when it is over
-        LimitBrush = left < 60_000 || left < (timer.EndMs - timer.StartMs) / 10 ? LiveRed : LimitAmber;
-        // 5 refreshes a second: the tooltip only changes with the timer (records compare by value).
-        if (timer == _limitTimer) return;
-        _limitTimer = timer;
-        LimitTip = string.Format(timer.Kind == InstanceTimerEvent.BossLimit ? T.BossLimitTip : T.TimeLimitTip,
-            DateTimeOffset.FromUnixTimeMilliseconds(timer.EndMs).ToLocalTime().ToString("HH:mm:ss"));
-    }
     public bool IsActive { get => _isActive; set => Set(ref _isActive, value); }
     public bool HasData { get => _hasData; set => Set(ref _hasData, value); }
     public bool HasBoss { get => _hasBoss; set => Set(ref _hasBoss, value); }
@@ -305,9 +289,6 @@ public sealed class OverlayViewModel : ObservableObject
     public Guid? SegmentId { get; private set; }
     public string Version { get; } = "v" + (typeof(OverlayViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.1.0");
 
-    /// <summary>Gear score and combat power columns (Settings → Overlay).</summary>
-    public bool ShowGear { get; set; } = true;
-
     /// <summary>False while the overlay is too narrow for them next to the names (the fight's numbers come first).</summary>
     public bool GearFits { get; set; } = true;
 
@@ -315,129 +296,76 @@ public sealed class OverlayViewModel : ObservableObject
     public bool HasGear { get => _hasGear; private set => Set(ref _hasGear, value); }
     private bool _hasGear;
 
-    public void Apply(EncounterSnapshot? snap, int maxRows, bool relativeToTop)
+    /// <summary>Copies the fight part of the card built by <see cref="OverlayBuilder"/> (the same builder feeds the Linux UI's socket).</summary>
+    public void Apply(OverlayFight f)
     {
-        if (snap is null)
-        {
-            SegmentId = null;
-            HasData = false;
-            HasBoss = false;
-            IsActive = false;
-            Title = T.WaitingTitle;
-            Detail = T.WaitingDetail;
-            TitleTip = T.TipScrollFights;
-            Clock = "0:00";
-            PartyDps = "—";
-            TotalDamage = "—";
-            TopHit = "";
-            Footer = "";
-            MostDamageUnsent = false;
-            SelfPlace = "";
-            HasGear = false;
-            Rows.Clear();
-            return;
-        }
-
-        SegmentId = snap.Id;
-        HasData = true;
-        IsActive = snap.IsActive;
-        Title = T.FightTitle(snap);
-        // Running: wall clock since the pull. Finished: the fight's real length (first to last hit).
-        Clock = Format.ClockShort(snap.IsActive ? snap.ClockMs : snap.CombatMs);
-        PartyDps = Format.Compact(snap.PartyDps) + "/s";
-        TotalDamage = Format.Compact(snap.TotalDamage);
-
-        var result = snap.Reason switch
-        {
-            EncounterEndReason.Kill => T.Kill,
-            EncounterEndReason.Wipe => T.Wipe,
-            EncounterEndReason.None => T.InProgress,
-            _ => T.Ended,
-        };
-        var zone = snap.Zone == "Open world" ? T.OpenWorld : snap.Zone;
-        // Part of the boss's HP went before the meter could count it (started or restarted mid-fight): say how much,
-        // in place of the zone, so the numbers are not taken for the whole fight.
-        var partial = snap.Boss switch
-        {
-            { MaxHpKnown: false, Hp: not 0 } => T.HpUnknown,
-            { CountedFrom: { } from } => string.Format(T.CountedFrom, Format.Percent(from, 0)),
-            _ => null,
-        };
-        Detail = partial is not null ? $"{result} · {partial}" : string.IsNullOrEmpty(zone) ? result : $"{zone} · {result}";
-        // A world boss whose crowd the server kept from us: the party's DPS would be a fraction of the real one.
-        MostDamageUnsent = snap.MostDamageUnsent;
-        Footer = MostDamageUnsent ? T.DamageUnsentLine(snap) : $"{T.Players(snap.PlayerCount)} · {T.Party} {PartyDps}";
-
-        var top = snap.Combatants.MaxBy(x => x.MaxHit);
-        TopHit = top is { MaxHit: > 0 } ? Format.Grouped(top.MaxHit) : "";
-        TopHitBy = top is { MaxHit: > 0 } ? string.Format(T.TopHitBy, top.Name) : "";
-        // The top line holds only the title: the biggest hit lives in its tooltip.
-        TitleTip = (TopHit.Length > 0 ? $"{TopHitBy}: {TopHit}\n" : "") + T.TipScrollFights;
-
-        if (snap.Boss is { } boss && boss.MaxHp > 0 && boss.Hp >= 0)
+        SegmentId = f.SegmentId;
+        HasData = f.HasData;
+        IsActive = f.IsActive;
+        Title = f.Title;
+        Detail = f.Detail;
+        TitleTip = f.TitleTip;
+        Clock = f.Clock;
+        PartyDps = f.PartyDps;
+        TotalDamage = f.TotalDamage;
+        TopHit = f.TopHit;
+        TopHitBy = f.TopHitBy;
+        Footer = f.Footer;
+        MostDamageUnsent = f.MostDamageUnsent;
+        if (f.Boss is { } boss)
         {
             HasBoss = true;
-            BossHpFraction = boss.HpFraction;
-            // "counted from 82% HP" rides in the bar now that there is no detail line.
-            BossHpText = boss.Hp == 0 ? T.Defeated : Format.Grouped(boss.Hp) + " " + T.HpUnit + (partial is null ? "" : " · " + partial);
-            BossPercent = boss.MaxHpKnown || boss.Hp == 0 ? Format.Percent(boss.HpFraction) : "?";
+            BossHpFraction = boss.Fraction;
+            BossHpText = boss.HpText;
+            BossPercent = boss.Percent;
         }
-        else
+        else HasBoss = false;
+
+        var rows = f.Rows;
+        while (Rows.Count > rows.Length) Rows.RemoveAt(Rows.Count - 1);
+        while (Rows.Count < rows.Length) Rows.Add(new RowViewModel());
+        for (var r = 0; r < rows.Length; r++)
         {
-            HasBoss = false;
-        }
-
-        var list = snap.Combatants;
-        var count = Math.Min(maxRows, list.Count);
-        // Always keep the local player visible even when they are outside the top N.
-        var selfIndex = -1;
-        for (var i = 0; i < list.Count; i++)
-            if (list[i].IsSelf) { selfIndex = i; break; }
-        var showSelfExtra = selfIndex >= count;
-        var rowsNeeded = count + (showSelfExtra ? 1 : 0);
-
-        while (Rows.Count > rowsNeeded) Rows.RemoveAt(Rows.Count - 1);
-        while (Rows.Count < rowsNeeded) Rows.Add(new RowViewModel());
-
-        var best = list.Count > 0 ? Math.Max(1, list[0].Damage) : 1;
-        for (var r = 0; r < rowsNeeded; r++)
-        {
-            var i = showSelfExtra && r == rowsNeeded - 1 ? selfIndex : r;
-            var cb = list[i];
+            var m = rows[r];
             var row = Rows[r];
-            row.ActorId = cb.ActorId;
-            row.Rank = cb.IsUnknownSummons ? 0 : i + 1;
-            row.Name = T.CombatantLabel(cb.ActorId, cb.Name, cb.Class);
-            row.GearScore = ShowGear && GearFits && cb.GearScore > 0 ? cb.GearScore.ToString() : "";
-            row.CombatPower = ShowGear && GearFits && cb.CombatPower > 0 ? Format.Power(cb.CombatPower) : "";
-            row.Class = cb.Class;
-            row.IsSelf = cb.IsSelf;
-            row.Dps = Format.Compact(cb.Dps) + "/s";
-            row.Damage = Format.Compact(cb.Damage);
-            row.Share = Format.Share(cb.Share);
-            row.Fill = relativeToTop ? (double)cb.Damage / best : cb.Share;
-            var heading = cb.IsUnknownSummons ? T.UnknownSummonsTip : $"#{i + 1} {cb.Name} · {T.ClassName(cb.Class)}";
-            row.Tooltip = $"{heading}\n" +
-                          $"{T.RowDamage} {Format.Grouped(cb.Damage)} ({Format.Share(cb.Share)}) · DPS {Format.Compact(cb.Dps)}\n" +
-                          $"{T.RowHits} {cb.Hits} · {T.RowCrit} {Format.Percent(cb.CritRate)} · {T.RowMax} {Format.Grouped(cb.MaxHit)}";
+            row.ActorId = m.ActorId;
+            row.Rank = m.Rank;
+            row.Name = m.Name;
+            row.GearScore = m.GearScore;
+            row.CombatPower = m.CombatPower;
+            row.Class = m.Class;
+            row.IsSelf = m.IsSelf;
+            row.Dps = m.Dps;
+            row.Damage = m.Damage;
+            row.Share = m.Share;
+            row.Fill = m.Fill;
+            row.Tooltip = m.Tooltip;
         }
-        HasGear = Rows.Any(r => r.HasGearScore || r.HasCombatPower);
-        SelfPlace = selfIndex >= 0 ? $"{selfIndex + 1} / {snap.PlayerCount}" : "";
-        SelfPlaceBrush = RankBrushes.For(selfIndex + 1).Bg;
-        SelfPlaceForeground = RankBrushes.For(selfIndex + 1).Fg;
+        HasGear = f.HasGear;
+        SelfPlace = f.SelfPlace;
+        SelfPlaceBrush = RankBrushes.For(f.SelfRank).Bg;
+        SelfPlaceForeground = RankBrushes.For(f.SelfRank).Fg;
     }
 
-    /// <summary>Card label above the title. <paramref name="kind"/>: live / last / segment / saved.</summary>
-    public void SetSegment(string kind, string? when = null)
+    /// <summary>The header part: card label ("● LIVE FIGHT", "SAVED · 05.10 19:04" …), the instance time limit.</summary>
+    public void ApplyHeader(OverlayModel m)
     {
-        (HeaderLabel, HeaderBrush) = kind switch
+        var label = m.HeaderWhen is null ? Spaced(m.HeaderLabel) : Spaced(m.HeaderLabel) + "   " + m.HeaderWhen;
+        (HeaderLabel, HeaderBrush) = (label, m.View switch
         {
-            "live" when !HasData => (Spaced(T.WaitingLabel), Dim),
-            "live" when IsActive => (Spaced(T.LiveFight), LiveRed),
-            "live" => (Spaced(T.LastFight), Dim),
-            "saved" => (Spaced(T.SavedFight) + "   " + when, SavedGold),
-            _ => (Spaced(T.ThisSession) + "   " + when, SavedGold),
-        };
+            OverlayView.Live => LiveRed,
+            OverlayView.Saved or OverlayView.Session => SavedGold,
+            _ => Dim,
+        });
+        ModeLabel = m.ModeLabel;
+        if (m.Limit is { } limit)
+        {
+            LimitText = limit.Text;
+            LimitBrush = limit.Urgent ? LiveRed : LimitAmber;
+            LimitTip = limit.Tip;
+        }
+        else LimitText = "";
+        TimersLabel = m.TimersLabel;
     }
 
     /// <summary>WPF has no letter-spacing: thin spaces between letters give the card label its airy caps.</summary>
