@@ -22,6 +22,7 @@ public sealed class OverlayServer : IDisposable
     private readonly Socket _listener;
     private readonly List<Client> _clients = new();
     private readonly CancellationTokenSource _cts = new();
+    private bool _disposed;   // under lock (_clients)
 
     public string Path { get; }
     public ConcurrentQueue<OverlayCommand> Commands { get; } = new();
@@ -71,7 +72,9 @@ public sealed class OverlayServer : IDisposable
             try { s = await _listener.AcceptAsync(_cts.Token).ConfigureAwait(false); }
             catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException or SocketException) { return; }
             var c = new Client(this, s);
-            lock (_clients) _clients.Add(c);
+            bool disposed;
+            lock (_clients) { disposed = _disposed; if (!disposed) _clients.Add(c); }
+            if (disposed) { c.Close(); return; }   // accepted while Dispose ran: it already closed the list
             Interlocked.Exchange(ref _newClient, 1);
             c.Start(_cts.Token);
         }
@@ -93,11 +96,16 @@ public sealed class OverlayServer : IDisposable
     {
         _cts.Cancel();
         try { _listener.Dispose(); } catch (SocketException) { }
+        // Client.Close calls Drop, which re-enters this (reentrant) lock and removes from the list being enumerated:
+        // "Collection was modified" in DaemonSmokeTests whenever a client was still open here. Close outside the lock.
+        Client[] open;
         lock (_clients)
         {
-            foreach (var c in _clients) c.Close();
+            _disposed = true;
+            open = _clients.ToArray();
             _clients.Clear();
         }
+        for (var i = 0; i < open.Length; i++) open[i].Close();
         try { File.Delete(Path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 

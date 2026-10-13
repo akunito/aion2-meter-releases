@@ -6,6 +6,7 @@ using AionMeter.Core.Events;
 namespace AionMeter.Tests;
 
 /// <summary>A2M-47: Spanish replaces upstream's Russian; every key of the English defaults has a Spanish value.</summary>
+[Collection(ProcessStaticsCollection.Name)]
 public sealed class EsTextTests
 {
     // Same text in both languages on purpose: proper nouns, loanwords the Spanish client keeps, and format-only strings.

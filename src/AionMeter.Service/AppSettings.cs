@@ -23,8 +23,12 @@ public sealed class AppSettings
     public static string DefaultAppDataDir() => Path.Combine(Environment.GetFolderPath(OperatingSystem.IsWindows()
         ? Environment.SpecialFolder.ApplicationData : Environment.SpecialFolder.LocalApplicationData), "AionMeter");
 
-    /// <summary>Daemon --data-dir and tests: call before anything touches <see cref="Log"/> (its file path is fixed on first use).</summary>
-    public static void UseAppDataDir(string dir) => AppDataDir = Path.GetFullPath(dir);
+    /// <summary>Daemon --data-dir and tests; resets <see cref="Log"/>'s file path so the next line goes under the new dir.</summary>
+    public static void UseAppDataDir(string dir)
+    {
+        AppDataDir = Path.GetFullPath(dir);
+        Log.ResetPath();
+    }
 
     private static string FilePath => Path.Combine(AppDataDir, "settings.json");
 

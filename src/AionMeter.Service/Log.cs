@@ -10,6 +10,10 @@ public static class Log
     // Fixed on first use (AppSettings.UseAppDataDir and Prefix must come before the first line).
     private static string FilePath => _filePath ??= Path.Combine(AppSettings.AppDataDir, "logs", $"{Prefix}_{DateTime.Now:yyyyMMdd}.log");
 
+    /// <summary>AppSettings.UseAppDataDir: the next line goes under the new data dir. A line logged before it (another test class in the
+    /// same process, A2M-50) had fixed the old dir and the daemon smoke test found no logs/ in its own dir.</summary>
+    internal static void ResetPath() { lock (Gate) _filePath = null; }
+
     /// <summary>File name stem: "aionmeter" (App, daemon); the Linux UI sets "aionmeter-ui" so two processes never append to one file.</summary>
     public static string Prefix { get; set; } = "aionmeter";
 

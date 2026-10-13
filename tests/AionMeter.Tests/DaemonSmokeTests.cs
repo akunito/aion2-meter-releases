@@ -8,6 +8,7 @@ namespace AionMeter.Tests;
 /// state files the Windows App writes under %AppData%\AionMeter. Needs libpcap (build.sh installs it). The only test that moves
 /// AppSettings.AppDataDir and Log's file (process-wide statics).
 /// </summary>
+[Collection(ProcessStaticsCollection.Name)]
 public class DaemonSmokeTests
 {
     private static string Pcap => Path.Combine(AppContext.BaseDirectory, "Fixtures", "pcaps", "login-20261009.pcap");

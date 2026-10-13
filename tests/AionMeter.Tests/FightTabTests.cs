@@ -10,6 +10,7 @@ using AionMeter.Service;
 namespace AionMeter.Tests;
 
 /// <summary>A2M-50: the GTK fight tab's display-free parts (chart maths, rotation layout, tab and player rules, table texts, its stylesheet).</summary>
+[Collection(ProcessStaticsCollection.Name)]
 public class FightTabTests
 {
     // ---- timeline chart
