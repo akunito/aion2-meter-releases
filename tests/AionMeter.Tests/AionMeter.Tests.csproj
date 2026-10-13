@@ -23,6 +23,8 @@
     <ProjectReference Include="..\..\src\AionMeter.Core\AionMeter.Core.csproj" />
     <!-- A2M-48: the WPF-free service layer (UiText since A2M-47, MeterEngine, settings) is tested here on linux -->
     <ProjectReference Include="..\..\src\AionMeter.Service\AionMeter.Service.csproj" />
+    <!-- A2M-48: the layer-shell overlay's display-free parts (placement math, overlay.json, card strings, icon paths); GTK is never loaded -->
+    <ProjectReference Include="..\..\src\AionMeter.Overlay\AionMeter.Overlay.csproj" />
   </ItemGroup>
 
 

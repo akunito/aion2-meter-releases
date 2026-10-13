@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A2M-48: the Linux overlay as a native Wayland client (GTK4 + wlr-layer-shell, OVERLAY layer): composited by Sway above
+       gamescope's fullscreen view, at the output's own scale. Unprivileged: it reads the daemon's socket, never captures.
+       AionMeter.Linux (Avalonia, Xwayland) stays for the windowed UI. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AionMeter.Service\AionMeter.Service.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>AionMeter.Overlay</AssemblyName>
+    <RootNamespace>AionMeter.Overlay</RootNamespace>
+    <Version>0.2.8</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AionMeter.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GirCore.Gtk-4.0" Version="0.8.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the official class emblems, the same files the WPF overlay embeds (GdkTexture loads them from disk) -->
+    <None Include="..\AionMeter.App\Assets\Classes\*.png" Link="Assets\Classes\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
