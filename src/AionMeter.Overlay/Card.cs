@@ -36,16 +36,23 @@ internal sealed class Card
     private bool _connected, _hover, _clickThrough, _fightsWanted;
     private OverlayModel? _last;
 
+    private static Gtk.CssProvider? _css;
+
     public Gtk.Widget Root { get; }
+    public OverlayModel? Last => _last;
     public Gtk.Widget Grip { get; }
 
-    public Card(OverlaySettings s, OverlayClient client, Action hide, Action clickThrough)
+    public Card(OverlaySettings s, OverlayClient client, Action hide, Action clickThrough, Action<string> openTab)
     {
         _client = client;
         _s = s;
-        var css = Gtk.CssProvider.New();
-        css.LoadFromString(CardText.ScaleCss(Css.Sheet(s.Opacity), s.Scale));
-        Gtk.StyleContext.AddProviderForDisplay(Gdk.Display.GetDefault()!, css, 800);   // GTK_STYLE_PROVIDER_PRIORITY_USER
+        Icons.Scale = s.Scale;
+        if (_css is null)
+        {
+            _css = Gtk.CssProvider.New();
+            Gtk.StyleContext.AddProviderForDisplay(Gdk.Display.GetDefault()!, _css, 800);   // GTK_STYLE_PROVIDER_PRIORITY_USER
+        }
+        _css.LoadFromString(CardText.ScaleCss(Css.Sheet(s.Opacity), s.Scale));
 
         var root = Gtk.Overlay.New();
         root.AddCssClass("card");
@@ -65,11 +72,13 @@ internal sealed class Card
         inner.Append(header);
         var tabs = Box(Gtk.Orientation.Horizontal, "tabs");
         tabs.Valign = Gtk.Align.Center;
-        // Atlas / Top / Prices / Craft / Build / Items / Timers come in later milestones (A2M-48): shown, not usable yet.
-        tabs.Append(Tab(Icons.Meter, true, "DPS"));
-        foreach (var (icon, tip) in new[] { (Icons.Atlas, "Atlas"), (Icons.Top, "Top DPS"), (Icons.Prices, "Prices"), (Icons.Craft, "Craft"),
-                                             (Icons.Build, "Build"), (Icons.Items, "Items"), (Icons.Clock, "Timers") })
-            tabs.Append(Tab(icon, false, tip + " (not on Linux yet)"));
+        // A2M-48: this card is the DPS tab; the other pills open the Avalonia tools window on that tab (or start it), so only one card
+        // ever sits over the game.
+        foreach (var key in UiTabs.Strip)
+        {
+            var tip = CardText.TabTip(key);
+            tabs.Append(key == "meter" ? Tab(Icons.Meter, true, tip, null) : Tab(Icons.ForTab(key), false, tip + " — opens the tools window", () => openTab(key)));
+        }
         header.Append(tabs);
 
         _title = Label("title", 0);
@@ -142,9 +151,9 @@ internal sealed class Card
         var t = UiText.Current;
         var hash = Label("col", 0.5f);
         hash.SetText("#");
-        hash.SetSizeRequest(24, -1);
+        hash.SetSizeRequest(Icons.Px(24), -1);
         var hashSlot = Box(Gtk.Orientation.Horizontal, null);
-        hashSlot.SetSizeRequest(30 + 32, -1);   // rank + emblem slots
+        hashSlot.SetSizeRequest(Icons.Px(30 + 32), -1);   // rank + emblem slots
         hashSlot.Append(hash);
         _labels.Append(hashSlot);
         _labels.Append(_colPlayer = Col(t.ColPlayer, _cols.Name, 0));
@@ -154,7 +163,7 @@ internal sealed class Card
         spacer.Hexpand = true;
         _labels.Append(spacer);
         var ruleSlot = Box(Gtk.Orientation.Horizontal, null);
-        ruleSlot.SetSizeRequest(11, -1);   // the rows' rule: 1 px + 5 px margins
+        ruleSlot.SetSizeRequest(Icons.Px(11), -1);   // the rows' rule: 1 px + 5 px margins
         _labels.Append(ruleSlot);
         _labels.Append(_colDps = Col(t.ColDps, _cols.Dps, 1));
         _labels.Append(_colDamage = Col(t.ColDamage, _cols.Damage, 1));
@@ -257,6 +266,22 @@ internal sealed class Card
         OnConnection(false);
     }
 
+    /// <summary>A rescale builds a new card: the old one stops listening to the socket.</summary>
+    public void Detach()
+    {
+        _client.Overlay -= Apply;
+        _client.ConnectionChanged -= OnConnection;
+        _client.Fights -= ShowFights;
+    }
+
+    /// <summary>The new card shows what the old one showed until the next snapshot.</summary>
+    public void Seed(OverlayModel? last)
+    {
+        if (!_client.Connected) return;
+        OnConnection(true);
+        if (last is not null) Apply(last);
+    }
+
     private static Gtk.Box Box(Gtk.Orientation o, string? css)
     {
         var b = Gtk.Box.New(o, 0);
@@ -284,7 +309,7 @@ internal sealed class Card
 
     private static void Hand(Gtk.Widget w) => w.SetCursorFromName("pointer");
 
-    private static Gtk.Widget Tab(Icon icon, bool on, string tip)
+    private static Gtk.Widget Tab(Icon icon, bool on, string tip, Action? click)
     {
         var b = Box(Gtk.Orientation.Horizontal, "tab");
         if (on) b.AddCssClass("on");
@@ -292,6 +317,13 @@ internal sealed class Card
         v.Widget.Hexpand = true;
         b.Append(v.Widget);
         b.SetTooltipText(tip);
+        if (click is null) return b;
+        b.AddCssClass("live");
+        Hand(b);
+        // a click, not a drag: the card's GestureDrag still moves it from a pill pressed and dragged
+        var g = Gtk.GestureClick.New();
+        g.OnReleased += (_, e) => { if (e.NPress == 1) click(); };
+        b.AddController(g);
         return b;
     }
 

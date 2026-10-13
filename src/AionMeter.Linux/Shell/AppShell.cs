@@ -30,6 +30,27 @@ public sealed class AppShell : IDisposable
         UiText.Use(Settings.Language);
         Icons = new IconProvider(MeterEngine.DataDirectory, Settings.DownloadIcons);
         daemon.Overlay += m => LastOverlay = m;
+        ui.ScaleChangedOnDisk += () => UiScaleChanged?.Invoke(Ui.UiScale);
+        // the layer-shell card writes "UiScale" into ui.json (wheel on its corner): a 2 s mtime poll
+        _uiPoll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _uiPoll.Tick += (_, _) => Ui.ReloadScaleIfChanged();
+        _uiPoll.Start();
+    }
+
+    private readonly DispatcherTimer _uiPoll;
+
+    /// <summary>A2M-48 UX: the zoom of every Avalonia window (and, through ui.json, the layer-shell card) changed; argument = the new factor.</summary>
+    public event Action<double>? UiScaleChanged;
+
+    /// <summary>Settings → Overlay "UI scale", Ctrl+wheel: clamped to 80–200 %, saved in ui.json (the card picks it up within 2 s), applied.</summary>
+    public void SetUiScale(double scale)
+    {
+        Ui.ReloadScaleIfChanged();
+        scale = UiScale.Clamp(scale);
+        if (Math.Abs(scale - Ui.UiScale) < 0.001) return;
+        Ui.UiScale = scale;
+        Ui.Save();
+        UiScaleChanged?.Invoke(scale);
     }
 
     public DaemonClient Daemon { get; }
@@ -148,6 +169,7 @@ public sealed class AppShell : IDisposable
 
     public void Dispose()
     {
+        _uiPoll.Stop();
         Icons.Dispose();
         Engine?.Dispose();
     }

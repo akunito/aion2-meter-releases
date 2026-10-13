@@ -8,6 +8,13 @@ namespace AionMeter.Overlay;
 /// <summary>The few strings the card composes itself (everything else arrives final from OverlayBuilder). Pure, tested without a display.</summary>
 public static class CardText
 {
+    /// <summary>Tooltip of a strip pill (UiTabs.Strip key), the WPF tooltips in English.</summary>
+    public static string TabTip(string key) => key switch
+    {
+        "meter" => "DPS", "atlas" => "Atlas", "top" => "Top DPS", "prices" => "Prices", "craft" => "Craft", "build" => "Build", "items" => "Items",
+        "timers" => "Boss timers", _ => key,
+    };
+
     /// <summary>WPF has no letter-spacing, so the WPF/Avalonia cards space the caps with blanks; GTK CSS has letter-spacing, the caps stay plain.</summary>
     public static string HeaderLabel(string label, string? when) => when is null ? label.ToUpperInvariant() : label.ToUpperInvariant() + "   " + when;
 

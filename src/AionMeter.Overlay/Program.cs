@@ -14,9 +14,11 @@ if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
           --socket    the daemon's UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock)
           --monitor   output connector (DP-1); saved in overlay.json, default: the compositor's choice
           --anchor    the corner the card hangs from (resets the margins to that corner's default)
-          --scale     card size factor on top of the output scale (0.5 – 3)
+          --scale     card size factor on top of the output scale (0.5 – 3) for this run; otherwise the shared "UI scale" of ui.json
+                      (tools window Settings → Overlay, Ctrl+wheel there; here: the wheel over the resize corner)
           --data-dir  where overlay.json lives (default $XDG_DATA_HOME/AionMeter)
         Signals (pid in $XDG_RUNTIME_DIR/aionmeter-overlay.pid): SIGUSR1 toggles click-through, SIGUSR2 hides/shows the card.
+        The tab pills open the tools window (aionmeter-ui) on that tab: through $XDG_RUNTIME_DIR/aionmeter-ui.sock, else it is started.
         Needs libgtk-4, libgtk4-layer-shell and a wlroots compositor (Sway); no Xwayland.
         """);
     return 0;
@@ -36,11 +38,14 @@ if (Opt("--anchor") is { } an)
     if (!Placement.TryParse(an, out var anchor)) { Console.Error.WriteLine($"overlay: unknown --anchor {an}"); return 2; }
     if (anchor != settings.Anchor) { settings.Anchor = anchor; settings.MarginH = 24; settings.MarginV = Placement.IsBottom(anchor) ? 120 : 140; }
 }
+settings.Scale = UiScale.Read(Path.Combine(AppSettings.AppDataDir, "ui.json"));
+var scaleFixed = false;
 if (Opt("--scale") is { } sc)
 {
     if (!double.TryParse(sc, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var scale) || scale is < 0.5 or > 3)
     { Console.Error.WriteLine($"overlay: --scale wants 0.5 – 3, got {sc}"); return 2; }
     settings.Scale = scale;
+    scaleFixed = true;
 }
 var socket = Opt("--socket") ?? OverlayServer.DefaultPath();
 // The game shares the box: a background UI must not compete for CPU with it.
@@ -50,7 +55,7 @@ var runDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") is { Length: 
 var pidFile = Path.Combine(runDir, "aionmeter-overlay.pid");
 try { File.WriteAllText(pidFile, Environment.ProcessId.ToString()); } catch (IOException) { } catch (UnauthorizedAccessException) { }
 
-var host = new OverlayHost(settings, socket);
+var host = new OverlayHost(settings, socket, Path.Combine(AppSettings.AppDataDir, "ui.json"), scaleFixed);
 // SIGUSR1/SIGUSR2 are 10/12 on Linux; raw numbers are accepted cast to PosixSignal. The handler runs on a pool thread: marshal to GTK.
 using var usr1 = PosixSignalRegistration.Create((PosixSignal)10, c => { c.Cancel = true; host.Post(host.ToggleClickThrough); });
 using var usr2 = PosixSignalRegistration.Create((PosixSignal)12, c => { c.Cancel = true; host.Post(host.ToggleHidden); });

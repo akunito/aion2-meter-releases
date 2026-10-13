@@ -10,6 +10,7 @@ using AionMeter.Core.Combat;
 using AionMeter.Core.Game;
 using AionMeter.Linux.Shell;
 using AionMeter.Service;
+using AionMeter.Service.Overlay;
 
 namespace AionMeter.Linux.Views;
 
@@ -28,7 +29,7 @@ public sealed class SettingsView : HostedView
     private CheckBox _shareUsage = null!, _shareBuilds = null!, _shareBackup = null!, _repSummary = null!, _repTop = null!, _repInv = null!;
     private TextBox _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!;
     private ComboBox _language = null!, _maxRows = null!, _mode = null!, _historyMode = null!, _device = null!, _region = null!, _server = null!, _channel = null!;
-    private Slider _opacity = null!, _rowSize = null!;
+    private Slider _opacity = null!, _rowSize = null!, _uiScale = null!;
     private TextBlock _rowSizeText = null!, _backupWarn = null!, _backupOff = null!, _copyState = null!, _serverNow = null!;
     private TextBox _backupCode = null!;
     private bool _loadingServer;
@@ -91,6 +92,17 @@ public sealed class SettingsView : HostedView
         ov.Children.Add(UiKit.Field(T.RowsShown, _maxRows = UiKit.Combo(RowChoices.Select(n => n.ToString()), rowIdx, 80)));
         _opacity = new Slider { Width = 180, Minimum = 0.15, Maximum = 1, Value = Shell.Ui.Opacity, VerticalAlignment = VerticalAlignment.Center };
         ov.Children.Add(UiKit.Field(T.BackgroundOpacity, _opacity));
+        // A2M-48 UX: zoom of the Linux windows and the layer-shell card (ui.json "UiScale")
+        var us = new StackPanel { Orientation = Orientation.Horizontal };
+        _uiScale = new Slider { Width = 180, Minimum = UiScale.Min * 100, Maximum = UiScale.Max * 100, TickFrequency = 5, IsSnapToTickEnabled = true, Value = Shell.Ui.UiScale * 100, VerticalAlignment = VerticalAlignment.Center };
+        us.Children.Add(_uiScale);
+        var usText = UiKit.Text($"{Shell.Ui.UiScale * 100:0}%");
+        usText.Margin = new Thickness(10, 0, 0, 0);
+        us.Children.Add(usText);
+        _uiScale.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) usText.Text = $"{(int)Math.Round(_uiScale.Value)}%"; };
+        Shell.UiScaleChanged += z => { if (Math.Abs(_uiScale.Value - z * 100) > 0.5) _uiScale.Value = z * 100; };
+        ov.Children.Add(UiKit.Field(T.UiScaleLabel, us));
+        ov.Children.Add(UiKit.Hint(T.UiScaleHint, 190));
         var rs = new StackPanel { Orientation = Orientation.Horizontal };
         _rowSize = new Slider { Width = 180, Minimum = 50, Maximum = 100, TickFrequency = 5, IsSnapToTickEnabled = true, Value = s.RowSize, VerticalAlignment = VerticalAlignment.Center };
         rs.Children.Add(_rowSize);
@@ -381,6 +393,7 @@ public sealed class SettingsView : HostedView
         // the Linux card's opacity lives in ui.json (the slider shows it); settings.json keeps the Windows overlay's value in step
         Shell.Ui.Opacity = s.BackgroundOpacity;
         Shell.Ui.Save();
+        Shell.SetUiScale(_uiScale.Value / 100);
         Shell.SaveSettings(previousLanguage);
         RaiseClose();
     }

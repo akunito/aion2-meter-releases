@@ -32,6 +32,8 @@
   <ItemGroup>
     <!-- the official class emblems, the same files the WPF overlay embeds -->
     <AvaloniaResource Include="..\AionMeter.App\Assets\Classes\*.png" Link="Assets\Classes\%(Filename)%(Extension)" />
+    <!-- A2M-48 UX: the tray icon (the WPF app's icon) -->
+    <AvaloniaResource Include="..\AionMeter.App\Assets\app.ico" Link="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>

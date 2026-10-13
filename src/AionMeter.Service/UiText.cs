@@ -1007,12 +1007,26 @@ public sealed class UiText
     public string UpdateCheckFailed { get; init; } = "Could not reach GitHub: {0}";
 
     // A2M-48 phase 3b: the Linux UI (Avalonia) replaces the Windows-only parts of Settings with these notes
-    public string LinuxHotkeysNote { get; init; } = "On Linux the hotkeys are Sway bindings set by the dotfiles: Hyper+G shows or hides this card, $mod+Shift+M turns click-through off again. Change them in the Sway config, not here.";
+    public string LinuxHotkeysNote { get; init; } = "On Linux the hotkeys are Sway bindings set by the dotfiles: Hyper+G shows or hides the DPS card over the game, Hyper+Shift+G toggles its click-through, Hyper+Shift+M opens this tools window. Change them in the Sway config, not here.";
     public string LinuxUpdatesNote { get; init; } = "Linux: the daemon and this window are updated by deploy.sh (tools/linux/deploy.sh <sha>), not by the meter itself.";
     public string LinuxGameNote { get; init; } = "Linux: the capture runs in the system service aion2-meter-daemon, which is always on; there is no task to start it with the game.";
     public string LinuxCaptureNote { get; init; } = "Linux: the daemon (system service aion2-meter-daemon, CAP_NET_RAW) captures and this window reads its socket. A new adapter or recording switch restarts the daemon's capture when you save.";
     public string LinuxNoDaemon { get; init; } = "No daemon on {0}: settings are saved and the daemon takes them when it starts.";
     public string LinuxNotYet { get; init; } = "{0} (not on Linux yet)";
+    // A2M-48 UX: zoom and the tray icon of the Linux tools window
+    public string UiScaleLabel { get; init; } = "UI scale";
+    public string UiScaleHint { get; init; } = "Zoom of these windows and of the DPS card over the game (Ctrl+wheel here, the wheel over the card's resize corner). Text and icons are redrawn at the new size, never stretched.";
+    public string TrayOverlay { get; init; } = "Show / hide the DPS card";
+    public string TrayClickThrough { get; init; } = "Card click-through on / off";
+    public string TrayToolsShow { get; init; } = "Show the tools window";
+    public string TrayToolsHide { get; init; } = "Hide the tools window";
+    public string TrayTabs { get; init; } = "Open tab";
+    public string TrayDaemon { get; init; } = "Daemon: {0}";
+    public string TrayDaemonOff { get; init; } = "Daemon: not running";
+    public string TrayRestartDaemon { get; init; } = "Restart the daemon";
+    public string TrayRestartFailed { get; init; } = "Could not restart the daemon from here. In a terminal: {0}";
+    public string TrayNoOverlay { get; init; } = "The DPS card is not running (Hyper+G starts it).";
+    public string TrayQuit { get; init; } = "Quit the tools window";
     public string FightLoading { get; init; } = "Loading the fight…";
     public string FightGone { get; init; } = "This fight is no longer available.";
 
@@ -1021,12 +1035,25 @@ public sealed class UiText
     {
         Code = "es",
         LanguageName = "Español",
-        LinuxHotkeysNote = "En Linux los atajos son combinaciones de Sway que ponen los dotfiles: Hyper+G muestra u oculta esta tarjeta, $mod+Mayús+M quita el modo atravesar clics. Se cambian en la configuración de Sway, no aquí.",
+        LinuxHotkeysNote = "En Linux los atajos son combinaciones de Sway que ponen los dotfiles: Hyper+G muestra u oculta la tarjeta de DPS sobre el juego, Hyper+Mayús+G alterna su modo atravesar clics, Hyper+Mayús+M abre esta ventana de herramientas. Se cambian en la configuración de Sway, no aquí.",
         LinuxUpdatesNote = "Linux: el daemon y esta ventana se actualizan con deploy.sh (tools/linux/deploy.sh <sha>), no desde el propio meter.",
         LinuxGameNote = "Linux: la captura corre en el servicio de sistema aion2-meter-daemon, siempre activo; no hay tarea para arrancarlo con el juego.",
         LinuxCaptureNote = "Linux: captura el daemon (servicio de sistema aion2-meter-daemon, CAP_NET_RAW) y esta ventana lee su socket. Al guardar otro adaptador o el interruptor de grabación, el daemon reinicia su captura.",
         LinuxNoDaemon = "No hay daemon en {0}: los ajustes se guardan y el daemon los toma al arrancar.",
         LinuxNotYet = "{0} (aún no en Linux)",
+        UiScaleLabel = "Escala de la interfaz",
+        UiScaleHint = "Zoom de estas ventanas y de la tarjeta de DPS sobre el juego (Ctrl+rueda aquí, la rueda sobre la esquina de redimensionar de la tarjeta). Texto e iconos se redibujan al nuevo tamaño, nunca se estiran.",
+        TrayOverlay = "Mostrar / ocultar la tarjeta de DPS",
+        TrayClickThrough = "Atravesar clics de la tarjeta sí / no",
+        TrayToolsShow = "Mostrar la ventana de herramientas",
+        TrayToolsHide = "Ocultar la ventana de herramientas",
+        TrayTabs = "Abrir pestaña",
+        TrayDaemon = "Daemon: {0}",
+        TrayDaemonOff = "Daemon: no está en marcha",
+        TrayRestartDaemon = "Reiniciar el daemon",
+        TrayRestartFailed = "No se pudo reiniciar el daemon desde aquí. En una terminal: {0}",
+        TrayNoOverlay = "La tarjeta de DPS no está en marcha (Hyper+G la arranca).",
+        TrayQuit = "Salir de la ventana de herramientas",
         FightLoading = "Cargando el combate…",
         FightGone = "Este combate ya no está disponible.",
         ClassNames = new Dictionary<Core.Events.GameClass, string>

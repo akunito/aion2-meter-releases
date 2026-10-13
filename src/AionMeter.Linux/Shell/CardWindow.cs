@@ -25,11 +25,12 @@ public class CardWindow : Window
         _shell = shell;
         _key = key;
         var place = shell.Ui.Windows.TryGetValue(key, out var p) && p.Length == 4 ? p : null;
-        Width = place?[2] ?? width;
-        Height = place?[3] ?? height;
-        MinWidth = 360;
-        MinHeight = 260;
-        if (place is not null) { WindowStartupLocation = WindowStartupLocation.Manual; Position = new PixelPoint((int)place[0], (int)place[1]); }
+        var output = shell.Ui.WindowOutputs.TryGetValue(key, out var o) ? o : "";
+        _zoomApplied = shell.Ui.UiScale;
+        Width = (place?[2] ?? width) * _zoomApplied;
+        Height = (place?[3] ?? height) * _zoomApplied;
+        MinWidth = 360 * _zoomApplied;
+        MinHeight = 260 * _zoomApplied;
         SystemDecorations = SystemDecorations.None;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         Background = Brushes.Transparent;
@@ -49,24 +50,54 @@ public class CardWindow : Window
         grip.Child = new Avalonia.Controls.Shapes.Path { Data = Visuals.IconGrip, Stroke = Visuals.GoldDim, StrokeThickness = 1.3 };
         grip.PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { e.Handled = true; BeginResizeDrag(WindowEdge.SouthEast, e); } };
         root.Children.Add(grip);
-        Content = root;
+        _zoom = new LayoutTransformControl { Child = root, LayoutTransform = new ScaleTransform(_zoomApplied, _zoomApplied) };
+        Content = _zoom;
+        AddHandler(PointerWheelChangedEvent, (_, e) =>
+        {
+            if ((e.KeyModifiers & KeyModifiers.Control) == 0 || e.Delta.Y == 0) return;
+            e.Handled = true;
+            shell.SetUiScale(shell.Ui.UiScale + Math.Sign(e.Delta.Y) * AionMeter.Service.Overlay.UiScale.Step);
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        shell.UiScaleChanged += ApplyZoom;
+        Closed += (_, _) => shell.UiScaleChanged -= ApplyZoom;
         // Unhandled presses on empty parts of the card move it (the views mark their own clicks handled).
         PointerPressed += (_, e) => { if (!e.Handled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.Source is not TextBox) BeginMoveDrag(e); };
+        var (askW, askH) = (Width, Height);
         Opened += (_, _) => Dispatcher.UIThread.Post(() =>
         {
-            // Sway floats an Xwayland window at its mapped size, not the one asked for (OverlayWindow, 2026-10-13): ask again once mapped.
-            var (w, h) = (Width, Height);
-            Width = w + 1; Height = h + 1; Width = w; Height = h;
-            if (place is not null) Position = new PixelPoint((int)place[0], (int)place[1]);
+            // Sway floats an Xwayland window at its mapped size, not the one asked for (OverlayWindow.Place, 2026-10-13): ask again once
+            // mapped, with the size asked at construction (Width/Height now hold Sway's) and the final value in a separate pass.
+            Width = askW + 1; Height = askH + 1;
+            Dispatcher.UIThread.Post(() => { Width = askW; Height = askH; }, DispatcherPriority.Background);
+            if (place is not null) WindowPlace.Restore(this, output, place[0], place[1]);
         }, DispatcherPriority.Background);
+    }
+
+    private readonly LayoutTransformControl _zoom;
+    private double _zoomApplied;
+
+    private void ApplyZoom(double z)
+    {
+        if (Math.Abs(z - _zoomApplied) < 0.001) return;
+        var ratio = z / _zoomApplied;
+        _zoomApplied = z;
+        _zoom.LayoutTransform = new ScaleTransform(z, z);
+        MinWidth = 360 * z;
+        MinHeight = 260 * z;
+        Width = Math.Max(MinWidth, Bounds.Width * ratio);
+        Height = Math.Max(MinHeight, Bounds.Height * ratio);
     }
 
     protected Control? Body { get => _host.Child; set => _host.Child = value; }
 
     protected override void OnClosed(EventArgs e)
     {
-        _shell.Ui.Windows[_key] = [Position.X, Position.Y, Bounds.Width, Bounds.Height];
-        _shell.Ui.Save();
+        if (WindowPlace.Capture(this) is var (output, x, y))
+        {
+            _shell.Ui.Windows[_key] = [x, y, Bounds.Width / _zoomApplied, Bounds.Height / _zoomApplied];
+            _shell.Ui.WindowOutputs[_key] = output;
+            _shell.Ui.Save();
+        }
         base.OnClosed(e);
     }
 }

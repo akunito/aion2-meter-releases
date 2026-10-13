@@ -13,18 +13,22 @@ public sealed record TabSpec(string Key, Geometry Icon, Func<UiText, string> Tip
 /// </summary>
 public static class ViewRegistry
 {
-    /// <summary>The strip, left to right (the DPS card is "meter"; "settings" and "fight" are reached from the gear / a row and are not here).</summary>
-    public static readonly TabSpec[] Strip =
-    [
-        new("meter", Visuals.IconMeter, _ => "DPS"),
-        new("build", Visuals.IconBuild, t => t.TrayBuild),
-        new("items", Visuals.IconItems, t => t.TrayItems),
-        new("timers", Visuals.IconClock, t => t.TipTimers),
-        new("atlas", Visuals.IconAtlas, t => t.TrayAtlas),
-        new("top", Visuals.IconTop, t => t.TrayTop),
-        new("prices", Visuals.IconPrices, t => t.TrayPrices),
-        new("craft", Visuals.IconCraft, t => t.TrayCraft),
-    ];
+    /// <summary>The strip, left to right = WPF OverlayWindow.xaml (UiTabs.Strip: DPS, Atlas, Top, Prices, Craft, Build, Items, Timers; the gear
+    /// follows). The DPS card is "meter"; "settings" and "fight" are reached from the gear / a row and are not here.</summary>
+    public static readonly TabSpec[] Strip = Array.ConvertAll(AionMeter.Service.Overlay.UiTabs.Strip, Spec);
+
+    private static TabSpec Spec(string key) => key switch
+    {
+        "meter" => new(key, Visuals.IconMeter, _ => "DPS"),
+        "atlas" => new(key, Visuals.IconAtlas, t => t.TrayAtlas),
+        "top" => new(key, Visuals.IconTop, t => t.TrayTop),
+        "prices" => new(key, Visuals.IconPrices, t => t.TrayPrices),
+        "craft" => new(key, Visuals.IconCraft, t => t.TrayCraft),
+        "build" => new(key, Visuals.IconBuild, t => t.TrayBuild),
+        "items" => new(key, Visuals.IconItems, t => t.TrayItems),
+        "timers" => new(key, Visuals.IconClock, t => t.TipTimers),
+        _ => throw new ArgumentException("no strip icon for " + key),
+    };
 
     public static readonly Dictionary<string, Func<AppShell, IHostedView>> Factories = new()
     {
@@ -37,7 +41,6 @@ public static class ViewRegistry
         ["craft"] = s => new CraftView(s),
         ["prices"] = s => new PricesView(s),
         ["build"] = s => new BuildView(s),
-        // next view agents: ["build"] = s => new BuildView(s), ["items"] = …, ["timers"] = …, ["atlas"] = …, ["top"] = …, ["prices"] = …, ["craft"] = …
     };
 
     public static bool Has(string key) => Factories.ContainsKey(key);

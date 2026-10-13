@@ -17,7 +17,8 @@ public sealed class OverlaySettings
     /// <summary>Card size in unscaled px (the window is Width × Scale).</summary>
     public int Width { get; set; } = 560;
     public int Height { get; set; } = 540;
-    public double Scale { get; set; } = 1;
+    /// <summary>Not saved here: the shared "UI scale" in ui.json (or --scale for one run).</summary>
+    [JsonIgnore] public double Scale { get; set; } = 1;
     public bool ClickThrough { get; set; }
     public double Opacity { get; set; } = 0.92;
 
@@ -34,7 +35,6 @@ public sealed class OverlaySettings
         s.Path = path;
         s.Width = Math.Max(MinWidth, s.Width);
         s.Height = Math.Max(MinHeight, s.Height);
-        s.Scale = double.IsFinite(s.Scale) ? Math.Clamp(s.Scale, 0.5, 3) : 1;
         s.Opacity = double.IsFinite(s.Opacity) ? Math.Clamp(s.Opacity, 0.2, 1) : 0.92;
         return s;
     }

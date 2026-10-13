@@ -38,7 +38,7 @@ internal sealed class RowWidget
         var c = Gtk.Box.New(Gtk.Orientation.Horizontal, 0);
         c.AddCssClass("rowc");
         var rankSlot = Gtk.Box.New(Gtk.Orientation.Horizontal, 0);
-        rankSlot.SetSizeRequest(30, -1);
+        rankSlot.SetSizeRequest(Icons.Px(30), -1);
         _rank = Gtk.Label.New("");
         _rank.AddCssClass("rank");
         _rank.Valign = Gtk.Align.Center;
@@ -47,14 +47,14 @@ internal sealed class RowWidget
         c.Append(rankSlot);
 
         var coinSlot = Gtk.Box.New(Gtk.Orientation.Horizontal, 0);
-        coinSlot.SetSizeRequest(32, -1);
+        coinSlot.SetSizeRequest(Icons.Px(32), -1);
         _coin = Gtk.Box.New(Gtk.Orientation.Horizontal, 0);
         _coin.AddCssClass("coin");
         _coin.Valign = Gtk.Align.Center;
         _coin.Halign = Gtk.Align.Start;
         // GtkImage at a pixel size, not GtkPicture: a picture is height-for-width and inflated the 42 px row to 112 (measured)
         _emblem = Gtk.Image.New();
-        _emblem.PixelSize = 25;
+        _emblem.PixelSize = Icons.Px(25);
         _emblem.Halign = Gtk.Align.Center;
         _emblem.Valign = Gtk.Align.Center;
         _coin.Append(_emblem);

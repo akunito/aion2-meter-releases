@@ -20,10 +20,17 @@ internal sealed class OverlayHost
     private (int W, int H, int MH, int MV) _resizeStart;
     private bool _hidden;
 
-    public OverlayHost(OverlaySettings settings, string socket)
+    private readonly string _uiJson;
+    private readonly bool _scaleFixed;
+    private DateTime _uiJsonStamp;
+
+    /// <param name="uiJson">ui.json: the shared "UI scale" (unless <paramref name="scaleFixed"/>: --scale for this run).</param>
+    public OverlayHost(OverlaySettings settings, string socket, string uiJson, bool scaleFixed)
     {
         _s = settings;
         _socket = socket;
+        _uiJson = uiJson;
+        _scaleFixed = scaleFixed;
     }
 
     public int Run()
@@ -63,10 +70,47 @@ internal sealed class OverlayHost
         PickMonitor();
 
         _client = new OverlayClient(_socket, Post);
-        _card = new Card(_s, _client, ToggleHidden, () => SetClickThrough(true));
-        win.Child = _card.Root;
-        ApplySize();
+        BuildCard();
         ApplyPlacement();
+        win.OnRealize += (_, _) => Console.Error.WriteLine($"overlay: layer surface on {(_s.Monitor.Length > 0 ? _s.Monitor : "(compositor's output)")} {_outW}x{_outH}, anchor {Placement.Name(_s.Anchor)} margins {_s.MarginH},{_s.MarginV}, card {Px(_s.Width)}x{Px(_s.Height)}, scale {_s.Scale}");
+        win.Present();
+        if (_s.ClickThrough) SetClickThrough(true);
+        _client.Start();
+        // the shared UI scale: the tools window's Settings / Ctrl+wheel write ui.json; a 2 s mtime poll is enough for a setting
+        _uiJsonStamp = Stamp(_uiJson);
+        if (!_scaleFixed)
+            GLib.Functions.TimeoutAddSeconds(0, 2, () =>
+            {
+                var st = Stamp(_uiJson);
+                if (st != _uiJsonStamp) { _uiJsonStamp = st; Rescale(AionMeter.Service.Overlay.UiScale.Read(_uiJson), save: false); }
+                return true;
+            });
+    }
+
+    private static DateTime Stamp(string path) { try { return File.GetLastWriteTimeUtc(path); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return default; } }
+
+    /// <summary>A new card at the new scale (GTK has no layout transform; CSS px, icon and slot sizes are rebuilt), same place and state.</summary>
+    public void Rescale(double scale, bool save)
+    {
+        scale = AionMeter.Service.Overlay.UiScale.Clamp(scale);
+        if (_card is null || Math.Abs(scale - _s.Scale) < 0.001) return;
+        _s.Scale = scale;
+        if (save && !_scaleFixed) { AionMeter.Service.Overlay.UiScale.Write(_uiJson, scale); _uiJsonStamp = Stamp(_uiJson); }
+        BuildCard();
+        ApplyPlacement();
+        Console.Error.WriteLine($"overlay: scale {scale:0.##}");
+    }
+
+    private void BuildCard()
+    {
+        var win = _win!;
+        var old = _card;
+        old?.Detach();
+        _card = new Card(_s, _client!, ToggleHidden, () => SetClickThrough(true), key => Task.Run(() => FrontEnds.OpenUi(key)));
+        win.Child = _card.Root;
+        _card.Seed(old?.Last);
+        if (_s.ClickThrough) _card.SetClickThrough(true);
+        ApplySize();
 
         var drag = Gtk.GestureDrag.New();
         drag.OnDragBegin += (_, _) => (_dragH, _dragV) = (_s.MarginH, _s.MarginV);
@@ -97,10 +141,19 @@ internal sealed class OverlayHost
         resize.OnDragEnd += (_, _) => _s.Save();
         _card.Grip.AddController(resize);
 
-        win.OnRealize += (_, _) => Console.Error.WriteLine($"overlay: layer surface on {(_s.Monitor.Length > 0 ? _s.Monitor : "(compositor's output)")} {_outW}x{_outH}, anchor {Placement.Name(_s.Anchor)} margins {_s.MarginH},{_s.MarginV}, card {Px(_s.Width)}x{Px(_s.Height)}");
-        win.Present();
-        if (_s.ClickThrough) SetClickThrough(true);
-        _client.Start();
+        // Zoom: the wheel over the resize corner, or Ctrl+wheel anywhere when GDK knows the modifiers (keyboard mode NONE: often it does not)
+        var wheel = Gtk.EventControllerScroll.New(Gtk.EventControllerScrollFlags.Vertical);
+        wheel.OnScroll += (c, e) =>
+        {
+            var onGrip = c.GetWidget() == _card?.Grip;
+            if (!onGrip && (c.GetCurrentEventState() & Gdk.ModifierType.ControlMask) == 0) return false;
+            Rescale(_s.Scale + (e.Dy < 0 ? 1 : -1) * AionMeter.Service.Overlay.UiScale.Step, save: true);
+            return true;
+        };
+        _card.Root.AddController(wheel);
+        var gripWheel = Gtk.EventControllerScroll.New(Gtk.EventControllerScrollFlags.Vertical);
+        gripWheel.OnScroll += (_, e) => { Rescale(_s.Scale + (e.Dy < 0 ? 1 : -1) * AionMeter.Service.Overlay.UiScale.Step, save: true); return true; };
+        _card.Grip.AddController(gripWheel);
     }
 
     private int Px(int v) => (int)Math.Round(v * _s.Scale);

@@ -58,10 +58,10 @@ public sealed class OverlayWindow : Window
         var client = _client;
         var ui = _ui;
         Title = AppInfo.Name;
-        Width = Math.Max(340, ui.Width);
-        Height = Math.Max(220, ui.Height);
-        MinWidth = 340;
-        MinHeight = 220;
+        Width = Math.Max(340, ui.Width) * ui.UiScale;
+        Height = Math.Max(220, ui.Height) * ui.UiScale;
+        MinWidth = 340 * ui.UiScale;
+        MinHeight = 220 * ui.UiScale;
         SystemDecorations = SystemDecorations.None;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         Background = Brushes.Transparent;
@@ -70,7 +70,7 @@ public sealed class OverlayWindow : Window
         ShowActivated = false;
         CanResize = true;
         FontFamily = Visuals.Ui;
-        if (!double.IsNaN(ui.Left) && !double.IsNaN(ui.Top)) { WindowStartupLocation = WindowStartupLocation.Manual; Position = new PixelPoint((int)ui.Left, (int)ui.Top); }
+        // the place is restored per output once mapped (WindowPlace); the window manager places it first
 
         var root = new Grid { Margin = new Thickness(10) };
         // Card
@@ -125,7 +125,7 @@ public sealed class OverlayWindow : Window
         _toolbar.Children.Add(ToolIcon(Visuals.IconReset, "Restart the meter (closes and saves the fight so far)", () => _client.Send("reset")));
         _clickToggle = ToolIcon(Visuals.IconPointer, "Click-through: the mouse goes to the game (SIGUSR1 / the Sway hotkey turns it back off)", () => SetClickThrough(true));
         _toolbar.Children.Add(_clickToggle);
-        _toolbar.Children.Add(ToolIcon(Visuals.IconClose, "Close the overlay (the daemon keeps running)", Close));
+        _toolbar.Children.Add(ToolIcon(Visuals.IconClose, "Hide the tools window (tray icon / Hyper+Shift+m shows it; Quit is in the tray menu)", Close));
         header.Children.Add(_toolbar);
 
         var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Effect = Visuals.TextShadow() };
@@ -246,7 +246,17 @@ public sealed class OverlayWindow : Window
         grip.Child = new Path { Data = Visuals.IconGrip, Stroke = Visuals.GoldDim, StrokeThickness = 1.3 };
         grip.PointerPressed += (_, e) => { if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) { e.Handled = true; BeginResizeDrag(WindowEdge.SouthEast, e); } };
         root.Children.Add(grip);
-        Content = root;
+        _zoom = new LayoutTransformControl { Child = root, LayoutTransform = new ScaleTransform(ui.UiScale, ui.UiScale) };
+        _zoomApplied = ui.UiScale;
+        Content = _zoom;
+        // A2M-48 UX: Ctrl+wheel zooms (tunnel: the views' ScrollViewers would take the wheel first); vector + text, crisp at any step
+        AddHandler(PointerWheelChangedEvent, (_, e) =>
+        {
+            if ((e.KeyModifiers & KeyModifiers.Control) == 0 || e.Delta.Y == 0) return;
+            e.Handled = true;
+            _shell.SetUiScale(_ui.UiScale + Math.Sign(e.Delta.Y) * UiScale.Step);
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        shell.UiScaleChanged += ApplyZoom;
 
         // Drag the card by any part of it.
         PointerPressed += (_, e) => { if (!e.Handled && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e); };
@@ -260,18 +270,7 @@ public sealed class OverlayWindow : Window
         Opened += (_, _) =>
         {
             if (_ui.ClickThrough) SetClickThrough(true);
-            // Sway floats an Xwayland window at the size it was mapped with, which is not the one asked for (777×669 for 490×560,
-            // 2026-10-13): ask again once mapped; floating Xwayland windows may resize and place themselves.
-            Dispatcher.UIThread.Post(() =>
-            {
-                var (w, h) = (Width, Height);
-                Width = w + 1;
-                Height = h + 1;
-                Width = w;
-                Height = h;
-                if (!double.IsNaN(_ui.Left) && !double.IsNaN(_ui.Top)) Position = new PixelPoint((int)_ui.Left, (int)_ui.Top);
-                Console.Error.WriteLine($"overlay window {ClientSize.Width:0}x{ClientSize.Height:0} DIP at {Position}, scale {RenderScaling}, screen {Screens.ScreenFromWindow(this)?.Bounds}");
-            }, DispatcherPriority.Background);
+            Dispatcher.UIThread.Post(Place, DispatcherPriority.Background);
         };
 
         client.Overlay += Apply;
@@ -287,6 +286,40 @@ public sealed class OverlayWindow : Window
             e.Handled = true;
             SelectTab(_tab == "settings" ? _beforeSettings : "meter");
         };
+    }
+
+    private readonly LayoutTransformControl _zoom;
+    private double _zoomApplied;
+
+    /// <summary>
+    /// After every map (start, and each show after hide-to-tray): Sway floats an Xwayland window at the size it was mapped with, not the one
+    /// asked for (777×669 for 490×560, 2026-10-13), so ask again; then the saved place on its output, and Sway's help if it is elsewhere.
+    /// </summary>
+    public void Place()
+    {
+        // the saved size, not Width/Height: those already hold what Sway imposed at map time (with xwayland_zero_scaling it divides the
+        // first request by the scale of the output it maps on — DP-1's 1.5 — before the rule moves it to DP-2: 560 DIP came out 466, 2026-10-13)
+        var (w, h) = (Math.Max(MinWidth, _ui.Width * _zoomApplied), Math.Max(MinHeight, _ui.Height * _zoomApplied));
+        Width = w + 1;
+        Height = h + 1;
+        // a separate pass: set back in the same one, Avalonia sends only the final size, equal to the last request, i.e. nothing
+        Dispatcher.UIThread.Post(() => { Width = w; Height = h; }, DispatcherPriority.Background);
+        if (WindowPlace.Restore(this, _ui.Output, _ui.Left, _ui.Top)) WindowPlace.EnsureOutput(this, _ui.Output);
+        else if (Environment.GetEnvironmentVariable("AIONMETER_UI_OUTPUT") is { Length: > 0 } want) WindowPlace.EnsureOutput(this, want);
+        Console.Error.WriteLine($"tools window {ClientSize.Width:0}x{ClientSize.Height:0} DIP at {Position}, scale {RenderScaling}, zoom {_ui.UiScale:0.##}, output {WindowPlace.OutputOf(this)} {Screens.ScreenFromWindow(this)?.Bounds}");
+    }
+
+    /// <summary>UI scale changed (Settings, Ctrl+wheel, the card's corner wheel): the window grows with the content so the layout stays the same.</summary>
+    private void ApplyZoom(double z)
+    {
+        if (Math.Abs(z - _zoomApplied) < 0.001) return;
+        var ratio = z / _zoomApplied;
+        _zoomApplied = z;
+        _zoom.LayoutTransform = new ScaleTransform(z, z);
+        MinWidth = 340 * z;
+        MinHeight = 220 * z;
+        Width = Math.Max(MinWidth, Bounds.Width * ratio);
+        Height = Math.Max(MinHeight, Bounds.Height * ratio);
     }
 
     // ------------------------------------------------------------ tab host (A2M-48 phase 3b, WPF SelectTab)
@@ -316,6 +349,7 @@ public sealed class OverlayWindow : Window
         }
         _popOut.IsVisible = !meter;
         SyncPills();
+        if (tab is not ("meter" or "settings" or "fight") && tab != _ui.LastTab) { _ui.LastTab = tab; _saveTimer.Stop(); _saveTimer.Start(); }
     }
 
     private IHostedView View(string key)
@@ -633,10 +667,13 @@ public sealed class OverlayWindow : Window
 
     private void SavePlacement()
     {
-        _ui.Left = Position.X;
-        _ui.Top = Position.Y;
-        _ui.Width = Bounds.Width;
-        _ui.Height = Bounds.Height;
+        if (IsVisible && WindowPlace.Capture(this) is var (output, x, y)) { _ui.Output = output; _ui.Left = x; _ui.Top = y; }
+        if (IsVisible)
+        {
+            // stored unzoomed: a later zoom change scales it again
+            _ui.Width = Bounds.Width / _zoomApplied;
+            _ui.Height = Bounds.Height / _zoomApplied;
+        }
         _ui.Save();
     }
 
@@ -649,6 +686,23 @@ public sealed class OverlayWindow : Window
             _saveTimer.Start();
             if (Environment.GetEnvironmentVariable("AIONMETER_UI_DEBUG") is not null) Console.Error.WriteLine($"client size {ClientSize}, scale {RenderScaling}");
         }
+    }
+
+    /// <summary>With the tray icon up, closing (the X, Sway's kill) only hides: the process keeps the tray; Quit is in its menu.</summary>
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        if (App.HideOnClose && !App.Quitting)
+        {
+            e.Cancel = true;
+            HideToTray();
+        }
+        base.OnClosing(e);
+    }
+
+    public void HideToTray()
+    {
+        SavePlacement();
+        Hide();
     }
 
     protected override void OnClosed(EventArgs e)

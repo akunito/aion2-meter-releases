@@ -26,6 +26,18 @@ internal static class Icons
     public static readonly Icon Unknown = new("M8 1.5 A6.5 6.5 0 1 1 7.99 1.5 Z M6.3 6.3 C6.3 4.3 9.7 4.3 9.7 6.3 C9.7 7.7 8 7.7 8 9.4 M8 11.4 L8 11.7");
 
     /// <summary>A DrawingArea of <paramref name="size"/> px stroking <paramref name="icon"/> in the colour <see cref="IconView.Rgb"/> holds.</summary>
+    /// <summary>The strip pill's icon for a UiTabs.Strip key.</summary>
+    public static Icon ForTab(string key) => key switch
+    {
+        "meter" => Meter, "atlas" => Atlas, "top" => Top, "prices" => Prices, "craft" => Craft, "build" => Build, "items" => Items, "timers" => Clock,
+        _ => Unknown,
+    };
+
+    /// <summary>The card's scale (UI scale / --scale): fixed pixel sizes go through <see cref="Px"/>; the CSS is scaled by CardText.ScaleCss.</summary>
+    public static double Scale { get; set; } = 1;
+
+    public static int Px(double v) => (int)Math.Round(v * Scale);
+
     public static IconView View(Icon icon, uint rgb, int size, double thickness = 1.5) => new(icon, rgb, size, thickness);
 }
 
@@ -146,7 +158,7 @@ internal sealed class IconView
         _rgb = rgb;
         _thickness = thickness;
         Widget = Gtk.DrawingArea.New();
-        Widget.SetSizeRequest(size, size);
+        Widget.SetSizeRequest(Icons.Px(size), Icons.Px(size));
         Widget.Valign = Gtk.Align.Center;
         Widget.Halign = Gtk.Align.Center;
         Widget.CanTarget = false;

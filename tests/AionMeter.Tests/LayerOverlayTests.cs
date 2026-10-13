@@ -94,7 +94,9 @@ public class LayerOverlayTests
         s.Save();
         Assert.Contains("\"BottomLeft\"", File.ReadAllText(path));
         var r = OverlaySettings.Load(path);
-        Assert.Equal(("DP-1", Anchor.BottomLeft, 300, 77, 600, 480, 1.25, true), (r.Monitor, r.Anchor, r.MarginH, r.MarginV, r.Width, r.Height, r.Scale, r.ClickThrough));
+        // the scale is the shared ui.json "UiScale" now (A2M-48 UX), not part of overlay.json
+        Assert.Equal(("DP-1", Anchor.BottomLeft, 300, 77, 600, 480, 1.0, true), (r.Monitor, r.Anchor, r.MarginH, r.MarginV, r.Width, r.Height, r.Scale, r.ClickThrough));
+        Assert.DoesNotContain("Scale", File.ReadAllText(path));
         Directory.Delete(dir, true);
     }
 
@@ -106,7 +108,7 @@ public class LayerOverlayTests
         var path = Path.Combine(dir, "overlay.json");
         File.WriteAllText(path, """{"Width": 10, "Height": 5, "Scale": 9, "Opacity": 0}""");
         var s = OverlaySettings.Load(path);
-        Assert.Equal((OverlaySettings.MinWidth, OverlaySettings.MinHeight, 3.0, 0.2), (s.Width, s.Height, s.Scale, s.Opacity));
+        Assert.Equal((OverlaySettings.MinWidth, OverlaySettings.MinHeight, 1.0, 0.2), (s.Width, s.Height, s.Scale, s.Opacity));
         File.WriteAllText(path, "{ not json");
         Assert.Equal(560, OverlaySettings.Load(path).Width);
         Directory.Delete(dir, true);

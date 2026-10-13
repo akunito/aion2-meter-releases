@@ -13,6 +13,8 @@ internal static class Css
         .header { margin: 0 10px; min-height: 26px; }
         .tab { min-width: 28px; min-height: 20px; margin-right: 3px; border-radius: 6px; border: 1px solid #C9A45C; background-color: rgba(17,23,38,0.6); opacity: 0.45; }
         .tab.on { background-color: #C9A45C; opacity: 1; }
+        .tab.live { opacity: 1; }
+        .tab.live:hover { border-color: #FFE3A6; background-color: rgba(201,164,92,0.22); }
         .tabs { margin-right: 10px; }
         .card label.title { font-family: "Noto Serif", "DejaVu Serif", serif; font-size: 16px; font-weight: 600; color: #F3E6C8; margin-right: 10px; }
         .card label.limit { font-size: 12.5px; font-weight: 600; color: #F0C060; font-feature-settings: "tnum"; }
