@@ -324,7 +324,9 @@ public partial class PriceWatchView : UserControl
         if (r.At is { } at)
         {
             table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var tb = new TextBlock { Text = string.Format(T.PricesChecked, at.ToLocalTime().ToString("HH:mm")), FontSize = 10.5, Foreground = Mute, Margin = new Thickness(0, 4, 0, 0) };
+            // The ladder is a site capture that is usually hours or days old (A2M-23, 2026-10-13): show the day once it is not today's.
+            var local = at.ToLocalTime();
+            var tb = new TextBlock { Text = string.Format(T.PricesChecked, local.ToString(local.Date == DateTime.Today ? "HH:mm" : "dd MMM HH:mm", CultureInfo.InvariantCulture)), FontSize = 10.5, Foreground = Mute, Margin = new Thickness(0, 4, 0, 0) };
             Grid.SetRow(tb, r.Cheapest.Count + 1); Grid.SetColumnSpan(tb, 4);
             table.Children.Add(tb);
         }

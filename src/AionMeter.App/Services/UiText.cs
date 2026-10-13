@@ -775,7 +775,7 @@ public sealed class UiText
     public string PricesMax { get; init; } = "max price";
     public string PricesNotChecked { get; init; } = "not checked yet";
     public string PricesLastPoll { get; init; } = "last check {0}";
-    public string PricesChecked { get; init; } = "read {0}";
+    public string PricesChecked { get; init; } = "site snapshot {0}";
     public string PricesSampled { get; init; } = "site sample {0}";
     public string PricesHourlyNote { get; init; } = "aion2.exchange samples each item about once an hour: Check now re-reads, it cannot force a new sample";
     public string PricesSearch { get; init; } = "search an item by name…";
@@ -787,7 +787,7 @@ public sealed class UiText
     public string PricesColUnit { get; init; } = "unit";
     public string PricesColSeller { get; init; } = "seller";
     public string PricesListingsOff { get; init; } = "Listings endpoint not configured: the site's per-listing call is not known yet. The chart below comes from the hourly samples.";
-    public string PricesListingsNone { get; init; } = "No listings right now.";
+    public string PricesListingsNone { get; init; } = "aion2.exchange has no broker snapshot for this server yet (the site captures listings now and then, not live). The chart below comes from the hourly samples.";
     public string PricesRange24h { get; init; } = "24h";
     public string PricesRange7d { get; init; } = "7 days";
     public string PricesRange30d { get; init; } = "30 days";
@@ -1298,7 +1298,7 @@ public sealed class UiText
         PricesMax = "макс. цена",
         PricesNotChecked = "ещё не проверялось",
         PricesLastPoll = "последняя проверка {0}",
-        PricesChecked = "прочитано {0}",
+        PricesChecked = "снимок сайта {0}",
         PricesSampled = "замер сайта {0}",
         PricesHourlyNote = "aion2.exchange замеряет каждый предмет примерно раз в час: «Проверить» перечитывает, но новый замер не вызывает",
         PricesSearch = "поиск предмета по названию…",
@@ -1310,7 +1310,7 @@ public sealed class UiText
         PricesColUnit = "за шт.",
         PricesColSeller = "продавец",
         PricesListingsOff = "Источник лотов не настроен: запрос сайта по отдельным лотам пока неизвестен. График ниже строится по ежечасным замерам.",
-        PricesListingsNone = "Сейчас лотов нет.",
+        PricesListingsNone = "У aion2.exchange пока нет снимка брокера для этого сервера (сайт снимает лоты время от времени, не в реальном времени). График ниже строится по ежечасным замерам.",
         PricesRange24h = "24 ч",
         PricesRange7d = "7 дней",
         PricesRange30d = "30 дней",
