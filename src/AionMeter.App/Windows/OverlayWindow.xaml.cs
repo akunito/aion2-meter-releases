@@ -10,6 +10,7 @@ using AionMeter.App.Services;
 using AionMeter.App.ViewModels;
 using AionMeter.Core;
 using AionMeter.Core.Armory;
+using AionMeter.Core.Updates;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Storage;
@@ -168,22 +169,32 @@ public partial class OverlayWindow : Window
     {
         var available = _meter.Updates.Available;
         var show = available is not null && available.Version != _bannerClosedFor;
-        UpdateBanner.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        // No private update pending: the same banner carries the upstream signal (Settings.CheckUpstream, Diego only), which until
+        // 2026-10-13 was a Windows balloon alone and went unseen in the UI. Click opens the public release page.
+        var upstream = show ? null : _meter.Updates.UpstreamAvailable;
+        _bannerUpstream = upstream is not null && upstream.Version != _upstreamClosedFor ? upstream : null;
+        UpdateBanner.Visibility = show || _bannerUpstream is not null ? Visibility.Visible : Visibility.Collapsed;
         if (show)
         {
             var ready = _meter.Updates.Downloaded?.Version == available!.Version; // downloaded: it installs itself soon
             UpdateBannerText.Text = string.Format(ready ? UiText.Current.UpdateBannerReady : UiText.Current.UpdateBanner, available.Version.ToString(3));
         }
+        else if (_bannerUpstream is not null)
+            UpdateBannerText.Text = string.Format(UiText.Current.UpstreamBalloon, _bannerUpstream.Tag);
     }
+
+    private ReleaseInfo? _bannerUpstream;
+    private Version? _upstreamClosedFor;
 
     private void Update_Click(object sender, RoutedEventArgs e)
     {
-        if (!_drag.JustDragged) AppHost.Current.ShowUpdate();
+        if (_drag.JustDragged) return;
+        if (_bannerUpstream is not null) Updater.OpenReleasePage(_bannerUpstream); else AppHost.Current.ShowUpdate();
     }
 
     private void UpdateBannerClose_Click(object sender, RoutedEventArgs e)
     {
-        _bannerClosedFor = _meter.Updates.Available?.Version;
+        if (_bannerUpstream is not null) _upstreamClosedFor = _bannerUpstream.Version; else _bannerClosedFor = _meter.Updates.Available?.Version;
         ShowUpdateBanner();
     }
 
