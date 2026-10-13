@@ -178,7 +178,9 @@ internal sealed class DataWatch
         UiKit.OnSelected(box, () =>
         {
             var i = UiKit.Selected(box);
-            if (!syncing && i >= 0 && i < keys.Count) Select(keys[i]);
+            // next loop turn: Select refills this drop-down (SetModel) and doing it inside its own notify::selected, while the popup's list
+            // view is still emitting activate, crashed the card (SIGSEGV in g_object_notify_by_pspec under gtk_list_view_activate_item, A2M-50)
+            if (!syncing && i >= 0 && i < keys.Count) { var key = keys[i]; UiLoop.Post(() => Select(key)); }
         });
         SelectionChanged += Fill;
         _shell.WhenEngine(_ => Fill());
