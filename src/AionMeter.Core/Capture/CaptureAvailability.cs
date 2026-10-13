@@ -31,8 +31,15 @@ public enum CaptureFeature
 /// </summary>
 public sealed class CaptureAvailability
 {
-    public const string NoCaptureStatus = "No capture (Npcap missing)";
-    public const string NpcapNotInstalled = "Npcap not installed";
+    // A2M-48: on Linux "Npcap missing" sent the reader to the wrong library (NixOS 2026-10-13: libpcap is a split package and
+    // ${libpcap}/lib held only pkgconfig, the .so lives in the lib output). The Windows strings stay byte-identical: UiText translations key on them.
+    public static readonly string NoCaptureStatus = NoCaptureStatusFor(OperatingSystem.IsWindows());
+    public static readonly string NpcapNotInstalled = NotInstalledFor(OperatingSystem.IsWindows());
+
+    public static string NoCaptureStatusFor(bool windows) =>
+        windows ? "No capture (Npcap missing)" : "No capture (libpcap missing: install libpcap / set LD_LIBRARY_PATH)";
+
+    public static string NotInstalledFor(bool windows) => windows ? "Npcap not installed" : "libpcap not loadable";
 
     public static readonly CaptureFeature[] All = Enum.GetValues<CaptureFeature>();
     public static readonly CaptureFeature[] LiveOnly =

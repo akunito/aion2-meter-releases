@@ -136,14 +136,35 @@ public class CaptureAvailabilityTests
     {
         // the overlay footer and the tray tooltip show the capture's status message; UiText swaps exactly this one for its translation
         Assert.Equal(CaptureAvailability.NoCaptureStatus, LiveCapture.NpcapMissingMessage);
-        Assert.Equal("No capture (Npcap missing)", LiveCapture.NpcapMissingMessage);
+        Assert.Equal(CaptureAvailability.NoCaptureStatusFor(OperatingSystem.IsWindows()), LiveCapture.NpcapMissingMessage);
+    }
+
+    [Fact]
+    public void No_capture_wording_names_the_library_of_the_platform()
+    {
+        // Windows stays byte-identical (UiText's translations swap exactly this string); Linux points at libpcap (A2M-48)
+        Assert.Equal("No capture (Npcap missing)", CaptureAvailability.NoCaptureStatusFor(windows: true));
+        Assert.Equal("No capture (libpcap missing: install libpcap / set LD_LIBRARY_PATH)", CaptureAvailability.NoCaptureStatusFor(windows: false));
+        Assert.Equal("Npcap not installed", CaptureAvailability.NotInstalledFor(windows: true));
+        Assert.Equal("libpcap not loadable", CaptureAvailability.NotInstalledFor(windows: false));
+        Assert.DoesNotContain("Npcap", CaptureAvailability.NoCaptureStatusFor(windows: false));
+    }
+
+    [Fact]
+    public void Load_failure_reason_is_the_loader_message_not_the_type_initialiser_wrapper()
+    {
+        var dl = new DllNotFoundException("Unable to load shared library 'libpcap.so' or one of its dependencies: libpcap.so: cannot open shared object file: No such file or directory");
+        var wrapped = new TypeInitializationException("SharpPcap.LibPcap.LibPcapSafeNativeMethods", dl);
+        Assert.Equal("DllNotFoundException: " + dl.Message, LiveCapture.LoadFailureReason(wrapped));
+        Assert.Equal("DllNotFoundException: " + dl.Message, LiveCapture.LoadFailureReason(dl));
+        Assert.StartsWith("TypeInitializationException: ", LiveCapture.LoadFailureReason(new TypeInitializationException("X", null)));
     }
 
     [Fact]
     public void Health_line_says_why_there_are_no_counters()
     {
-        Assert.Equal("Npcap not installed", Missing.HealthText(null));
-        Assert.Equal("Npcap not installed", Missing.HealthText(new CaptureHealth(10, 1, 2)));
+        Assert.Equal(CaptureAvailability.NpcapNotInstalled, Missing.HealthText(null));
+        Assert.Equal(CaptureAvailability.NpcapNotInstalled, Missing.HealthText(new CaptureHealth(10, 1, 2)));
         Assert.Equal("no adapter open", Present.HealthText(null));
         Assert.Equal($"{1234:N0} packets, 1 dropped, 2 stream gaps", Present.HealthText(new CaptureHealth(1234, 1, 2)));
     }

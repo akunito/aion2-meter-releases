@@ -118,7 +118,38 @@ public sealed class LiveCapture : IEventSource
         _cts?.Dispose();
     }
 
-    public const string NpcapMissingMessage = CaptureAvailability.NoCaptureStatus;
+    public static readonly string NpcapMissingMessage = CaptureAvailability.NoCaptureStatus;
+
+    /// <summary>One-off diagnostic lines (why the library failed to load, which path picked the adapter). Null = stderr with a
+    /// HH:mm:ss prefix, which lands in the journal for the Linux daemon and nowhere for the WPF app. A host may point it at its log.</summary>
+    public static Action<string>? Diagnostic { get; set; }
+
+    internal static void Diag(string line)
+    {
+        if (Diagnostic is { } d) d(line);
+        else Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss} {line}");
+    }
+
+    /// <summary>The loader's own reason the capture library failed (dlopen's message on Linux); null until it fails.</summary>
+    public string? LibraryLoadError { get; private set; }
+
+    // A2M-48: the status line alone said "Npcap missing" while the real cause (no libpcap.so on LD_LIBRARY_PATH) sat in the
+    // exception; the TypeInitializationException then repeats every 2 s, so the reason is logged once per distinct message.
+    private void ReportLoadFailure(Exception ex)
+    {
+        SetStatus(CaptureState.Error, NpcapMissingMessage);
+        var msg = LoadFailureReason(ex);
+        if (msg == LibraryLoadError) return;
+        LibraryLoadError = msg;
+        Diag("capture library failed to load: " + msg);
+    }
+
+    internal static string LoadFailureReason(Exception ex)
+    {
+        var e = ex;
+        while (e is TypeInitializationException && e.InnerException is { } inner) e = inner;
+        return $"{e.GetType().Name}: {e.Message}";
+    }
 
     private async Task MonitorLoop(CancellationToken ct)
     {
@@ -137,13 +168,9 @@ public sealed class LiveCapture : IEventSource
             {
                 Refresh();
             }
-            catch (DllNotFoundException)
+            catch (Exception ex) when (ex is DllNotFoundException or TypeInitializationException or EntryPointNotFoundException or BadImageFormatException)
             {
-                SetStatus(CaptureState.Error, NpcapMissingMessage);
-            }
-            catch (TypeInitializationException)
-            {
-                SetStatus(CaptureState.Error, NpcapMissingMessage);
+                ReportLoadFailure(ex);
             }
             catch (PcapException ex)
             {
@@ -171,6 +198,7 @@ public sealed class LiveCapture : IEventSource
                 SetStatus(CaptureState.Error, "Selected network adapter not found");
                 return;
             }
+            NoteAdapterPath(dev, "forced by --device / settings CaptureDevice");
             EnsureDevice(dev, "tcp");
             ReportFlowStatus(dev);
             return;
@@ -179,6 +207,7 @@ public sealed class LiveCapture : IEventSource
         var pids = GameProcessLocator.FindGameProcessIds();
         if (pids.Length == 0)
         {
+            if (TryPortFallback()) return;
             CloseDevice();
             SetStatus(CaptureState.WaitingForGame, "AION 2 is not running");
             return;
@@ -187,9 +216,11 @@ public sealed class LiveCapture : IEventSource
         var connections = GameProcessLocator.FindConnections(pids);
         if (connections.Count == 0)
         {
+            if (TryPortFallback()) return;
             SetStatus(CaptureState.WaitingForGame, "Waiting for the game to connect…");
             return;
         }
+        _locatorEmptySinceMs = 0;
 
         var devices = CaptureDeviceList.Instance.OfType<LibPcapLiveDevice>().ToList();
         LibPcapLiveDevice? device = null;
@@ -206,9 +237,57 @@ public sealed class LiveCapture : IEventSource
             return;
         }
 
-        var hosts = connections.Select(c => $"(host {c.RemoteIp} and port {c.RemotePort})").Distinct().OrderBy(s => s);
-        EnsureDevice(device, "tcp and (" + string.Join(" or ", hosts) + ")");
+        NoteAdapterPath(device, "from the game process's connections", $" (pid {string.Join(",", pids)})");
+        EnsureDevice(device, HostFilter(connections));
         ReportFlowStatus(device);
+    }
+
+    private static string HostFilter(List<GameConnection> connections) =>
+        "tcp and (" + string.Join(" or ", connections.Select(c => $"(host {c.RemoteIp} and port {c.RemotePort})").Distinct().OrderBy(s => s)) + ")";
+
+    /// <summary>How long the locator must find nothing before the Linux port fallback looks at /proc/net/tcp.</summary>
+    internal const int PortFallbackAfterMs = 30_000;
+    private long _locatorEmptySinceMs;
+    private string? _adapterPath;
+
+    // A2M-48: on Linux the pid locator misses a game in its own pid namespace (pressure-vessel --unshare-pid, gamescope wrapper with
+    // GAMESCOPE_UNSHARE_PID=1) or one it cannot read /proc/<pid>/fd of; the network namespace is still the host's, so its flows sit in
+    // /proc/net/tcp. After 30 s of nothing, an adapter is taken when exactly one non-loopback interface carries ESTAB flows to 13328.
+    private bool TryPortFallback()
+    {
+        if (!OperatingSystem.IsLinux()) return false;
+        var now = Environment.TickCount64;
+        if (_locatorEmptySinceMs == 0) { _locatorEmptySinceMs = now; return false; }
+        if (now - _locatorEmptySinceMs < PortFallbackAfterMs) return false;
+        string table;
+        try { table = File.ReadAllText("/proc/net/tcp"); } catch (IOException) { return false; } catch (UnauthorizedAccessException) { return false; }
+        var flows = GameProcessLocator.FlowsToPort(table, PacketPipeline.GamePort);
+        if (flows.Count == 0) return false;
+        var devices = CaptureDeviceList.Instance.OfType<LibPcapLiveDevice>().ToList();
+        LibPcapLiveDevice? device = null;
+        for (var i = flows.Count - 1; i >= 0; i--)
+        {
+            var c = flows[i];
+            var d = IPAddress.IsLoopback(c.LocalIp) || IPAddress.IsLoopback(c.RemoteIp) ? null
+                : devices.FirstOrDefault(x => !IsLoopback(x) && x.Addresses.Any(a => c.LocalIp.Equals(a.Addr?.ipAddress)));
+            if (d is null) { flows.RemoveAt(i); continue; }
+            if (device is null) device = d;
+            else if (device.Name != d.Name) return false;   // two adapters carry game flows: ambiguous, wait for the locator or --device
+        }
+        if (device is null) return false;
+        NoteAdapterPath(device, $"by /proc/net/tcp flows to port {PacketPipeline.GamePort} (game process not visible for {PortFallbackAfterMs / 1000} s)");
+        EnsureDevice(device, HostFilter(flows));
+        ReportFlowStatus(device);
+        return true;
+    }
+
+    // Logged when the adapter or the path changes; the pid list is left out of the key so a game relaunch does not re-log the same choice.
+    private void NoteAdapterPath(LibPcapLiveDevice device, string how, string? detail = null)
+    {
+        var key = device.Name + " " + how;
+        if (key == _adapterPath) return;
+        _adapterPath = key;
+        Diag($"capture adapter {device.Name} chosen {how}{detail}");
     }
 
     private void ReportFlowStatus(LibPcapLiveDevice device)

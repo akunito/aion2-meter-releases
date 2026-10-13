@@ -112,6 +112,22 @@ public static class GameProcessLocator
         }
     }
 
+    /// <summary>ESTAB rows of a /proc/net/tcp dump whose remote port is <paramref name="port"/>, whoever owns them (the A2M-48 fallback
+    /// for a game the pid locator cannot see).</summary>
+    internal static List<GameConnection> FlowsToPort(string procNetTcp, int port)
+    {
+        var result = new List<GameConnection>();
+        var lines = procNetTcp.Split('\n');
+        for (var i = 1; i < lines.Length; i++)
+        {
+            var f = lines[i].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (f.Length < 4 || f[3] != "01") continue;
+            if (!TryHexEndpoint(f[2], out var remoteIp, out var remotePort) || remotePort != port || !TryHexEndpoint(f[1], out var localIp, out var localPort)) continue;
+            result.Add(new GameConnection(localIp, localPort, remoteIp, remotePort));
+        }
+        return result;
+    }
+
     /// <summary>/proc/net/tcp "0A0808C0:9496" = little-endian IPv4 hex + port hex.</summary>
     internal static bool TryHexEndpoint(string s, out IPAddress ip, out ushort port)
     {
