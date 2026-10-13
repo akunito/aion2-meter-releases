@@ -36,6 +36,7 @@ internal static class ViewRegistry
         ["timers"] = s => new BossTimersView(s),
         ["prices"] = s => new PricesView(s),
         ["craft"] = s => new CraftView(s),
+        ["atlas"] = s => new AtlasView(s),
     };
 
     public static bool Has(string key) => Factories.ContainsKey(key);
