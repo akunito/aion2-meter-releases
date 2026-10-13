@@ -106,9 +106,11 @@ public partial class AtlasView : UserControl
             {
                 _imgW = bs.PixelWidth; _imgH = bs.PixelHeight;
                 _f = _cal.Width > 0 ? (double)bs.PixelWidth / _cal.Width : 1;  // calibration pixels → decoded image pixels
+                // outside the map the viewport showed its near-black panel colour (A2M-8 "black corners"): paint the map's own edge colour
+                Viewport.Background = EdgeBrush(bs);
                 Log.Info($"Atlas map {map}: {_cal.BackgroundPath} decoded {bs.PixelWidth}x{bs.PixelHeight}, calibration {_cal.Width}x{_cal.Height}, factor {_f:0.000}");
             }
-            else { _imgW = _imgH = 0; _f = 1; Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})"); }
+            else { _imgW = _imgH = 0; _f = 1; Viewport.Background = NoMapBg; Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})"); }
             // Following: a map change (instance in and out) must not zoom out to the whole map; the next tick re-centres at the follow zoom.
             if (FollowBox.IsChecked == true && _mapShown > 0) _followZoomed = false; else FitWholeMap();
             StaticLayer.InvalidateVisual();
@@ -506,17 +508,12 @@ public partial class AtlasView : UserControl
     }
 
     /// <summary>A node: its icon (when known) over the dot, the units left beside it.</summary>
-    // Label anchors drawn this frame: at low zoom neighbouring nodes overprint each other's counts, so a label is skipped when
-    // another sits within 14 px (A2M-8 "label clustering"; the icon/dot still draws, the count comes back when zooming in).
-    private readonly List<(double X, double Y)> _labelPts = new();
+    // label anchors drawn this frame (A2M-8: a label is skipped when another sits within 14 px)
+    private readonly LabelSpacing _labelPts = new();
     // elements are kept half a viewport beyond each edge: panning is a translate, the layers are rebuilt only once the drift passes that
     private double CullX => Math.Max(200, Viewport.ActualWidth / 2);
     private double CullY => Math.Max(200, Viewport.ActualHeight / 2);
-    private bool LabelRoom(double x, double y)
-    {
-        for (var i = 0; i < _labelPts.Count; i++) { var dx = _labelPts[i].X - x; var dy = _labelPts[i].Y - y; if (dx * dx + dy * dy < 14 * 14) return false; }
-        _labelPts.Add((x, y)); return true;
-    }
+    private bool LabelRoom(double x, double y) => _labelPts.TryPlace(x, y);
 
     private void Mark(double px, double py, double r, Brush fill, ImageSource? icon, string label, Brush textBrush, bool dim = false, bool always = false)
     {
@@ -553,6 +550,28 @@ public partial class AtlasView : UserControl
         var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
         Canvas.SetLeft(text, x + r + 2); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);
+    }
+
+    private static readonly Brush NoMapBg = Soft(0x0B, 0x0F, 0x18, 0xFF);
+
+    /// <summary>Mean colour of four 32 px corner patches and four edge-midpoint patches of the map (the shipped maps are parchment,
+    /// #DAD1BC at every corner, measured 2026-10-13).</summary>
+    private static Brush EdgeBrush(BitmapSource bs)
+    {
+        const int p = 32;
+        if (bs.PixelWidth < 2 * p || bs.PixelHeight < 2 * p) return NoMapBg;
+        var src = bs.Format == PixelFormats.Bgra32 || bs.Format == PixelFormats.Bgr32 ? bs : new FormatConvertedBitmap(bs, PixelFormats.Bgr32, null, 0);
+        var buf = new byte[p * p * 4];
+        long b = 0, g = 0, r = 0, n = 0;
+        int w = bs.PixelWidth - p, h = bs.PixelHeight - p;
+        ReadOnlySpan<(int X, int Y)> at = [(0, 0), (w, 0), (0, h), (w, h), (w / 2, 0), (w / 2, h), (0, h / 2), (w, h / 2)];
+        foreach (var (x, y) in at)
+        {
+            src.CopyPixels(new Int32Rect(x, y, p, p), buf, p * 4, 0);
+            for (var i = 0; i < buf.Length; i += 4) { b += buf[i]; g += buf[i + 1]; r += buf[i + 2]; }
+            n += p * p;
+        }
+        return Soft((byte)(r / n), (byte)(g / n), (byte)(b / n), 0xFF);
     }
 
     private static BitmapImage LoadBitmap(string path)

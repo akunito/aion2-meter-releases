@@ -17,7 +17,7 @@ public static class SampleRenderer
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
     /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), report (Report a problem with its include ticks), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers / fight (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window; fight = the breakdown tab, --tab as breakdown or party; A2M-44: --tab profile|skills|daevanion = the player card without a fight, fight-profile = the fight with its Profile tab).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market). Prices: expanded (first row open) or search ("refining stone" in the add-item search, grade chips).</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market). Prices: expanded (first row open) or search ("refining stone" in the add-item search, grade chips). Atlas: a number = the zoom (default 2.5).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
     /// <param name="AbyssLogs">Inject a sample Abyss Logs percentile line (A2M-38) for the sample fight: breakdown header, overlay status line.</param>
@@ -168,7 +168,9 @@ public static class SampleRenderer
                 {
                     case Views.AtlasView atlasView:
                         var (ax, ay, pets) = SampleAtlas(meter);
-                        atlasView.ShowSample(ax, ay, 2.5, pets);
+                        // --tab <zoom>: the view scale (default 2.5; labels thin out below ~1, icons cluster below ~0.16, A2M-8)
+                        var zoom = double.TryParse(o.Tab, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var z) && z > 0 ? z : 2.5;
+                        atlasView.ShowSample(ax, ay, zoom, pets);
                         fill = atlasView.RenderNow;
                         break;
                     case Views.TopDpsView topView:
