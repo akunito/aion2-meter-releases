@@ -20,14 +20,13 @@ public sealed class ArmoryClient : IDisposable
     private readonly HttpClient _http = new(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(20) };
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _cacheDir;
-    private readonly string _region;
     private readonly string _lang;
     private long _lastRequestMs;
 
     public ArmoryClient(string cacheDir, string region = "eu", string lang = "en-US")
     {
         _cacheDir = cacheDir;
-        _region = region;
+        Region = region;
         _lang = lang;
         Directory.CreateDirectory(cacheDir);
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 AION2DpsMeter/0.1 (private build; reads aion2.plaync.com character pages)");
@@ -37,11 +36,17 @@ public sealed class ArmoryClient : IDisposable
 
     public TimeSpan MaxAge { get; set; } = TimeSpan.FromHours(12);
 
+    /// <summary>Default search shard (A2M-40: the effective server's, ServerContext.ArmoryRegion); a known server id searches its own shard.</summary>
+    public string Region { get; set; }
+
+    /// <summary>The shard of <paramref name="serverId"/>, else <see cref="Region"/>: the search only returns its own shard's characters.</summary>
+    public string RegionFor(int serverId) => Game.ServerContext.RegionOfServer(serverId) is { Length: > 0 } r ? r : Region;
+
     public int Requests { get; private set; }
 
-    public async Task<List<CharacterRef>> SearchAsync(string name, int page = 1, int size = 50, CancellationToken ct = default)
+    public async Task<List<CharacterRef>> SearchAsync(string name, int page = 1, int size = 50, CancellationToken ct = default, string? region = null)
     {
-        var url = $"{SearchUrl}?keyword={Uri.EscapeDataString(name)}&region={_region}&localeInfo={_lang}&page={page}&size={size}";
+        var url = $"{SearchUrl}?keyword={Uri.EscapeDataString(name)}&region={region ?? Region}&localeInfo={_lang}&page={page}&size={size}";
         return ArmoryParser.ParseSearch(await GetAsync(url, ct).ConfigureAwait(false));
     }
 
@@ -54,7 +59,7 @@ public sealed class ArmoryClient : IDisposable
     {
         for (var page = 1; page <= 4; page++)
         {
-            var list = await SearchAsync(name, page, 50, ct).ConfigureAwait(false);
+            var list = await SearchAsync(name, page, 50, ct, RegionFor(serverId)).ConfigureAwait(false);
             if (Match(list, name, serverId, serverName) is { } r) return r;
             if (list.Count < 50) break;
         }
@@ -120,7 +125,7 @@ public sealed class ArmoryClient : IDisposable
 
     public async Task<CharacterProfile> FetchAsync(CharacterRef r, bool withDaevanion, CancellationToken ct = default)
     {
-        var q = $"characterId={r.CharacterId}&serverId={r.ServerId}&region={_region}&lang={_lang}";
+        var q = $"characterId={r.CharacterId}&serverId={r.ServerId}&region={RegionFor(r.ServerId)}&lang={_lang}";
         var info = await GetAsync(ApiUrl + "info?" + q, ct).ConfigureAwait(false);
         var equipment = await GetAsync(ApiUrl + "equipment?" + q, ct).ConfigureAwait(false);
         List<string>? boards = null;

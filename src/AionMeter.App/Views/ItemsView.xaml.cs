@@ -89,13 +89,13 @@ public partial class ItemsView : UserControl
             if (_sample) return;
             Reload();
             _meter.Inventory.Changed += OnChanged; _meter.ViewInventoryChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.Account.Changed += OnChanged; _icons.Loaded += OnIcon;
-            _meter.ProgressChanged += OnChanged; _meter.ProfileChanged += OnChanged;
+            _meter.ProgressChanged += OnChanged; _meter.ProfileChanged += OnChanged; _meter.ServerChanged += OnChanged;
         };
         Unloaded += (_, _) =>
         {
             if (_sample) return;
             _meter.Inventory.Changed -= OnChanged; _meter.ViewInventoryChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.Account.Changed -= OnChanged; _icons.Loaded -= OnIcon;
-            _meter.ProgressChanged -= OnChanged; _meter.ProfileChanged -= OnChanged;
+            _meter.ProgressChanged -= OnChanged; _meter.ProfileChanged -= OnChanged; _meter.ServerChanged -= OnChanged;
             _reloadTick.Stop(); _iconTick.Stop();
         };
         // hidden tab: one reload when it comes back, not one per packet
@@ -125,6 +125,11 @@ public partial class ItemsView : UserControl
     }
 
     private static string ServerOf(string key) { var i = key.IndexOf('-'); return i > 0 ? key[..i] : ""; }
+    private static string ServerWithCharacters(List<string> keys, string preferred)
+    {
+        for (var i = 0; i < keys.Count; i++) if (ServerOf(keys[i]) == preferred) return preferred;
+        return keys.Count > 0 ? ServerOf(keys[0]) : "";
+    }
     private static string NameOf(string key) { var i = key.IndexOf('-'); return i > 0 ? key[(i + 1)..] : key; }
 
     private Data Gather()
@@ -133,7 +138,8 @@ public partial class ItemsView : UserControl
         var bound = _meter.BoundKey;
         var keys = _meter.CharacterKeys();
         if (cur.Length > 0 && !keys.Contains(cur)) keys.Add(cur);
-        var server = ServerOf(cur.Length > 0 ? cur : keys.Count > 0 ? keys[0] : "");
+        // nobody viewed yet: the effective server's characters (A2M-40, Settings → Game) when it has any, else the first folder's
+        var server = cur.Length > 0 ? ServerOf(cur) : ServerWithCharacters(keys, _meter.Server.WarehouseKey);
         var chars = new List<CharData>(keys.Count);
         foreach (var k in keys)
         {

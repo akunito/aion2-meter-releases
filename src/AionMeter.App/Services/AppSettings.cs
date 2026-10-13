@@ -88,6 +88,11 @@ public sealed class AppSettings
     /// <summary>Interface and skill / NPC name language: "en" (default) or "ru".</summary>
     public string Language { get; set; } = "en";
 
+    /// <summary>A2M-40, Settings → Game: the shard (eu nae naw la as) the server dropdown lists; only decides when no server is known.</summary>
+    public string Region { get; set; } = "eu";
+    /// <summary>A2M-40: the server the user plays on; 0 = auto (the logged-in character's, else the last character folder's, else 1303).</summary>
+    public int ServerId { get; set; }
+
     /// <summary>Fetch skill icons from the official AION 2 game-data CDN (cached locally).</summary>
     public bool DownloadIcons { get; set; } = true;
     /// <summary>A2M-38: after a boss kill, ask Abyss Logs where the player's DPS sits among their class this week.</summary>

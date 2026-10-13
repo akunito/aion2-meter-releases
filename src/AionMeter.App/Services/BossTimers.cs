@@ -132,10 +132,21 @@ public sealed class BossTimers
         lock (_gate) return _timers.Values.ToList();
     }
 
-    /// <summary>The local character's server (0 until one is seen).</summary>
+    /// <summary>The server whose timers are shown and announced: the one picked in Settings → Game, else the local character's (0 until one is seen).</summary>
     public int CurrentServer
     {
-        get { lock (_gate) return _learned.LastServer; }
+        get { lock (_gate) return Shown; }
+    }
+
+    // A2M-40: a server picked in Settings wins over the packets' (a boss notice still files its timer under the server it names).
+    private int _pinned;
+    private int Shown => _pinned != 0 ? _pinned : _learned.LastServer;
+
+    /// <summary>Settings → Game picked this server (0 = follow the character again).</summary>
+    public void Pin(int server)
+    {
+        lock (_gate) { if (_pinned == server) return; _pinned = server; }
+        Changed?.Invoke();
     }
 
     /// <summary>
@@ -187,8 +198,11 @@ public sealed class BossTimers
     public IReadOnlyList<int> Servers()
     {
         lock (_gate)
-            return _timers.Values.Select(t => t.ServerId).Append(_learned.LastServer).Where(s => s != 0).Distinct()
-                .OrderBy(s => s == _learned.LastServer ? 0 : 1).ThenBy(s => s).ToList();
+        {
+            var shown = Shown;
+            return _timers.Values.Select(t => t.ServerId).Append(shown).Where(s => s != 0).Distinct()
+                .OrderBy(s => s == shown ? 0 : 1).ThenBy(s => s).ToList();
+        }
     }
 
     /// <summary>
@@ -538,7 +552,8 @@ public sealed class BossTimers
         if (leadMinutes <= 0) return due;
         lock (_gate)
         {
-            foreach (var t in _timers.Values.Where(t => t.ServerId == _learned.LastServer).ToList())
+            var shown = Shown;
+            foreach (var t in _timers.Values.Where(t => t.ServerId == shown).ToList())
             {
                 if (!t.Watch || t.NextSpawn is not { } next || t.AlertedFor == next || t.AliveNow) continue;
                 if (now < next.AddMinutes(-leadMinutes) || now > next.AddMinutes(10)) continue;

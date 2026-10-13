@@ -110,9 +110,12 @@ public sealed class MeterService : IDisposable
 
         // Boss timers are per server: follow the character's (from the cache now, then on every login).
         Timers.SetCurrentServer(Tracker.SelfServerId);
+        Events = _euEvents;
+        Server = ServerContext.Resolve(ServerContext.DefaultRegion, 0, 0, 0, Data.Servers);
+        RefreshServer();
         Tracker.SelfIdentified += _ =>
         {
-            if (!_replaying && !DemoRunning) { Timers.SetCurrentServer(Tracker.SelfServerId); BindCharacterStores(); }
+            if (!_replaying && !DemoRunning) { Timers.SetCurrentServer(Tracker.SelfServerId); BindCharacterStores(); RefreshServer(); }
         };
     }
 
@@ -261,7 +264,9 @@ public sealed class MeterService : IDisposable
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
     /// <summary>Recurring server events (Shugo, Rift, siege, daily and weekly reset) from data/atlas/events.json; the resets also feed the Items Today card.</summary>
-    public IReadOnlyList<ScheduledEvent> Events { get; } = GameReset.Use(ScheduledEvent.Load(Path.Combine(DataDirectory, "atlas", "events.json")));
+    /// <summary>On the effective server's clock (A2M-40, <see cref="ScheduledEvent.ForZone"/>); re-read every tick by the pills and alerts.</summary>
+    public IReadOnlyList<ScheduledEvent> Events { get; private set; }
+    private readonly IReadOnlyList<ScheduledEvent> _euEvents = GameReset.Use(ScheduledEvent.Load(Path.Combine(DataDirectory, "atlas", "events.json")));
     private readonly ObjectNames _objectNames;
     private readonly Dictionary<int, (string Name, string Category)> _userNames;
     private readonly Dictionary<int, long> _askedCodes = new(); // code → when the prompt was last shown (asked again after 20 s)
@@ -402,7 +407,7 @@ public sealed class MeterService : IDisposable
         // Persist the name map a few seconds after it changes (not on every packet).
         if (Settings.Transient || _replaying || DemoRunning) return;
         var now = Environment.TickCount64;
-        if (Tracker.SelfServerId > 0) Prices.ExchangeServerId = 10000 + Tracker.SelfServerId;
+        if (Tracker.SelfServerId != _resolvedLogin) RefreshServer();   // identity restored from the names cache raises no SelfIdentified either
         if (_boundKey.Length == 0) BindCharacterStores();   // identity restored from the names cache at start-up raises no SelfIdentified
         if (_boundKey.Length > 0 && now - _lastProfileSync > 6 * 3_600_000L && _lastProfileSync > 0) { _lastProfileSync = now; _ = SyncProfileAsync(_boundKey, Tracker.SelfName ?? "", Tracker.SelfServerId); }
         if (Prices.Due(now)) _ = PollPricesAsync(now);
@@ -620,7 +625,7 @@ public sealed class MeterService : IDisposable
     /// </summary>
     public CharacterProfile? KnownProfile(string name, int serverId)
     {
-        if (serverId <= 0) serverId = Tracker.SelfServerId;   // a fight row without a server id: same server as us (as Top DPS assumes)
+        if (serverId <= 0) serverId = SelfServerOrEffective;   // a fight row without a server id: same server as us (as Top DPS assumes)
         if (serverId <= 0 || name.Length == 0) return null;
         var key = serverId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + name;
         if (string.Equals(CharacterKey, key, StringComparison.OrdinalIgnoreCase) && CurrentProfile is { } current) return current;
@@ -896,6 +901,65 @@ public sealed class MeterService : IDisposable
         Settings.Save();
     }
 
+    // ------------------------------------------------------------------ A2M-40: the server the user plays on
+
+    /// <summary>The effective server and its derived keys; replaced (never mutated) on every change.</summary>
+    public ServerContext Server { get; private set; }
+    /// <summary>The effective server or region changed (Settings save, a login on another server); raised on any thread.</summary>
+    public event Action? ServerChanged;
+    private int _resolvedLogin = -1;
+
+    /// <summary>The logged-in character's server, else the effective one: whose server a fight row without an id is on.</summary>
+    public int SelfServerOrEffective => Tracker.SelfServerId is > 0 and var s ? s : Server.ServerId;
+
+    /// <summary>Re-resolves <see cref="Server"/> (Settings → login → newest character folder → 1303) and pushes it to every consumer when it moved.</summary>
+    public void RefreshServer()
+    {
+        var login = _replaying || DemoRunning ? 0 : Tracker.SelfServerId;
+        _resolvedLogin = Tracker.SelfServerId;
+        var chosen = Settings.ServerId;
+        var next = ServerContext.Resolve(Settings.Region, chosen, login, chosen > 0 || login > 0 ? 0 : LastCharacterServer(), Data.Servers, Data.ServersByRegion);
+        var prev = Server;
+        if (next == prev && _serverApplied) return;
+        Server = next;
+        Log.Info($"Server: {next}");
+        Prices.ExchangeServerId = next.ExchangeKey;
+        Armory.Region = next.ArmoryRegion;
+        Timers.Pin(next.Source == ServerSource.Settings ? next.ServerId : 0);
+        if (!_serverApplied || next.Region != prev.Region)
+        {
+            try { Events = ScheduledEvent.ForZone(_euEvents, TimeZoneInfo.FindSystemTimeZoneById(next.TimeZoneId)); }
+            catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException) { Events = _euEvents; Log.Error($"Events: no time zone {next.TimeZoneId}, EU clock kept", ex); }
+        }
+        var repoll = _serverApplied && next.ExchangeKey != prev.ExchangeKey && !Settings.Transient && Prices.Count > 0;
+        _serverApplied = true;
+        if (repoll) _ = PollPricesAsync(Environment.TickCount64);   // the watch list shows another server's prices now
+        ServerChanged?.Invoke();
+    }
+    private bool _serverApplied;
+
+    /// <summary>The server of the most recently written characters/&lt;server&gt;-&lt;name&gt; folder; 0 when there is none.</summary>
+    private int LastCharacterServer()
+    {
+        if (Settings.Transient) return 0;
+        try
+        {
+            var dir = Path.Combine(AppSettings.AppDataDir, "characters");
+            if (!Directory.Exists(dir)) return 0;
+            var best = 0; var stamp = DateTime.MinValue;
+            foreach (var d in new DirectoryInfo(dir).EnumerateDirectories())
+            {
+                var id = ServerContext.ServerOfKey(d.Name);
+                if (id <= 0) continue;
+                var f = new FileInfo(Path.Combine(d.FullName, "inventory.json"));
+                var t = f.Exists ? f.LastWriteTimeUtc : d.LastWriteTimeUtc;
+                if (t > stamp) { stamp = t; best = id; }
+            }
+            return best;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 0; }
+    }
+
     public void ApplySettings()
     {
         Settings.ApplyTo(Options);
@@ -903,6 +967,7 @@ public sealed class MeterService : IDisposable
         Portraits.Enabled = Settings.DownloadIcons;
         ItemIconCache.Enabled = Settings.DownloadIcons;   // the same "download icons" switch covers item icons
         Settings.Save();
+        RefreshServer();
     }
 
     /// <summary>Boss fights are always kept; trash only when long enough (or everything, per settings).</summary>
@@ -1080,7 +1145,8 @@ public sealed class MeterService : IDisposable
         foreach (var c in s.Combatants) if (c.IsSelf) { self = c; break; }
         if (self is not { Dps: > 0 }) return;
         var cls = self.Class != Core.Events.GameClass.Unknown ? self.Class : Tracker.SelfClass;
-        var region = Core.Ranking.AbyssLogs.RegionOf(self.ServerId != 0 ? self.ServerId : Tracker.SelfServerId);
+        var srv = Server;   // a server picked in Settings wins; otherwise the shard of the fighter's own server id
+        var region = srv.Source == ServerSource.Settings || self.ServerId == 0 ? srv.AbyssLogsRegion : Core.Ranking.AbyssLogs.RegionOf(self.ServerId);
         var (id, code, name, dps, power) = (s.Id, boss.NpcCode, boss.Name, self.Dps, self.CombatPower);
         _ = Task.Run(async () =>
         {

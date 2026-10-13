@@ -51,6 +51,25 @@ public sealed record ScheduledEvent(string Key, string Name, TimeZoneInfo Zone, 
         : left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}"
         : $"{Math.Max(0, (int)Math.Ceiling(left.TotalMinutes))}m";
 
+    /// <summary>The EU server clock events.json is written in.</summary>
+    public const string EuZoneId = "Europe/Berlin";
+
+    /// <summary>
+    /// A2M-40: the events on another shard's clock. shugo.gg timers.json (2026-10-09) gives every Global shard the same local
+    /// hours (Rift, Shugo, Invasion, Kaira, siege) and only a different timeZone, so the events written in the EU clock move to
+    /// <paramref name="zone"/>; the resets (Asia/Seoul, one moment on every Global server) stay. The EU zone returns the same list.
+    /// </summary>
+    public static IReadOnlyList<ScheduledEvent> ForZone(IReadOnlyList<ScheduledEvent> events, TimeZoneInfo zone)
+    {
+        if (IsEu(zone)) return events;
+        var list = new List<ScheduledEvent>(events.Count);
+        for (var i = 0; i < events.Count; i++) list.Add(IsEu(events[i].Zone) ? events[i] with { Zone = zone } : events[i]);
+        return list;
+    }
+
+    // Windows can hand back the Windows id for an IANA lookup depending on the ICU mode; both name the Berlin clock.
+    private static bool IsEu(TimeZoneInfo z) => z.Id is EuZoneId or "W. Europe Standard Time";
+
     public static List<ScheduledEvent> Load(string path)
     {
         var list = new List<ScheduledEvent>();

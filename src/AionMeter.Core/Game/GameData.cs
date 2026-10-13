@@ -19,6 +19,8 @@ public sealed class GameData
     public HashSet<int> HealSkills { get; } = new();
     public Dictionary<int, string> Maps { get; private set; } = new();
     public Dictionary<int, string> Servers { get; private set; } = new();
+    /// <summary>Official ids per shard (eu nae naw la as) in the official order, from servers.json "byRegion" (tools/servers.py).</summary>
+    public Dictionary<string, int[]> ServersByRegion { get; private set; } = new();
     /// <summary>World object codes (gathering nodes) → name, from data/objects.json; grows as the player names nodes.</summary>
     public Dictionary<int, string> Objects { get; private set; } = new();
 
@@ -35,6 +37,7 @@ public sealed class GameData
         Npcs = fresh.Npcs;
         Maps = fresh.Maps;
         Servers = fresh.Servers;
+        ServersByRegion = fresh.ServersByRegion;
         Language = language;
     }
 
@@ -67,6 +70,17 @@ public sealed class GameData
 
         foreach (var (key, value) in ReadObject(Path.Combine(directory, "servers.json")))
         {
+            if (key == "byRegion" && value.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var shard in value.EnumerateObject())
+                {
+                    if (shard.Value.ValueKind != JsonValueKind.Array) continue;
+                    var ids = new int[shard.Value.GetArrayLength()]; var n = 0;
+                    foreach (var e in shard.Value.EnumerateArray()) if (e.TryGetInt32(out var sid)) ids[n++] = sid;
+                    data.ServersByRegion[shard.Name] = n == ids.Length ? ids : ids[..n];
+                }
+                continue;
+            }
             if (key != "servers" || value.ValueKind != JsonValueKind.Object) continue;
             foreach (var server in value.EnumerateObject())
             {

@@ -209,6 +209,17 @@
                     <Border Style="{StaticResource Section}">
                         <StackPanel>
                             <TextBlock Text="{Binding SecGame, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <!-- A2M-40: the server everything server-dependent follows -->
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding GameRegion, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
+                                <ComboBox x:Name="RegionBox" MinWidth="200" SelectionChanged="Region_Changed" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding GameServer, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
+                                <ComboBox x:Name="ServerBox" MinWidth="200" MaxDropDownHeight="360" />
+                            </StackPanel>
+                            <TextBlock x:Name="ServerNowText" Style="{StaticResource Hint}" Margin="190,4,0,0" Foreground="{StaticResource TextDim}" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,10" Text="{Binding GameServerHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="StartWithGameBox" Style="{StaticResource DarkCheck}"
                                       Content="{Binding StartWithGame, Source={x:Static s:UiText.Current}}" />
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding StartWithGameHint, Source={x:Static s:UiText.Current}}" />

@@ -83,13 +83,7 @@ public static class AbyssLogs
     /// Abyss Logs region of a Global server id (race×1000 + region×100 + n, see GameData.RegionOf). The numbers differ per
     /// region (eu and na medians on Nuakum 15.7K vs 14.4K on 2026-10-11). Unknown ids fall back to eu, the clan's region.
     /// </summary>
-    public static string RegionOf(int serverId) => (serverId / 100 % 10) switch
-    {
-        1 or 2 => "na",
-        4 => "sa",
-        5 => "asia",
-        _ => "eu",
-    };
+    public static string RegionOf(int serverId) => Game.ServerContext.AbyssLogsRegionOf(Game.ServerContext.RegionOfServer(serverId));
 
     /// <summary>
     /// The class's cell for the player's combat power when that bracket has enough logs, else the class's all-CP cell.

@@ -908,6 +908,31 @@ public sealed class UiText
     public string StartWithGameHint { get; init; } = "Registers a task for your Windows user (no administrator): every 10 s it looks for AION2.exe, starts the meter when the game is running and closes it 60 s after the game ends. Uncheck to remove the task.";
     public string CloseWithGame { get; init; } = "Also close the meter a minute after AION 2 closes";
     public string StartWithGameFailed { get; init; } = "Could not register the task: {0}";
+    public string GameRegion { get; init; } = "Region";
+    public string RaceElyos { get; init; } = "Elyos";
+    public string RaceAsmodian { get; init; } = "Asmodian";
+    public string GameServer { get; init; } = "Server";
+    public string GameServerAuto { get; init; } = "Auto (from login): {0}";
+    public string GameServerAutoUnknown { get; init; } = "Auto (from login)";
+    public string GameServerHint { get; init; } = "The server you play on. Prices (aion2.exchange), Top DPS \"Server\" and region tabs, Abyss Logs, profile searches, the account warehouse, boss timers and the event clock follow it. Auto takes the character you log in with; pick one only if you play elsewhere and the meter guesses wrong.";
+    public string GameServerNow { get; init; } = "Now: {0} ({1}) · {2}";
+    public string ServerSourceSettings { get; init; } = "picked here";
+    public string ServerSourceLogin { get; init; } = "from your login";
+    public string ServerSourceLastCharacter { get; init; } = "from your last character";
+    public string ServerSourceFallback { get; init; } = "default, no character seen yet";
+    public string RegionNae { get; init; } = "North America East";
+    public string RegionNaw { get; init; } = "North America West";
+    public string RegionLa { get; init; } = "South America";
+    public string RegionAs { get; init; } = "Asia";
+    /// <summary>Shard label: EU keeps the Top DPS tab's word ("Europe").</summary>
+    public string RegionName(string region) => region switch { "nae" => RegionNae, "naw" => RegionNaw, "la" => RegionLa, "as" => RegionAs, _ => TopScopeGlobal };
+    public string ServerSourceName(Core.Game.ServerSource s) => s switch
+    {
+        Core.Game.ServerSource.Settings => ServerSourceSettings,
+        Core.Game.ServerSource.Login => ServerSourceLogin,
+        Core.Game.ServerSource.LastCharacter => ServerSourceLastCharacter,
+        _ => ServerSourceFallback,
+    };
     public string VersionDev { get; init; } = "Developer build {0} · deployed by hand (no self-update)";
     public string VersionRelease { get; init; } = "Version {0} ({1}) · updates itself";
     public string AutoInstallHint { get; init; } = "A new version is downloaded in the background and applied right after the meter starts, or when you are not playing (after 10 minutes without a fight): the meter restarts by itself, without any window. Installed copies only.";

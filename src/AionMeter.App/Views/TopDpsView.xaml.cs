@@ -96,7 +96,8 @@ public partial class TopDpsView : UserControl
         _class = meter.Tracker.SelfClass is var sc && sc != GameClass.Unknown ? sc : GameClass.Unknown;
         Loaded += (_, _) => Reload();
         _meter.Top.Changed += OnChanged;
-        Unloaded += (_, _) => _meter.Top.Changed -= OnChanged;
+        _meter.ServerChanged += OnChanged;   // A2M-40: the Server tab, the region tab and the board follow Settings → Game
+        Unloaded += (_, _) => { _meter.Top.Changed -= OnChanged; _meter.ServerChanged -= OnChanged; };
         IsVisibleChanged += (_, e) => { if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
     }
 
@@ -126,9 +127,11 @@ public partial class TopDpsView : UserControl
     private void Reload()
     {
         if (_sample) return;
-        var server = _meter.Data.ServerName(_meter.Tracker.SelfServerId);
+        var srv = _meter.Server;
+        var server = srv.ServerName;
         ScopeServer.Content = string.Format(T.TopScopeServer, server.Length > 0 ? server : "?");
         ScopeServer.IsEnabled = server.Length > 0;
+        ScopeGlobal.Content = T.RegionName(srv.Region);
         IReadOnlyList<GameClass> classes = _scope == 0 ? _meter.Top.Classes : AllClasses;
         if (_class == GameClass.Unknown || !classes.Contains(_class)) _class = classes.Count > 0 ? classes[0] : GameClass.Unknown;
         _tabs.Clear();
@@ -157,13 +160,14 @@ public partial class TopDpsView : UserControl
     /// <summary>Own server or whole region: the ten strongest of the class by combat power, from today's ranking snapshot.</summary>
     private async Task FillBoardAsync(int load, HashSet<string> expanded)
     {
-        var server = _scope == 1 ? _meter.Data.ServerName(_meter.Tracker.SelfServerId) : null;
+        var srv = _meter.Server;
+        var server = _scope == 1 ? srv.ServerName : null;
         var cls = _class;
         CountText.Text = T.TopBoardLoading;
         LoadingBox.Visibility = Visibility.Visible;   // the first Server/Europe read walks several ranking pages (Diego: "tarda en cargar la primera vez")
         try
         {
-            var rows = await _meter.Leaderboard.TopAsync("eu", cls, server);
+            var rows = await _meter.Leaderboard.TopAsync(srv.LeaderboardRegion, cls, server);
             if (load != _boardLoad) return;
             LoadingBox.Visibility = Visibility.Collapsed;
             var me = _meter.Tracker.SelfName;
@@ -289,8 +293,8 @@ public partial class TopDpsView : UserControl
     }
 
     private int ServerOf(Row row) =>
-        row.Entry is { } e ? (e.ServerId != 0 ? e.ServerId : _meter.Tracker.SelfServerId)
-        : ArmoryClient.ServerIdFor(_meter.Data.Servers, row.ServerName, _meter.Tracker.SelfServerId);
+        row.Entry is { } e ? (e.ServerId != 0 ? e.ServerId : _meter.SelfServerOrEffective)
+        : ArmoryClient.ServerIdFor(_meter.Data.Servers, row.ServerName, _meter.Server.ServerId);
 
     private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(sender is FrameworkElement { Tag: string t } ? t : "meter");
     public event Action? CloseRequested;

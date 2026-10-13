@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using AionMeter.App.Services;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
+using AionMeter.Core.Game;
 
 namespace AionMeter.App.Windows;
 
@@ -76,6 +77,7 @@ public partial class SettingsWindow : Window
         CheckUpstreamBox.IsChecked = s.CheckUpstream;
         TelemetryBox.IsChecked = s.Telemetry;
         ShowBackupCode();
+        LoadServer();
         StartWithGameBox.IsChecked = s.StartWithGame;
         CloseWithGameBox.IsChecked = s.CloseWithGame;
 
@@ -123,6 +125,8 @@ public partial class SettingsWindow : Window
         s.CheckUpstream = CheckUpstreamBox.IsChecked == true;
         s.Telemetry = TelemetryBox.IsChecked == true;
         s.CloseWithGame = CloseWithGameBox.IsChecked == true;
+        s.Region = RegionBox.SelectedIndex >= 0 ? ServerContext.Regions[RegionBox.SelectedIndex] : ServerContext.DefaultRegion;
+        s.ServerId = ServerBox.SelectedIndex > 0 && ServerBox.SelectedIndex <= _serverIds.Count ? _serverIds[ServerBox.SelectedIndex - 1] : 0;
         var wantHook = StartWithGameBox.IsChecked == true;
         if (wantHook != s.StartWithGame)
         {
@@ -144,6 +148,45 @@ public partial class SettingsWindow : Window
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+
+    // ------------------------------------------------------------------ A2M-40: region + server
+    private readonly List<int> _serverIds = new();
+    private bool _loadingServer;
+
+    private void LoadServer()
+    {
+        var s = _meter.Settings;
+        var now = _meter.Server;
+        _loadingServer = true;
+        foreach (var r in ServerContext.Regions) RegionBox.Items.Add(T.RegionName(r));
+        // a picked server names its shard; Auto shows the shard of the server in use
+        var region = s.ServerId > 0 && ServerContext.RegionOfServer(s.ServerId) is { Length: > 0 } pr ? pr : s.ServerId == 0 ? now.Region : ServerContext.NormalizeRegion(s.Region);
+        RegionBox.SelectedIndex = Math.Max(0, Array.IndexOf(ServerContext.Regions, region));
+        _loadingServer = false;
+        FillServers(region, s.ServerId);
+        ServerNowText.Text = string.Format(T.GameServerNow, now.ServerName, now.ServerId, T.ServerSourceName(now.Source));
+    }
+
+    private void FillServers(string region, int selected)
+    {
+        ServerBox.Items.Clear();
+        _serverIds.Clear();
+        var now = _meter.Server;
+        var detected = now.Source == ServerSource.Settings ? (_meter.Tracker.SelfServerId is > 0 and var l ? _meter.Data.ServerName(l) : "") : now.ServerName;
+        ServerBox.Items.Add(detected.Length > 0 ? string.Format(T.GameServerAuto, detected) : T.GameServerAutoUnknown);
+        var data = _meter.Data;
+        if (data.ServersByRegion.TryGetValue(region, out var ids))
+            foreach (var id in ids) { _serverIds.Add(id); ServerBox.Items.Add($"{data.ServerName(id)} · {(id / 1000 == 1 ? T.RaceElyos : T.RaceAsmodian)}"); }
+        var idx = selected > 0 ? _serverIds.IndexOf(selected) : -1;
+        ServerBox.SelectedIndex = idx >= 0 ? idx + 1 : 0;
+    }
+
+    private void Region_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingServer || RegionBox.SelectedIndex < 0) return;
+        var keep = ServerBox.SelectedIndex > 0 && ServerBox.SelectedIndex <= _serverIds.Count ? _serverIds[ServerBox.SelectedIndex - 1] : 0;
+        FillServers(ServerContext.Regions[RegionBox.SelectedIndex], keep);
+    }
 
     private void ShowBackupCode()
     {
