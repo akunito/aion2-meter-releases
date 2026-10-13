@@ -91,7 +91,8 @@ internal abstract class LayerWindow
         Opened();
     }
 
-    /// <summary>After the first Present: focus an entry (it only takes keys once the compositor gave the surface the keyboard, i.e. after a click).</summary>
+    /// <summary>After the first Present: focus an entry. Measured (nested Sway 1.11, 2026-10-13): a newly mapped ON_DEMAND surface does not get the
+    /// keyboard — keys kept going to the focused app — until it is clicked; Esc then closed it and the app had the keyboard again.</summary>
     protected virtual void Opened() { }
 
     public void Close()

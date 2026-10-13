@@ -239,7 +239,9 @@ internal sealed class OverlayHost : ICardHost
 
     /// <summary>
     /// The card switched tabs: keyboard ON_DEMAND on a tab (entries can be typed into after a click), NONE on the DPS rows (the game gets the
-    /// keyboard back), and the size for the tab.
+    /// keyboard back), and the size for the tab. Measured in a nested Sway 1.11 (2026-10-13, alacritty as the focused app): with Settings in
+    /// front, keys still went to alacritty until the card was clicked; a click in an entry gave the card the keyboard (typing landed in the
+    /// entry); clicking the DPS pill (mode NONE) handed it back to alacritty with no extra click. Esc on a tab only works after such a click.
     /// </summary>
     private void OnTabChanged(string tab)
     {
