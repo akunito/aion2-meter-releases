@@ -1,12 +1,14 @@
+using AionMeter.Overlay.Shell;
 using AionMeter.Service.Overlay;
 
 namespace AionMeter.Overlay;
 
 /// <summary>
-/// The GTK application, the layer surface and its placement (margins = position), drag/resize, click-through and hide.
-/// The card itself (widgets, CSS, snapshots) is <see cref="Card"/>.
+/// The GTK application, the layer surface and its placement (margins = position), drag/resize, click-through and hide; A2M-50: the keyboard
+/// mode and the size per tab, and the <see cref="AppShell"/> the hosted views get (it outlives card rebuilds).
+/// The card itself (widgets, CSS, snapshots, tab host) is <see cref="Card"/>.
 /// </summary>
-internal sealed class OverlayHost
+internal sealed class OverlayHost : ICardHost
 {
     private readonly OverlaySettings _s;
     private readonly string _socket;
@@ -15,6 +17,8 @@ internal sealed class OverlayHost
     private IntPtr _w;
     private Card? _card;
     private OverlayClient? _client;
+    private AppShell? _shell;
+    private IntPtr _monitor;
     private int _outW, _outH;
     private int _dragH, _dragV;
     private (int W, int H, int MH, int MV) _resizeStart;
@@ -25,12 +29,34 @@ internal sealed class OverlayHost
     private DateTime _uiJsonStamp;
 
     /// <param name="uiJson">ui.json: the shared "UI scale" (unless <paramref name="scaleFixed"/>: --scale for this run).</param>
-    public OverlayHost(OverlaySettings settings, string socket, string uiJson, bool scaleFixed)
+    private readonly string? _startTab, _startHelp, _startWindow;
+
+    /// <param name="uiJson">ui.json: the shared "UI scale" (unless <paramref name="scaleFixed"/>: --scale for this run) and LastTab.</param>
+    /// <param name="startTab">--tab: a tab to open once the card is up; <paramref name="startHelp"/> --help-page, <paramref name="startWindow"/> --window.</param>
+    public OverlayHost(OverlaySettings settings, string socket, string uiJson, bool scaleFixed, string? startTab = null, string? startHelp = null, string? startWindow = null)
     {
         _s = settings;
         _socket = socket;
         _uiJson = uiJson;
         _scaleFixed = scaleFixed;
+        _startTab = startTab;
+        _startHelp = startHelp;
+        _startWindow = startWindow;
+    }
+
+    // ---- ICardHost (what the shell and the views see)
+    public Gtk.Application App => _app!;
+    public IntPtr Monitor => _monitor;
+    public double Scale => _s.Scale;
+    public double Opacity => _s.Opacity;
+
+    public void SetOpacity(double opacity)
+    {
+        opacity = double.IsFinite(opacity) ? Math.Clamp(opacity, 0.2, 1) : 0.92;
+        if (Math.Abs(opacity - _s.Opacity) < 0.001) return;
+        _s.Opacity = opacity;
+        _s.Save();
+        Card.LoadCss(_s);
     }
 
     public int Run()
@@ -39,6 +65,7 @@ internal sealed class OverlayHost
         _app.OnActivate += (_, _) => Activate();
         var rc = _app.RunWithSynchronizationContext(null);
         _client?.Dispose();
+        _shell?.Dispose();
         return rc;
     }
 
@@ -68,14 +95,25 @@ internal sealed class OverlayHost
         LayerShell.SetKeyboardMode(_w, LayerShell.KeyboardMode.None);
         LayerShell.SetExclusiveZone(_w, 0);
         PickMonitor();
+        // the kit restyles entries, drop-downs and checks; dark Adwaita underneath keeps what it does not cover (popover arrows, selection) dark too
+        if (Gtk.Settings.GetDefault() is { } gs) gs.GtkApplicationPreferDarkTheme = true;
 
         _client = new OverlayClient(_socket, Post);
-        BuildCard();
+        _shell = new AppShell(_client, this, _uiJson);
+        BuildCard(null);
         ApplyPlacement();
         win.OnRealize += (_, _) => Console.Error.WriteLine($"overlay: layer surface on {(_s.Monitor.Length > 0 ? _s.Monitor : "(compositor's output)")} {_outW}x{_outH}, anchor {Placement.Name(_s.Anchor)} margins {_s.MarginH},{_s.MarginV}, card {Px(_s.Width)}x{Px(_s.Height)}, scale {_s.Scale}");
         win.Present();
         if (_s.ClickThrough) SetClickThrough(true);
         _client.Start();
+        _shell.StartEngine();
+        // Esc on a tab goes back (the surface only has the keyboard on a tab: ON_DEMAND, after a click)
+        var keys = Gtk.EventControllerKey.New();
+        keys.OnKeyPressed += (_, e) => e.Keyval == 0xff1b && _card is not null && _card.Escape();   // GDK_KEY_Escape
+        win.AddController(keys);
+        if (_startTab is { } tab) Post(() => _card?.SelectTab(tab));
+        if (_startHelp is { } help) Post(() => _shell.ShowHelp(help));
+        if (_startWindow is { } dialog) GLib.Functions.TimeoutAdd(0, 800, () => { _shell.ShowWindow(dialog); return false; });
         // the shared UI scale: the tools window's Settings / Ctrl+wheel write ui.json; a 2 s mtime poll is enough for a setting
         _uiJsonStamp = Stamp(_uiJson);
         if (!_scaleFixed)
@@ -96,21 +134,24 @@ internal sealed class OverlayHost
         if (_card is null || Math.Abs(scale - _s.Scale) < 0.001) return;
         _s.Scale = scale;
         if (save && !_scaleFixed) { AionMeter.Service.Overlay.UiScale.Write(_uiJson, scale); _uiJsonStamp = Stamp(_uiJson); }
-        BuildCard();
+        BuildCard(_card.Tab);
         ApplyPlacement();
         Console.Error.WriteLine($"overlay: scale {scale:0.##}");
+        _shell?.RaiseUiScaleChanged(scale);
     }
 
-    private void BuildCard()
+    /// <summary>A new card (start, rescale) reopening <paramref name="tab"/>: views are recreated, the shell and the socket stay.</summary>
+    private void BuildCard(string? tab)
     {
         var win = _win!;
         var old = _card;
         old?.Detach();
-        _card = new Card(_s, _client!, ToggleHidden, () => SetClickThrough(true), key => Task.Run(() => FrontEnds.OpenUi(key)));
+        _card = new Card(_s, _shell!, ToggleHidden, () => SetClickThrough(true), OnTabChanged);
         win.Child = _card.Root;
         _card.Seed(old?.Last);
         if (_s.ClickThrough) _card.SetClickThrough(true);
         ApplySize();
+        if (tab is not null && tab != TabState.Meter) _card.SelectTab(tab);
 
         var drag = Gtk.GestureDrag.New();
         drag.OnDragBegin += (_, _) => (_dragH, _dragV) = (_s.MarginH, _s.MarginV);
@@ -126,12 +167,14 @@ internal sealed class OverlayHost
         resize.OnDragBegin += (g, _) =>
         {
             g.SetState(Gtk.EventSequenceState.Claimed);   // the move gesture on the card must not see this press
-            _resizeStart = (Px(_s.Width), Px(_s.Height), _s.MarginH, _s.MarginV);
+            var (cw, ch) = CardSize();
+            _resizeStart = (cw, ch, _s.MarginH, _s.MarginV);
         };
         resize.OnDragUpdate += (_, e) =>
         {
+            var (minW, minH) = TabState.MinSize(_card?.Tab ?? TabState.Meter);
             var (w, h, mh, mv) = Placement.Resize(_s.Anchor, _resizeStart.W, _resizeStart.H, _resizeStart.MH, _resizeStart.MV, e.OffsetX, e.OffsetY,
-                Px(OverlaySettings.MinWidth), Px(OverlaySettings.MinHeight), _outW, _outH);
+                Px(minW), Px(minH), _outW, _outH);
             _s.Width = (int)Math.Round(w / _s.Scale);
             _s.Height = (int)Math.Round(h / _s.Scale);
             (_s.MarginH, _s.MarginV) = (mh, mv);
@@ -165,6 +208,7 @@ internal sealed class OverlayHost
         {
             if (_s.Monitor.Length == 0 || m.Connector != _s.Monitor) continue;
             LayerShell.SetMonitor(_w, m.Handle);
+            _monitor = m.Handle;
             (_outW, _outH) = (m.Width, m.Height);
             Console.Error.WriteLine($"overlay: output {m.Connector} {m.Width}x{m.Height} logical, scale {m.Scale}");
             return;
@@ -181,8 +225,28 @@ internal sealed class OverlayHost
         LayerShell.SetAnchor(_w, LayerShell.Edge.Bottom, Placement.IsBottom(_s.Anchor));
         LayerShell.SetAnchor(_w, LayerShell.Edge.Left, !Placement.IsRight(_s.Anchor));
         LayerShell.SetAnchor(_w, LayerShell.Edge.Right, Placement.IsRight(_s.Anchor));
-        (_s.MarginH, _s.MarginV) = Placement.Fit(_s.MarginH, _s.MarginV, _outW, _outH, Px(_s.Width), Px(_s.Height));
+        var (w, h) = CardSize();
+        (_s.MarginH, _s.MarginV) = Placement.Fit(_s.MarginH, _s.MarginV, _outW, _outH, w, h);
         ApplyMargins();
+    }
+
+    /// <summary>The card's size in px now: the saved DPS size, grown to the tab minimum while a tab is open (TabState.Size).</summary>
+    private (int W, int H) CardSize()
+    {
+        var (w, h) = TabState.Size(_card?.Tab ?? TabState.Meter, _s.Width, _s.Height);
+        return (Px(w), Px(h));
+    }
+
+    /// <summary>
+    /// The card switched tabs: keyboard ON_DEMAND on a tab (entries can be typed into after a click), NONE on the DPS rows (the game gets the
+    /// keyboard back), and the size for the tab.
+    /// </summary>
+    private void OnTabChanged(string tab)
+    {
+        LayerShell.SetKeyboardMode(_w, TabState.Keyboard(tab));
+        ApplySize();
+        ApplyPlacement();
+        Console.Error.WriteLine($"overlay: tab {tab}, keyboard {TabState.Keyboard(tab)}, card {CardSize().W}x{CardSize().H}");
     }
 
     private void ApplyMargins()
@@ -193,7 +257,7 @@ internal sealed class OverlayHost
 
     private void ApplySize()
     {
-        int w = Px(_s.Width), h = Px(_s.Height);
+        var (w, h) = CardSize();
         _card!.SetSize(w, h);
         _win!.SetDefaultSize(w, h);
     }

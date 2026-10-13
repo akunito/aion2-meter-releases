@@ -2,7 +2,7 @@
 
   <!-- A2M-48: the Linux overlay as a native Wayland client (GTK4 + wlr-layer-shell, OVERLAY layer): composited by Sway above
        gamescope's fullscreen view, at the output's own scale. Unprivileged: it reads the daemon's socket, never captures.
-       AionMeter.Linux (Avalonia, Xwayland) stays for the windowed UI. -->
+       A2M-50: it hosts the tabs too (Shell/, Views/); AionMeter.Linux (Avalonia, Xwayland) stays as the fallback tools window until every view is ported. -->
   <ItemGroup>
     <ProjectReference Include="..\AionMeter.Service\AionMeter.Service.csproj" />
   </ItemGroup>
@@ -16,6 +16,8 @@
     <RootNamespace>AionMeter.Overlay</RootNamespace>
     <Version>0.2.8</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- UiText.Culture asks for es-ES / en-US (dates, sort order): with invariant globalization that throws unless predefined-only is off -->
+    <PredefinedCulturesOnly>false</PredefinedCulturesOnly>
     <ServerGarbageCollector>false</ServerGarbageCollector>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <TieredPGO>true</TieredPGO>
@@ -33,6 +35,11 @@
   <ItemGroup>
     <!-- the official class emblems, the same files the WPF overlay embeds (GdkTexture loads them from disk) -->
     <None Include="..\AionMeter.App\Assets\Classes\*.png" Link="Assets\Classes\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A2M-50: the hosted views' viewer engine reads the same game data as the daemon (skills, npcs, catalogues, help pages) -->
+    <None Include="..\..\data\**\*" Link="data\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

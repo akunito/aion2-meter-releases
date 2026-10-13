@@ -25,7 +25,10 @@ internal sealed class RowWidget
     private int _rankValue = -1;
     private bool _self, _hover, _hasGear = true;
     private string _tip = "";
+    private uint _actor;
     public Gtk.Overlay Root { get; }
+    /// <summary>A click on the row (not a drag: the card's GestureDrag still moves it): the row's actor id, never 0.</summary>
+    public event Action<uint>? Clicked;
 
     public RowWidget(Columns cols)
     {
@@ -87,6 +90,10 @@ internal sealed class RowWidget
         motion.OnEnter += (_, _) => { _hover = true; _bar.QueueDraw(); };
         motion.OnLeave += (_, _) => { _hover = false; _bar.QueueDraw(); };
         Root.AddController(motion);
+        var click = Gtk.GestureClick.New();
+        click.OnReleased += (_, e) => { if (e.NPress == 1 && _actor != 0) Clicked?.Invoke(_actor); };
+        Root.AddController(click);
+        Root.SetCursorFromName("pointer");
     }
 
     private static Gtk.Label Num(string? extra, Gtk.SizeGroup group)
@@ -101,6 +108,7 @@ internal sealed class RowWidget
 
     public void Update(OverlayRow r, bool hasGear)
     {
+        _actor = r.ActorId;
         if (_rankValue != r.Rank)
         {
             if (_rankValue != -1) _rank.RemoveCssClass(CardText.RankClass(_rankValue));

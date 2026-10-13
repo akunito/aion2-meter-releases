@@ -15,6 +15,7 @@ internal static class Css
         .tab.on { background-color: #C9A45C; opacity: 1; }
         .tab.live { opacity: 1; }
         .tab.live:hover { border-color: #FFE3A6; background-color: rgba(201,164,92,0.22); }
+        .tab.on, .tab.on:hover { background-color: #C9A45C; opacity: 1; }
         .tabs { margin-right: 10px; }
         .card label.title { font-family: "Noto Serif", "DejaVu Serif", serif; font-size: 16px; font-weight: 600; color: #F3E6C8; margin-right: 10px; }
         .card label.limit { font-size: 12.5px; font-weight: 600; color: #F0C060; font-feature-settings: "tnum"; }
@@ -64,6 +65,7 @@ internal static class Css
         .linkbtn { all: unset; }
         .card .linkbtn > box > label { font-size: 12px; color: #D9B56A; margin-right: 5px; }
         .card .linkbtn:hover > box > label { color: #ECCB82; }
+        .card label.announce { font-size: 12px; font-weight: 600; color: #F5B544; margin: 0 12px 4px 13px; }
         .card label.abyss { font-size: 12px; color: #ECCB82; margin: 0 12px 4px 13px; }
         .pillrow { margin-right: 12px; }
         .pill { border-radius: 11px; padding: 3px 11px 3px 10px; border: 1px solid; margin: 2px 6px 2px 0; }

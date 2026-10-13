@@ -10,15 +10,16 @@ string? Opt(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1
 if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
 {
     Console.WriteLine("""
-        AionMeter.Overlay [--socket PATH] [--monitor NAME] [--anchor top-right|top-left|bottom-right|bottom-left] [--scale F] [--data-dir DIR]
+        AionMeter.Overlay [--socket PATH] [--monitor NAME] [--anchor top-right|top-left|bottom-right|bottom-left] [--scale F] [--data-dir DIR] [--tab KEY] [--help-page KEY] [--window report|restore]
           --socket    the daemon's UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock)
           --monitor   output connector (DP-1); saved in overlay.json, default: the compositor's choice
           --anchor    the corner the card hangs from (resets the margins to that corner's default)
           --scale     card size factor on top of the output scale (0.5 – 3) for this run; otherwise the shared "UI scale" of ui.json
                       (tools window Settings → Overlay, Ctrl+wheel there; here: the wheel over the resize corner)
-          --data-dir  where overlay.json lives (default $XDG_DATA_HOME/AionMeter)
+          --data-dir  the meter's data dir: overlay.json, ui.json, and what the viewer engine reads (default $XDG_DATA_HOME/AionMeter)
+          --tab KEY   open a tab at start (settings, or a ported strip tab); --help-page KEY a help page; --window report|restore a dialog
         Signals (pid in $XDG_RUNTIME_DIR/aionmeter-overlay.pid): SIGUSR1 toggles click-through, SIGUSR2 hides/shows the card.
-        The tab pills open the tools window (aionmeter-ui) on that tab: through $XDG_RUNTIME_DIR/aionmeter-ui.sock, else it is started.
+        The tab pills switch the card in place (A2M-50); tabs not ported to GTK yet are dimmed: the tools window (aionmeter-ui, Hyper+Shift+M) has them.
         Needs libgtk-4, libgtk4-layer-shell and a wlroots compositor (Sway); no Xwayland.
         """);
     return 0;
@@ -31,6 +32,10 @@ if (LayerShell.Preload() is { } err)
 }
 
 if (Opt("--data-dir") is { Length: > 0 } dir) AppSettings.UseAppDataDir(dir);
+// before the first log line: the daemon, the tools window and this card never append to the same file
+Log.Prefix = "aionmeter-overlay";
+// settings dictionaries the build telemetry records into are edited on the UI thread, as in WPF
+UiHost.Current = new AionMeter.Overlay.Shell.GtkUiHost();
 var settings = OverlaySettings.Load(Path.Combine(AppSettings.AppDataDir, "overlay.json"));
 if (Opt("--monitor") is { } mon) settings.Monitor = mon;
 if (Opt("--anchor") is { } an)
@@ -55,7 +60,7 @@ var runDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") is { Length: 
 var pidFile = Path.Combine(runDir, "aionmeter-overlay.pid");
 try { File.WriteAllText(pidFile, Environment.ProcessId.ToString()); } catch (IOException) { } catch (UnauthorizedAccessException) { }
 
-var host = new OverlayHost(settings, socket, Path.Combine(AppSettings.AppDataDir, "ui.json"), scaleFixed);
+var host = new OverlayHost(settings, socket, Path.Combine(AppSettings.AppDataDir, "ui.json"), scaleFixed, Opt("--tab"), Opt("--help-page"), Opt("--window"));
 // SIGUSR1/SIGUSR2 are 10/12 on Linux; raw numbers are accepted cast to PosixSignal. The handler runs on a pool thread: marshal to GTK.
 using var usr1 = PosixSignalRegistration.Create((PosixSignal)10, c => { c.Cancel = true; host.Post(host.ToggleClickThrough); });
 using var usr2 = PosixSignalRegistration.Create((PosixSignal)12, c => { c.Cancel = true; host.Post(host.ToggleHidden); });

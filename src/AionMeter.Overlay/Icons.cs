@@ -23,14 +23,20 @@ internal static class Icons
     public static readonly Icon Chevron = new("M3 6 L8 11 L13 6");
     public static readonly Icon Download = new("M8 2 L8 11 M4 7 L8 11 L12 7 M2.5 14 L13.5 14");
     public static readonly Icon Grip = new("M12 2 L2 12 M12 6 L6 12 M12 10 L10 12");
+    // A2M-50: the tab host and the kit (Avalonia Visuals.Icon*)
+    public static readonly Icon Gear = new("M8 5.5 A2.5 2.5 0 1 1 7.99 5.5 Z M8 1 L8 3 M8 13 L8 15 M1 8 L3 8 M13 8 L15 8 M3 3 L4.4 4.4 M11.6 11.6 L13 13 M3 13 L4.4 11.6 M11.6 4.4 L13 3");
+    public static readonly Icon Help = new("M8 1.5 A6.5 6.5 0 1 1 7.99 1.5 Z M6 6.2 C6 3.8 10 3.8 10 6.2 C10 7.8 8 7.8 8 9.6 M8 11.8 L8 12.2");
+    public static readonly Icon Close = new("M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5");
+    public static readonly Icon Back = new("M10 3 L5 8 L10 13");
+    public static readonly Icon Fight = new("M1.5 14.5 L1.5 1.5 M1.5 14.5 L14.5 14.5 M4 11 L7 7 L9.5 9 L14 3.5");
+    public static readonly Icon PopOut = new("M9 1.5 L14.5 1.5 L14.5 7 M14.5 1.5 L7.5 8.5 M12 10 L12 14.5 L1.5 14.5 L1.5 4 L6 4");
     public static readonly Icon Unknown = new("M8 1.5 A6.5 6.5 0 1 1 7.99 1.5 Z M6.3 6.3 C6.3 4.3 9.7 4.3 9.7 6.3 C9.7 7.7 8 7.7 8 9.4 M8 11.4 L8 11.7");
 
-    /// <summary>A DrawingArea of <paramref name="size"/> px stroking <paramref name="icon"/> in the colour <see cref="IconView.Rgb"/> holds.</summary>
-    /// <summary>The strip pill's icon for a UiTabs.Strip key.</summary>
+    /// <summary>The strip pill's icon for a UiTabs.Strip key (and the "fight" / "settings" pills of the tab host).</summary>
     public static Icon ForTab(string key) => key switch
     {
         "meter" => Meter, "atlas" => Atlas, "top" => Top, "prices" => Prices, "craft" => Craft, "build" => Build, "items" => Items, "timers" => Clock,
-        _ => Unknown,
+        "fight" => Fight, "settings" => Gear, _ => Unknown,
     };
 
     /// <summary>The card's scale (UI scale / --scale): fixed pixel sizes go through <see cref="Px"/>; the CSS is scaled by CardText.ScaleCss.</summary>
@@ -38,6 +44,7 @@ internal static class Icons
 
     public static int Px(double v) => (int)Math.Round(v * Scale);
 
+    /// <summary>A DrawingArea of <paramref name="size"/> px stroking <paramref name="icon"/> in the colour <see cref="IconView.Rgb"/> holds.</summary>
     public static IconView View(Icon icon, uint rgb, int size, double thickness = 1.5) => new(icon, rgb, size, thickness);
 }
 
