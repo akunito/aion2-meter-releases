@@ -837,6 +837,9 @@ public sealed class UiText
     public string PricesStats { get; init; } = "min {0} · median {1} · max {2}";
     public string PricesBuyBelow { get; init; } = "buy below";
     public string PricesSellAbove { get; init; } = "sell above";
+    public string PricesChecking { get; init; } = "Checking…";
+    public string PricesNoDaemon { get; init; } = "Check now asks the daemon, and it is not running.";
+    public string PricesPollSkipped { get; init; } = "Not checked: {0}";
     public string TopCount { get; init; } = "{0} players kept";
     public string TopHint { get; init; } = "The ten best DPS this meter has seen per class (one fight per player, 30 s or longer). Click a row for skill shares, opener, repeated sequences and casts per minute; Open shows the saved fight.";
     public string TopEmpty { get; init; } = "No fight of 30 s or more with a known class yet. The ranking fills itself as fights finish.";
@@ -1803,6 +1806,9 @@ public sealed class UiText
         PricesStats = "mín {0} · mediana {1} · máx {2}",
         PricesBuyBelow = "comprar por debajo",
         PricesSellAbove = "vender por encima",
+        PricesChecking = "Consultando…",
+        PricesNoDaemon = "Consultar ahora se lo pide al daemon, y no está en marcha.",
+        PricesPollSkipped = "Sin consultar: {0}",
         TopCount = "{0} jugadores guardados",
         TopHint = "Los diez mejores DPS que este medidor ha visto por clase (un combate por jugador, de 30 s o más). Haz clic en una fila para ver el reparto por habilidad, la apertura, las secuencias repetidas y los lanzamientos por minuto; Abrir muestra el combate guardado.",
         TopEmpty = "Aún no hay ningún combate de 30 s o más con una clase conocida. La clasificación se llena sola al terminar los combates.",

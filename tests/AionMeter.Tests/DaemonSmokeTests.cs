@@ -68,6 +68,11 @@ public class DaemonSmokeTests
                 Assert.True(viewer.Data.Skills.Count > 1000);
                 Assert.NotNull(viewer.History.Load(viewer.History.List()[0].Path));
                 Assert.Equal(1303, viewer.Server.ServerId);
+                // phase 3c: the Items/Craft character picker only moves the view (with the game closed a rebind used to rewrite inventory.json)
+                Assert.True(viewer.SelectCharacter(key));
+                Assert.Equal(key, viewer.CharacterKey);
+                Assert.NotEmpty(viewer.ViewInventory.All());
+                Assert.Equal("offline", (await viewer.PollPricesNowAsync()).Reason);   // the viewer never polls: Check now goes to the daemon
                 viewer.Tick();          // a no-op in viewer mode (the daemon owns every periodic write)
                 viewer.FlushState();
             }
@@ -177,6 +182,13 @@ public class DaemonSmokeTests
             new AionMeter.Core.Market.PriceWatchStore(Path.Combine(root, "state", "price-watch.json")).Add(930100031, "Kinah test", 1000);
             for (var i = 0; i < 60 && m.Engine.Prices.Count == 0; i++) await Task.Delay(100, cts.Token);
             Assert.Equal(1, m.Engine.Prices.Count);
+            // Check now (`price-poll`): always answered with `price-polled`; offline (this test) it says why it did not read anything
+            await writer.WriteLineAsync("{\"cmd\":\"price-poll\"}");
+            var polled = (await Next("price-polled")).GetProperty("data");
+            Assert.False(polled.GetProperty("ran").GetBoolean());
+            Assert.Equal("offline", polled.GetProperty("reason").GetString());
+            await writer.WriteLineAsync("{\"cmd\":\"price-poll\",\"mode\":\"added\"}");
+            Assert.Equal("offline", (await Next("price-polled")).GetProperty("data").GetProperty("reason").GetString());
 
             // A2M-48 phase 3c `position`: the atlas point on the replay's own clock (the login capture is in Verteron, map 1010)
             await writer.WriteLineAsync("{\"cmd\":\"position\"}");

@@ -10,6 +10,9 @@ namespace AionMeter.Linux;
 
 public sealed record FightDetailReply(string Id, string Asked, bool Live, FightRecord Record);
 
+/// <summary>`price-polled`: whether the poll ran (else why: offline, empty, cooldown, busy), items read / failed, when Check now is allowed again (Unix ms, 0 = now).</summary>
+public sealed record PricePollReply(bool Ran, string Reason, int Items, int Errors, long Next);
+
 /// <summary>
 /// The daemon's socket (OverlayServer): newline-delimited JSON. Reconnects with backoff (0.5 s doubling to 5 s) while the daemon is away.
 /// Events are raised on the UI thread; only the newest overlay snapshot is delivered when the UI falls behind.
@@ -45,6 +48,8 @@ public sealed class DaemonClient : IDisposable
     public event Action<string>? BossAlert;
     /// <summary>`node-name-wanted`: the player started gathering an object code nobody has named (the atlas asks).</summary>
     public event Action<int>? NodeNameWanted;
+    /// <summary>`price-polled`: the answer to `price-poll`, sent once price-watch.json and price-history.json are written.</summary>
+    public event Action<PricePollReply>? PricePolled;
 
     public void Start() => _ = Task.Run(Loop);
 
@@ -137,6 +142,12 @@ public sealed class DaemonClient : IDisposable
                 case "settings-reloaded":
                     var lang = data.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "";
                     Dispatcher.UIThread.Post(() => SettingsReloaded?.Invoke(lang));
+                    break;
+                case "price-polled":
+                    var pp = new PricePollReply(data.GetProperty("ran").GetBoolean(), data.TryGetProperty("reason", out var rs) ? rs.GetString() ?? "" : "",
+                        data.TryGetProperty("items", out var it) ? it.GetInt32() : 0, data.TryGetProperty("errors", out var er) ? er.GetInt32() : 0,
+                        data.TryGetProperty("next", out var nx) ? nx.GetInt64() : 0);
+                    Dispatcher.UIThread.Post(() => PricePolled?.Invoke(pp));
                     break;
                 case "error":
                     var msg = root.TryGetProperty("data", out var ed) && ed.ValueKind == JsonValueKind.Object && ed.TryGetProperty("message", out var mm) ? mm.GetString() ?? ""

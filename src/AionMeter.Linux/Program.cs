@@ -10,10 +10,11 @@ string? Opt(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1
 if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
 {
     Console.WriteLine("""
-        AionMeter.Linux [--socket PATH] [--data-dir DIR] [--tab KEY] [--fight ID] [--help-page KEY] [--popout]
+        AionMeter.Linux [--socket PATH] [--data-dir DIR] [--tab KEY] [--fight ID] [--help-page KEY] [--popout] [--view key=value …]
           --socket    the daemon's UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock)
           --data-dir  the meter's data dir: ui.json, and what the viewer engine reads (default $XDG_DATA_HOME/AionMeter)
           --tab KEY   open a tab at start (settings, …); --fight ID opens the breakdown ("live", "s:<guid>", "h:<file>"); --help-page KEY a help page; --popout moves that tab into its own window
+          --view      start state of the opened tab: items search=, open=bag,wh, list=bag, char=; craft search=, profit=1, scope=; prices expand=<id>, search=, add=<id>:<max>, check=1
         SIGUSR1 toggles click-through; the pid is in $XDG_RUNTIME_DIR/aionmeter-ui.pid (Sway: exec kill -USR1 $(cat $XDG_RUNTIME_DIR/aionmeter-ui.pid)).
         """);
     return 0;
@@ -26,6 +27,8 @@ App.StartTab = Opt("--tab");
 App.StartFight = Opt("--fight");
 App.StartHelp = Opt("--help-page");
 App.StartPopOut = Array.IndexOf(args, "--popout") >= 0;
+for (var i = 0; i + 1 < args.Length; i++)
+    if (args[i] == "--view" && args[i + 1].IndexOf('=') is var eq and > 0) App.ViewArgs[args[i + 1][..eq]] = args[i + 1][(eq + 1)..];
 App.SocketPath = Opt("--socket") ?? OverlayServer.DefaultPath();
 App.Ui = UiSettings.Load(Path.Combine(AppSettings.AppDataDir, "ui.json"));
 // The game shares the box: a background UI must not compete for CPU with it.

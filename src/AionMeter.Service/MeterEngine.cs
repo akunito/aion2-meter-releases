@@ -220,6 +220,28 @@ public class MeterEngine : IDisposable
         return true;
     }
 
+    /// <summary>A2M-48 `price-poll` (the Linux UI's Check now / a new watch): why a manual poll did not run, or what it read.</summary>
+    public sealed record PricePollResult(bool Ran, string Reason, int Items, int Errors, long Ms, DateTimeOffset NextManual);
+
+    /// <summary>
+    /// The daemon side of the Linux UI's Check now: the same 5-minute manual cooldown as <see cref="PollPricesNow"/> (<paramref name="added"/>
+    /// = a watch was just added: no cooldown, as <see cref="PollPricesAfterAdd"/>), but awaitable, so the socket can answer once the files are
+    /// written. Takes the watch list from disk first (the UI saved it a moment ago). Reasons: "offline", "empty", "cooldown", "busy".
+    /// </summary>
+    public async Task<PricePollResult> PollPricesNowAsync(bool added = false)
+    {
+        Prices.ReloadIfChanged();
+        if (Settings.Offline || Viewer) return new(false, "offline", 0, 0, 0, PricesManualUntil);
+        if (Prices.Count == 0) return new(false, "empty", 0, 0, 0, PricesManualUntil);
+        var now = DateTimeOffset.Now;
+        if (!added && now < PricesManualUntil) return new(false, "cooldown", 0, 0, 0, PricesManualUntil);
+        if (Volatile.Read(ref _pricePolling) == 1) return new(false, "busy", 0, 0, 0, PricesManualUntil);
+        if (!added) PricesManualUntil = now.AddMinutes(5);
+        await PollPricesAsync(Environment.TickCount64).ConfigureAwait(false);
+        var st = Prices.LastPollStats;
+        return new(true, "", st.Items, st.Errors, st.Ms, PricesManualUntil);
+    }
+
     private async Task PollPricesAsync(long now)
     {
         if (Settings.Offline || Viewer || Interlocked.Exchange(ref _pricePolling, 1) == 1) return;
@@ -553,7 +575,8 @@ public class MeterEngine : IDisposable
     {
         var dir = Path.Combine(AppSettings.AppDataDir, "characters", key);
         if (key.Length == 0 || !Directory.Exists(dir)) return false;
-        var running = Core.Capture.GameProcessLocator.FindGameProcessIds().Length > 0;
+        // the viewer (Linux UI) only ever moves the view: a rebind would make it write the character's inventory.json, the daemon's file
+        var running = Viewer || Core.Capture.GameProcessLocator.FindGameProcessIds().Length > 0;
         lock (_selGate)
         {
             var pick = _sel.Pick(key, running);
@@ -566,7 +589,7 @@ public class MeterEngine : IDisposable
                 _lastSummary = "";
             }
             SetViewStore();
-            AdoptRestoredBuilds(key);
+            if (!Viewer) AdoptRestoredBuilds(key);
             Builds = new BuildStore(Path.Combine(dir, "builds"));
             Log.Info(pick == CharacterPick.Rebind ? $"Character stores switched by hand to {key}" : $"Viewing {key} (live data stays with {(_boundKey.Length > 0 ? _boundKey : "nobody")})");
         }

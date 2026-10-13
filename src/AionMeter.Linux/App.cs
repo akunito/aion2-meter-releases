@@ -17,6 +17,9 @@ public sealed class App : Application
     public static string? StartFight { get; set; }
     public static string? StartHelp { get; set; }
     public static bool StartPopOut { get; set; }
+    /// <summary>--view key=value (repeatable): start state for the opened tab (search, open cards, expanded row…), the WPF render tool's
+    /// Sample* hooks; screenshots need it because neither xdotool nor wlrctl clicks reach Avalonia under Xwayland (measured 2026-10-13).</summary>
+    public static Dictionary<string, string> ViewArgs { get; } = new();
     private static OverlayWindow? _window;
 
     public override void Initialize()

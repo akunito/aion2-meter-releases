@@ -345,6 +345,11 @@ public sealed class HeadlessMeter : IDisposable
                     c.From.Send(SocketLine("settings-reloaded", w => { w.WriteStartObject(); w.WriteString("language", Settings.Language); w.WriteBoolean("reloaded", reloaded); w.WriteEndObject(); }));
                     force = true;
                     break;
+                case "price-poll":
+                    // Check now from the Linux UI ("mode":"added" = a watch was just added: no cooldown). Answered when the poll is over and
+                    // price-watch.json / price-history.json are written, so the UI re-reads them on the reply.
+                    _ = PricePoll(c.From, c.Arg == "added");
+                    break;
                 case "timer":
                     // A2M-48: the Linux UI's Boss Timers buttons; the daemon owns boss-timers.json (the UI's copy is read-only and follows the file)
                     if (!TimerCommand(c)) { c.From.Send(Error("timer: id is killed|watch|unwatch|respawn|remove, npc > 0")); break; }
@@ -406,6 +411,25 @@ public sealed class HeadlessMeter : IDisposable
         }
         Log.Info($"UI: timer {c.Arg} server {c.Server} npc {c.Npc}{(c.Arg == "respawn" ? $" {c.Value} min" : "")}");
         return true;
+    }
+
+    private async Task PricePoll(OverlayServer.Client to, bool added)
+    {
+        MeterEngine.PricePollResult r;
+        try { r = await Engine.PollPricesNowAsync(added).ConfigureAwait(false); }
+        catch (Exception e) { Log.Error("price-poll", e); r = new MeterEngine.PricePollResult(false, e.Message, 0, 0, 0, Engine.PricesManualUntil); }
+        if (r.Ran) Human($"price poll (ui): {r.Items} items, {r.Errors} failed, {r.Ms} ms");
+        to.Send(SocketLine("price-polled", w =>
+        {
+            w.WriteStartObject();
+            w.WriteBoolean("ran", r.Ran);
+            w.WriteString("reason", r.Reason);
+            w.WriteNumber("items", r.Items);
+            w.WriteNumber("errors", r.Errors);
+            w.WriteNumber("ms", r.Ms);
+            w.WriteNumber("next", r.NextManual == DateTimeOffset.MinValue ? 0 : r.NextManual.ToUnixTimeMilliseconds());
+            w.WriteEndObject();
+        }));
     }
 
     private byte[] Error(string message) => SocketLine("error", w => { w.WriteStartObject(); w.WriteString("message", message); w.WriteEndObject(); });
