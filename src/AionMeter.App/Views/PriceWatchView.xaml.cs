@@ -106,12 +106,10 @@ public partial class PriceWatchView : UserControl
 
     private bool _sample;
     private PriceHistory? _sampleHistory;
-    private IListingsSource? _sampleListings;
     private PriceHistory History => _sampleHistory ?? _meter.Prices.History;
-    private IListingsSource ListingsSource => _sampleListings ?? _meter.Prices.Listings;
 
     /// <summary>Render tool (--window prices): these watches instead of the store, icons from <paramref name="icons"/>; nothing polled or saved.
-    /// <paramref name="expanded"/> (--tab expanded): the first row open on 30 days of made-up hourly samples and five made-up listings.</summary>
+    /// <paramref name="expanded"/> (--tab expanded): the first row open on 30 days of made-up hourly samples.</summary>
     public void ShowSample(IReadOnlyList<PriceWatch> watches, IconCache icons, DateTimeOffset lastPoll, bool expanded = false)
     {
         _sample = true;
@@ -120,12 +118,6 @@ public partial class PriceWatchView : UserControl
             var w0 = watches[0];
             _expanded = w0.Item;
             _sampleHistory = SampleHistory(w0.Item, w0.LastPrice ?? 1_000_000, DateTimeOffset.Now);
-            var p = w0.LastPrice ?? 1_000_000;
-            _sampleListings = new StaticListingsSource(
-            [
-                MarketListing.FromTotal(p, 1, "Lyrael"), MarketListing.FromTotal((p + 9_000) * 2, 2, "Kharun"), MarketListing.FromTotal(p + 30_000, 1, "Mosswen"),
-                MarketListing.FromTotal((p + 50_010) * 3, 3, "Teodric"), MarketListing.FromTotal(p + 88_000, 1, null), MarketListing.FromTotal(p + 200_000, 1, "Velka"),
-            ], DateTimeOffset.Now.AddMinutes(-3));
             _meter.Settings.PricesRange = "30d";
         }
         List.ItemsSource = BuildRows(watches, w => w.Name, icons.Get);
@@ -181,7 +173,6 @@ public partial class PriceWatchView : UserControl
     // ── expanded row ─────────────────────────────────────────────────────────────────────────────
     private int _expanded;
     private static readonly object DetailTag = new();
-    private readonly Dictionary<int, (DateTimeOffset At, ListingsResult Result)> _listingsCache = new();
 
     /// <summary>Click anywhere on a row but its inputs, buttons and the open detail toggles it; one row open at a time.</summary>
     private void Row_Click(object sender, MouseButtonEventArgs e)
@@ -196,21 +187,10 @@ public partial class PriceWatchView : UserControl
 
     private FrameworkElement BuildDetail(PriceWatch w)
     {
-        var root = new Grid { Tag = DetailTag, Margin = new Thickness(0, 10, 0, 2), Cursor = Cursors.Arrow, Background = Brushes.Transparent };
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        // left: cheapest listings
-        var left = new StackPanel { Margin = new Thickness(0, 0, 0, 0) };
-        left.Children.Add(Caption(T.PricesCheapest));
-        var table = new Grid();
-        left.Children.Add(table);
-        FillListings(table, w);
-
-        // right: range switch, "collecting since", chart
-        var right = new DockPanel();
+        // aion2.exchange serves no per-listing data (the depth/ladder call is empty for Vaizel and most servers, and the in-game
+        // broker is HTTPS NcMarketPlaceAPI the capture never sees), so the expand is the price chart alone — no "cheapest listings"
+        // section that would only ever say "no snapshot" (A2M-23, 2026-10-13).
+        var root = new DockPanel { Tag = DetailTag, Margin = new Thickness(0, 10, 0, 2), Cursor = Cursors.Arrow, Background = Brushes.Transparent, LastChildFill = true };
         var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 6), LastChildFill = true };
         var seg = new StackPanel { Orientation = Orientation.Horizontal };
         var collecting = new TextBlock { FontSize = 11, Foreground = Mute, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(10, 0, 0, 0) };
@@ -234,29 +214,13 @@ public partial class PriceWatchView : UserControl
         bar.Children.Add(seg);
         bar.Children.Add(collecting);
         DockPanel.SetDock(bar, Dock.Top);
-        right.Children.Add(bar);
-        right.Children.Add(chart);
+        root.Children.Add(bar);
+        root.Children.Add(chart);
         FillChart(chart, collecting, w);
-
-        root.Children.Add(left);
-        root.Children.Add(right);
-        // side by side when the card is wide enough (Diego's card is ~940 wide), stacked in the default 560
-        void Layout(double width)
-        {
-            var wide = width >= 640;
-            root.ColumnDefinitions[0].Width = wide ? new GridLength(Math.Min(330, width * 0.4)) : new GridLength(1, GridUnitType.Star);
-            root.ColumnDefinitions[1].Width = wide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-            Grid.SetColumn(right, wide ? 1 : 0); Grid.SetRow(right, wide ? 0 : 1);
-            left.Margin = wide ? new Thickness(0, 0, 16, 0) : new Thickness(0, 0, 0, 10);
-        }
-        Layout(0);
-        root.SizeChanged += (_, e) => { if (e.WidthChanged && (e.NewSize.Width >= 640) != (e.PreviousSize.Width >= 640)) Layout(e.NewSize.Width); else if (e.WidthChanged && e.NewSize.Width >= 640) root.ColumnDefinitions[0].Width = new GridLength(Math.Min(330, e.NewSize.Width * 0.4)); };
         return root;
     }
 
-    private static readonly Brush Mute = Frozen(0x6B, 0x75, 0x90), Dim = Frozen(0xA3, 0xAC, 0xBF), Ink = Frozen(0xF1, 0xE9, 0xD8), Gold = Frozen(0xC9, 0xA4, 0x5C), RuleBrush = Frozen(0x2A, 0x33, 0x50);
-
-    private static TextBlock Caption(string text) => new() { Text = text, FontSize = 10.5, FontWeight = FontWeights.SemiBold, Foreground = Gold, Margin = new Thickness(0, 3, 0, 6) };
+    private static readonly Brush Mute = Frozen(0x6B, 0x75, 0x90);
 
     private void FillChart(PriceChart chart, TextBlock collecting, PriceWatch w)
     {
@@ -268,70 +232,6 @@ public partial class PriceWatchView : UserControl
         // the series does not reach back over the whole range yet: say since when it exists
         collecting.Text = History.First(w.Item) is { } first && first.ToUnixTimeSeconds() > from + 7200
             ? string.Format(T.PricesCollecting, first.ToLocalTime().ToString("d MMM HH:mm", T.Culture)) : "";
-    }
-
-    private void FillListings(Grid table, PriceWatch w)
-    {
-        var src = ListingsSource;
-        if (!src.Configured) { ShowListings(table, ListingsResult.NotConfigured); return; }
-        if (_listingsCache.TryGetValue(w.Item, out var c) && DateTimeOffset.Now - c.At < TimeSpan.FromMinutes(1)) { ShowListings(table, c.Result); return; }
-        var server = _meter.Prices.ExchangeServerId;
-        var direct = src.GetAsync(w.Item, server);
-        if (direct.IsCompletedSuccessfully) { _listingsCache[w.Item] = (DateTimeOffset.Now, direct.Result); ShowListings(table, direct.Result); return; }   // in-memory sources (render tool)
-        ShowListings(table, new ListingsResult([], null, "…"));
-        _ = Task.Run(async () =>
-        {
-            ListingsResult r;
-            try { r = await direct.ConfigureAwait(false); }
-            catch (Exception ex) { r = new ListingsResult([], null, ex.Message); Log.Error("Listings", ex); }
-            await Dispatcher.InvokeAsync(() => { _listingsCache[w.Item] = (DateTimeOffset.Now, r); ShowListings(table, r); });
-        });
-    }
-
-    private static void ShowListings(Grid table, ListingsResult r)
-    {
-        table.Children.Clear();
-        table.RowDefinitions.Clear();
-        table.ColumnDefinitions.Clear();
-        if (r.Status is not null || r.Cheapest.Count == 0)
-        {
-            var msg = r.Status switch { "not-configured" => T.PricesListingsOff, null => T.PricesListingsNone, var s => s };
-            table.Children.Add(new TextBlock { Text = msg, TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Foreground = Mute, Margin = new Thickness(0, 2, 0, 0) });
-            return;
-        }
-        foreach (var star in new[] { false, false, false, true })
-            table.ColumnDefinitions.Add(new ColumnDefinition { Width = star ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
-        void Cell(int row, int col, string text, Brush fg, bool right, FontWeight weight)
-        {
-            var tb = new TextBlock { Text = text, Foreground = fg, FontWeight = weight, FontSize = row == 0 ? 10.5 : 12, TextAlignment = right ? TextAlignment.Right : TextAlignment.Left,
-                                     Margin = new Thickness(col == 0 ? 0 : 14, row == 0 ? 0 : 3, 0, 3), TextTrimming = TextTrimming.CharacterEllipsis };
-            Grid.SetRow(tb, row); Grid.SetColumn(tb, col);
-            table.Children.Add(tb);
-        }
-        table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Cell(0, 0, T.PricesColPrice, Mute, true, FontWeights.Normal); Cell(0, 1, T.PricesColQty, Mute, true, FontWeights.Normal);
-        Cell(0, 2, T.PricesColUnit, Mute, true, FontWeights.Normal); Cell(0, 3, T.PricesColSeller, Mute, false, FontWeights.Normal);
-        var rule = new Border { Height = 1, Background = RuleBrush, VerticalAlignment = VerticalAlignment.Bottom };
-        Grid.SetColumnSpan(rule, 4);
-        table.Children.Add(rule);
-        for (var i = 0; i < r.Cheapest.Count; i++)
-        {
-            var l = r.Cheapest[i];
-            table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            Cell(i + 1, 0, l.Price.ToString("N0", CultureInfo.InvariantCulture), i == 0 ? Ink : Dim, true, i == 0 ? FontWeights.SemiBold : FontWeights.Normal);
-            Cell(i + 1, 1, l.Quantity.ToString(CultureInfo.InvariantCulture), Dim, true, FontWeights.Normal);
-            Cell(i + 1, 2, l.Unit.ToString("N0", CultureInfo.InvariantCulture), i == 0 ? Ink : Dim, true, i == 0 ? FontWeights.SemiBold : FontWeights.Normal);
-            Cell(i + 1, 3, l.Seller ?? "—", Mute, false, FontWeights.Normal);
-        }
-        if (r.At is { } at)
-        {
-            table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            // The ladder is a site capture that is usually hours or days old (A2M-23, 2026-10-13): show the day once it is not today's.
-            var local = at.ToLocalTime();
-            var tb = new TextBlock { Text = string.Format(T.PricesChecked, local.ToString(local.Date == DateTime.Today ? "HH:mm" : "dd MMM HH:mm", CultureInfo.InvariantCulture)), FontSize = 10.5, Foreground = Mute, Margin = new Thickness(0, 4, 0, 0) };
-            Grid.SetRow(tb, r.Cheapest.Count + 1); Grid.SetColumnSpan(tb, 4);
-            table.Children.Add(tb);
-        }
     }
 
     /// <summary>"1200000", "1,200,000", "1.2m", "850k" → Kinah.</summary>

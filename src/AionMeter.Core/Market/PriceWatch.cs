@@ -59,8 +59,6 @@ public sealed class PriceWatchStore : IDisposable
 
     /// <summary>30-day hourly series per watched item for the expanded row's chart, fed by every poll (price-history.json).</summary>
     public PriceHistory History { get; }
-    /// <summary>Cheapest current listings for the expanded row; unconfigured until the site's per-listing call is known (Listings.cs).</summary>
-    public IListingsSource Listings { get; set; } = UnconfiguredListingsSource.Instance;
 
     public int ExchangeServerId { get; set; } = 11303;
     public int IntervalMinutes { get; set; } = 60;

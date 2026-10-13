@@ -94,23 +94,4 @@ public class PriceHistoryTests
         Assert.Equal(h.Window(610511013, PriceRange.Week, Now), again.Window(610511013, PriceRange.Week, Now));
         Directory.Delete(dir, true);
     }
-
-    [Fact]
-    public async Task ListingsDefaultToNotConfiguredAndPickTheFiveCheapestUnits()
-    {
-        using var store = new PriceWatchStore(null);
-        Assert.False(store.Listings.Configured);
-        Assert.Equal("not-configured", (await store.Listings.GetAsync(1, 11303)).Status);
-        var all = new List<MarketListing>
-        {
-            MarketListing.FromTotal(3_000_000, 1, "A"), MarketListing.FromTotal(5_800_000, 2, "B"), MarketListing.FromTotal(2_950_000, 1, "C"),
-            MarketListing.FromTotal(8_700_000, 3), MarketListing.FromTotal(0, 1), MarketListing.FromTotal(2_990_000, 1, "D"), MarketListing.FromTotal(3_100_000, 1, "E"),
-        };
-        var five = Listings.Cheapest(all);
-        Assert.Equal(5, five.Count);
-        Assert.Equal([2_900_000L, 2_900_000, 2_950_000, 2_990_000, 3_000_000], five.Select(l => l.Unit));
-        Assert.Equal(5_800_000, five[0].Price);                              // the cheaper stack first on a tied unit price
-        Assert.Equal(8_700_000, five[1].Price);
-        Assert.DoesNotContain(five, l => l.Seller == "E");
-    }
 }
