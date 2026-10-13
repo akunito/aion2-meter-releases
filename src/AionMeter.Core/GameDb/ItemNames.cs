@@ -39,12 +39,50 @@ public sealed class ItemNames
         for (var i = 0; i < en.Length; i++) { _enKey[i] = Normalize(en[i]); _esKey[i] = Normalize(es[i]); }
     }
 
+    // ── extras: ids the shipped catalogue lacks, looked up on questlog by ItemNameResolver ───────────────────────────────────
+    // Copy-on-write: a batch builds a new dictionary and swaps the reference, so lookups (UI thread) never lock and never allocate.
+    private readonly record struct Extra(string En, string Es, string EnKey, string EsKey, Grade Grade, bool Bound, string? IconUrl);
+    private Dictionary<int, Extra> _extra = new();
+
+    /// <summary>Raised (on the resolver's thread) after <see cref="AddExtras"/> added names; views coalesce it like any other change.</summary>
+    public event Action? Changed;
+
+    /// <summary>Adds names for ids missing from the catalogue (catalogue ids are left as they are) and raises <see cref="Changed"/>.</summary>
+    public void AddExtras(IReadOnlyList<ExtraItem> items)
+    {
+        if (ReferenceEquals(this, Empty)) return;   // shared instance
+        var d = new Dictionary<int, Extra>(_extra);
+        var added = 0;
+        for (var i = 0; i < items.Count; i++)
+        {
+            var x = items[i];
+            if (x.En.Length == 0 && x.Es.Length == 0 || Array.BinarySearch(_ids, x.Id) >= 0) continue;
+            d[x.Id] = new Extra(x.En, x.Es, Normalize(x.En), Normalize(x.Es), x.Grade, x.Bound, x.IconUrl);
+            added++;
+        }
+        if (added == 0) return;
+        Volatile.Write(ref _extra, d);
+        Changed?.Invoke();
+    }
+
+    public int ExtraCount => _extra.Count;
+
+    /// <summary>True when the catalogue or the extras name the id.</summary>
+    public bool Known(int id) => Array.BinarySearch(_ids, id) >= 0 || _extra.ContainsKey(id);
+
+    /// <summary>Grade of an extra (Unknown otherwise): <see cref="ItemGrades.Of"/> falls back to it for ids item-grades.json lacks.</summary>
+    public Grade ExtraGrade(int id) => _extra.TryGetValue(id, out var x) ? x.Grade : Grade.Unknown;
+    public bool ExtraBound(int id) => _extra.TryGetValue(id, out var x) && x.Bound;
+    /// <summary>questlog CDN icon of an extra, for ids item-icons.json lacks.</summary>
+    public string? ExtraIconUrl(int id) => _extra.TryGetValue(id, out var x) ? x.IconUrl : null;
+
     public int Count => _ids.Length;
     public int CountWith(string lang) { var a = lang == "es" ? _es : _en; var n = 0; for (var i = 0; i < a.Length; i++) if (a[i].Length > 0) n++; return n; }
 
     public static ItemNames Load(string path)
     {
-        if (!File.Exists(path)) return Empty;
+        // a fresh empty instance, not Empty: extras may still be added to it
+        if (!File.Exists(path)) return new ItemNames(Array.Empty<int>(), Array.Empty<string>(), Array.Empty<string>());
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
@@ -61,14 +99,19 @@ public sealed class ItemNames
             for (var i = 0; i < rows.Count; i++) { ids[i] = rows[i].Id; ens[i] = rows[i].En; ess[i] = rows[i].Es; }
             return new ItemNames(ids, ens, ess);
         }
-        catch (Exception ex) when (ex is IOException or JsonException) { return Empty; }
+        catch (Exception ex) when (ex is IOException or JsonException) { return new ItemNames(Array.Empty<int>(), Array.Empty<string>(), Array.Empty<string>()); }
     }
 
     /// <summary>Name in <paramref name="lang"/> ("en"/"es"), falling back to English, or null for an unknown id.</summary>
     public string? Name(int id, string lang = "en")
     {
         var i = Array.BinarySearch(_ids, id);
-        if (i < 0) return null;
+        if (i < 0)
+        {
+            if (!_extra.TryGetValue(id, out var x)) return null;
+            if (lang == "es" && x.Es.Length > 0) return x.Es;
+            return x.En.Length > 0 ? x.En : null;
+        }
         if (lang == "es" && _es[i].Length > 0) return _es[i];
         return _en[i].Length > 0 ? _en[i] : null;
     }
@@ -76,7 +119,8 @@ public sealed class ItemNames
     public (string? En, string? Es) Both(int id)
     {
         var i = Array.BinarySearch(_ids, id);
-        return i < 0 ? (null, null) : (_en[i].Length > 0 ? _en[i] : null, _es[i].Length > 0 ? _es[i] : null);
+        if (i >= 0) return (_en[i].Length > 0 ? _en[i] : null, _es[i].Length > 0 ? _es[i] : null);
+        return _extra.TryGetValue(id, out var x) ? (x.En.Length > 0 ? x.En : null, x.Es.Length > 0 ? x.Es : null) : (null, null);
     }
 
     /// <summary>
@@ -108,8 +152,41 @@ public sealed class ItemNames
             var score = lead is null ? 3 : k.StartsWith(lead, StringComparison.Ordinal) ? 0 : k.Contains(" " + lead, StringComparison.Ordinal) ? 1 : 2;
             scored.Add((score, k.Length, i));
         }
+        // extras: index past the catalogue arrays into exIds
+        var ex = _extra;
+        int[]? exIds = null;
+        if (ex.Count > 0)
+        {
+            exIds = new int[ex.Count];
+            var e = 0;
+            foreach (var (id, x) in ex)
+            {
+                exIds[e] = id;
+                var k = lang == "es" && x.EsKey.Length > 0 ? x.EsKey : x.EnKey;
+                if (k.Length > 0)
+                {
+                    var gb = (byte)(1 << (int)x.Grade);
+                    string? lead = null;
+                    var ok = true;
+                    for (var w = 0; w < words.Length; w++)
+                    {
+                        if (k.Contains(words[w], StringComparison.Ordinal)) { lead ??= words[w]; continue; }
+                        if ((q.Masks[w] & gb) == 0) { ok = false; break; }
+                    }
+                    if (ok) scored.Add((lead is null ? 3 : k.StartsWith(lead, StringComparison.Ordinal) ? 0 : k.Contains(" " + lead, StringComparison.Ordinal) ? 1 : 2, k.Length, keys.Length + e));
+                }
+                e++;
+            }
+        }
         scored.Sort((a, b) => a.Score != b.Score ? a.Score.CompareTo(b.Score) : a.Len != b.Len ? a.Len.CompareTo(b.Len) : a.Index.CompareTo(b.Index));
-        for (var i = 0; i < scored.Count && i < max; i++) { var ix = scored[i].Index; result.Add((_ids[ix], _en[ix], _es[ix])); }
+        for (var i = 0; i < scored.Count && i < max; i++)
+        {
+            var ix = scored[i].Index;
+            if (ix < keys.Length) { result.Add((_ids[ix], _en[ix], _es[ix])); continue; }
+            var id = exIds![ix - keys.Length];
+            var x = ex[id];
+            result.Add((id, x.En, x.Es));
+        }
         return result;
     }
 
@@ -129,6 +206,7 @@ public sealed class ItemNames
         Mark(_en, null, 1);
         Mark(_es, _en, 2);
         _grade = gr; _amb = amb;
+        if (!ReferenceEquals(grades, ItemGrades.Empty)) grades.Extras = this;
 
         void Mark(string[] names, string[]? fallback, byte bit)
         {
@@ -150,7 +228,12 @@ public sealed class ItemNames
         }
     }
 
-    public Grade GradeOf(int id) { var i = Array.BinarySearch(_ids, id); return i >= 0 && i < _grade.Length ? (Grade)_grade[i] : Grade.Unknown; }
+    public Grade GradeOf(int id)
+    {
+        var i = Array.BinarySearch(_ids, id);
+        if (i < 0) return ExtraGrade(id);
+        return i < _grade.Length ? (Grade)_grade[i] : Grade.Unknown;
+    }
 
     /// <summary>True when the name <see cref="Name"/> returns for <paramref name="lang"/> also belongs to an item of another grade.</summary>
     public bool Ambiguous(int id, string lang = "en") { var i = Array.BinarySearch(_ids, id); return i >= 0 && i < _amb.Length && (_amb[i] & (lang == "es" ? 2 : 1)) != 0; }

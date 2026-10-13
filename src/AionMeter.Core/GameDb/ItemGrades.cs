@@ -17,8 +17,10 @@ public sealed class ItemGrades
     private ItemGrades(Dictionary<int, byte> g) { _g = g; }
 
     public int Count => _g.Count;
-    public Grade Of(int item) => _g.TryGetValue(item, out var v) ? (Grade)(v & 0x0F) : Grade.Unknown;
-    public bool Bound(int item) => _g.TryGetValue(item, out var v) && (v & BoundBit) != 0;
+    /// <summary>Names whose extras (questlog lookups, <see cref="ItemNameResolver"/>) answer for ids this file lacks; set by ItemNames.AttachGrades.</summary>
+    public ItemNames? Extras { get; set; }
+    public Grade Of(int item) => _g.TryGetValue(item, out var v) ? (Grade)(v & 0x0F) : Extras?.ExtraGrade(item) ?? Grade.Unknown;
+    public bool Bound(int item) => _g.TryGetValue(item, out var v) ? (v & BoundBit) != 0 : Extras?.ExtraBound(item) ?? false;
     public bool Known(int item) => _g.ContainsKey(item);
 
     /// <summary>"Grade" sort: special, epic, unique, legendary, rare, common, unknown (the approved mock's order).</summary>

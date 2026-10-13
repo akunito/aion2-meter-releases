@@ -49,6 +49,8 @@ public sealed class MeterService : IDisposable
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
         Grades = ItemGrades.Load(Path.Combine(DataDirectory, "gamedb", "item-grades.json"));
         Names.AttachGrades(Grades);   // grade tags next to ambiguous names + "legendary stone" searches
+        NameResolver = new ItemNameResolver(Names, settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "item-names-extra.json")) { Enabled = !settings.Transient };
+        ItemIconCache.ExtraUrl = Names.ExtraIconUrl;
         Account = new AccountWarehouse(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "account-warehouse.json"));
         if (!settings.Transient) SeedAccountWarehouse();
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
@@ -192,6 +194,11 @@ public sealed class MeterService : IDisposable
 
     /// <summary>Offline item names (en/es) for the search boxes; data/gamedb/item-names.json, built from aion2hub + the official es-ES endpoint.</summary>
     public ItemNames Names { get; private set; } = ItemNames.Empty;
+    /// <summary>questlog lookups for ids <see cref="Names"/> lacks (%AppData%\AionMeter\item-names-extra.json); Names.Changed fires on arrival.</summary>
+    public ItemNameResolver NameResolver { get; private set; } = null!;
+
+    /// <summary>Name for an id the catalogue lacks: queues the questlog lookup, shows "Item n" (or the aion2hub cache) meanwhile.</summary>
+    public string UnnamedItem(int id) { NameResolver.Want(id); return Items.NameOf(id); }
     /// <summary>aion2hub recipes (data/gamedb/recipes.json) for the Craft tab and characters/&lt;key&gt;/craftable.json.</summary>
     public RecipeBook Recipes { get; private set; } = RecipeBook.Empty;
     /// <summary>Pets and the monsters that drop their souls (data/gamedb/pets.json) for the atlas "missing pets" layer (A2M-11).</summary>
@@ -1112,6 +1119,7 @@ public sealed class MeterService : IDisposable
             SaveNames();
         }
         Updates.Dispose();
+        NameResolver.Dispose();
     }
 
     // ---------------------------------------------------------------- A2M-38: Abyss Logs percentile after a boss kill

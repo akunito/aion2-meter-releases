@@ -1,0 +1,1 @@
+{"error":{"message":"Cannot read properties of null (reading 'equipment_info')","code":-32603,"data":{"code":"INTERNAL_SERVER_ERROR","httpStatus":500,"path":"database.getItem"}}}

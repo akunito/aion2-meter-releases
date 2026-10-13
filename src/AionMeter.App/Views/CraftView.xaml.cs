@@ -40,8 +40,8 @@ public partial class CraftView : UserControl
         Professions.ItemsSource = new[] { new Prof("", T.CraftAll, true), new Prof("blacksmithing", "Blacksmith", false), new Prof("tailoring", "Tailor", false), new Prof("jewelcrafting", "Jewel", false), new Prof("alchemy", "Alchemy", false), new Prof("cooking", "Cooking", false) };
         foreach (ComboBoxItem it in ScopeBox.Items) if ((string)it.Tag == meter.Settings.CraftScope) { ScopeBox.SelectedItem = it; break; }
         if (ScopeBox.SelectedItem is null) ScopeBox.SelectedIndex = 0;
-        Loaded += (_, _) => { Reload(); _meter.ViewInventoryChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.ItemIconCache.Loaded += OnIcon; };
-        Unloaded += (_, _) => { _meter.ViewInventoryChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.ItemIconCache.Loaded -= OnIcon; _iconTick.Stop(); };
+        Loaded += (_, _) => { Reload(); _meter.ViewInventoryChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.Names.Changed += OnNames; _meter.ItemIconCache.Loaded += OnIcon; };
+        Unloaded += (_, _) => { _meter.ViewInventoryChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.Names.Changed -= OnNames; _meter.ItemIconCache.Loaded -= OnIcon; _iconTick.Stop(); };
         IsVisibleChanged += (_, e) => { if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
         _iconTick.Tick += (_, _) => { _iconTick.Stop(); if (List.ItemsSource is IEnumerable<Row> rows) foreach (var r in rows) r.RefreshIcon(); };
         _searchTick.Tick += (_, _) => { _searchTick.Stop(); Reload(); };
@@ -61,6 +61,8 @@ public partial class CraftView : UserControl
     private IconCache RowIcons => _sampleIcons ?? _meter.ItemIconCache;
 
     private bool _stale;
+    // questlog names arrive on the resolver thread; IsVisible must be read on the UI thread
+    private void OnNames() => Dispatcher.BeginInvoke(OnChanged);
     private void OnChanged() { if (IsVisible) Dispatcher.BeginInvoke(Reload); else _stale = true; }   // hidden tab: one reload when it comes back, not one per packet
     // icons land one per 400 ms: redraw at most every 600 ms instead of per icon
     private readonly System.Windows.Threading.DispatcherTimer _iconTick = new() { Interval = TimeSpan.FromMilliseconds(600) };

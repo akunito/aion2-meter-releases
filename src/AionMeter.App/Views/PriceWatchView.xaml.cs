@@ -93,13 +93,15 @@ public partial class PriceWatchView : UserControl
         _meter = meter;
         InitializeComponent();
         if (_meter.Settings.PriceSearchLanguage == "es") LangEs.IsChecked = true; else LangEn.IsChecked = true;
-        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _meter.ItemIconCache.Loaded += OnChanged; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
-        Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _meter.ItemIconCache.Loaded -= OnChanged; _cooldown.Stop(); };
+        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _meter.ItemIconCache.Loaded += OnChanged; _meter.Names.Changed += OnNames; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
+        Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _meter.ItemIconCache.Loaded -= OnChanged; _meter.Names.Changed -= OnNames; _cooldown.Stop(); };
         IsVisibleChanged += (_, e) => { if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
         _cooldown.Tick += Cooldown_Tick;
     }
 
     private bool _stale;
+    // questlog names arrive on the resolver thread; IsVisible must be read on the UI thread
+    private void OnNames() => Dispatcher.BeginInvoke(OnChanged);
     private void OnChanged() { if (IsVisible) Dispatcher.BeginInvoke(Reload); else _stale = true; }
 
     private bool _sample;

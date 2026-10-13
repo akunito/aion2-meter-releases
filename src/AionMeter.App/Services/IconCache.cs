@@ -28,6 +28,8 @@ public sealed class IconCache : IDisposable
     public event Action? Loaded;
     /// <summary>Settings → "download icons": off = no network, only what is on disk already.</summary>
     public bool Enabled { get; set; } = true;
+    /// <summary>Icon URL for ids item-icons.json lacks (questlog CDN, from ItemNames extras).</summary>
+    public Func<int, string?>? ExtraUrl { get; set; }
 
     /// <param name="dir">Where icons live (default %AppData%\AionMeter\icons); the render tool points it at a folder of its own.</param>
     public IconCache(ItemIcons index, string? dir = null)
@@ -43,8 +45,9 @@ public sealed class IconCache : IDisposable
         var key = item.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_mem.TryGetValue(key, out var cached)) return cached;
         var rel = _index.Path(item);
-        if (rel is null) { _mem[key] = null; return null; }
-        return GetOrQueue(key, "https://aion2hub.me/media/icons/" + rel, 56);
+        if (rel is not null) return GetOrQueue(key, "https://aion2hub.me/media/icons/" + rel, 56);
+        // not cached as null: a questlog name lookup may bring the icon URL later
+        return ExtraUrl?.Invoke(item) is { } url ? GetOrQueue(key, url, 56) : null;
     }
 
     /// <summary>Any icon by URL, cached under <paramref name="key"/> (letters, digits, '_' '-' ':' only; the ':' becomes the file's folder
