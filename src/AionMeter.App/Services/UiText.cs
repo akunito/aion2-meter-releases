@@ -1144,7 +1144,7 @@ public sealed class UiText
         TipGs = "Puntuación de equipo (nivel de objeto del equipo), de la lista del grupo",
         TipCp = "Poder de combate, de la lista del grupo",
 
-        LiveFight = "combate en vivo",
+        LiveFight = "en vivo",   // "combate en vivo" clipped the header at the overlay default width (render 2026-10-13)
         LastFight = "último combate",
         SavedFight = "combate guardado",
         ThisSession = "esta sesión",

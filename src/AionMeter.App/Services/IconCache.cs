@@ -45,7 +45,8 @@ public sealed class IconCache : IDisposable
         var key = item.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_mem.TryGetValue(key, out var cached)) return cached;
         var rel = _index.Path(item);
-        if (rel is not null) return GetOrQueue(key, "https://aion2hub.me/media/icons/" + rel, 56);
+        // item-icons.json holds aion2hub paths, or an absolute questlog CDN URL for the items aion2hub lacks (tools/item-icons.py, 2026-10-13)
+        if (rel is not null) return GetOrQueue(key, rel.StartsWith("http", StringComparison.Ordinal) ? rel : "https://aion2hub.me/media/icons/" + rel, 56);
         // not cached as null: a questlog name lookup may bring the icon URL later
         return ExtraUrl?.Invoke(item) is { } url ? GetOrQueue(key, url, 56) : null;
     }
