@@ -1,3 +1,4 @@
+using System.Windows.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -8,6 +9,7 @@ using AionMeter.App.Controls;
 using AionMeter.App.Services;
 using AionMeter.App.ViewModels;
 using AionMeter.Core;
+using AionMeter.Core.Armory;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Storage;
@@ -720,7 +722,7 @@ public partial class OverlayWindow : Window
     /// <summary>Shows one of the tabs inside the card; the card keeps its size whatever the tab (Diego, 2026-10-10).</summary>
     public void SelectTab(string tab)
     {
-        if (tab == "fight" && _fightView?.Fight is null) tab = "meter";   // a breakdown needs a fight: reached from ShowFight only
+        if (tab == "fight" && _fightView?.HasPlayer != true) tab = "meter";   // the card needs a fight or a profile: reached from ShowFight / ShowProfile only
         if (tab == _tab) { SyncTabChecks(); return; }
         _tab = tab;
         Services.Telemetry.Count("tab." + tab);
@@ -752,29 +754,52 @@ public partial class OverlayWindow : Window
     private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(_tab == "fight" ? "meter" : _tab);
 
     /// <summary>A tab stops above the footer: on a narrow card the event pills wrap to a second line, which a fixed 52 px margin covered (A2M-43).</summary>
+    private bool _footerFixQueued;
     private void Footer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (TabHost.Parent is not FrameworkElement host || host.ActualHeight <= 0) return;
-        var bottom = Math.Max(52, Math.Ceiling(host.ActualHeight - FooterPanel.TranslatePoint(default, host).Y + 6));
-        if (Math.Abs(TabHost.Margin.Bottom - bottom) > 0.5) TabHost.Margin = new Thickness(8, 46, 8, bottom);
+        // Never change layout inside the layout pass: the first version set TabHost.Margin from TranslatePoint here, the margin moved
+        // the footer, the footer fired SizeChanged again, and the loop ended in a stack overflow ("A new guard page for the stack cannot
+        // be created", 2026-10-13). The margin now follows the footer's own height, applied once, after layout settles.
+        if (_footerFixQueued || !e.HeightChanged) return;
+        _footerFixQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            _footerFixQueued = false;
+            var bottom = Math.Max(52, Math.Ceiling(FooterPanel.ActualHeight + 12));
+            if (Math.Abs(TabHost.Margin.Bottom - bottom) > 1) TabHost.Margin = new Thickness(8, 46, 8, bottom);
+        });
     }
 
     /// <summary>
     /// A2M-43: the fight's breakdown as this card's "fight" tab (Back / Esc return to the DPS tab). <paramref name="key"/> identifies
     /// the fight for the stand-alone window the pop-out icon opens.
     /// </summary>
-    public void ShowFight(IFightView view, uint actorId, object key)
+    public Views.BreakdownView ShowFight(IFightView view, uint actorId, object key)
     {
-        _fightView ??= Wire(new Views.BreakdownView(_meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor, hosted: true), v =>
+        var v = FightView();
+        _fightKey = key;
+        v.SetFight(view, actorId);
+        SelectTab("fight");
+        return v;
+    }
+
+    /// <summary>A2M-44: the player card without a fight (Top DPS rows) in the same tab, on <paramref name="tab"/>.</summary>
+    public Views.BreakdownView ShowProfile(PlayerCard card, string tab, string? status)
+    {
+        var v = FightView();
+        _fightKey = null;
+        v.ShowCard(card, tab, status);
+        SelectTab("fight");
+        return v;
+    }
+
+    private Views.BreakdownView FightView() =>
+        _fightView ??= Wire(new Views.BreakdownView(_meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor, hosted: true, _meter.CardDeps), v =>
         {
             v.CloseRequested += () => SelectTab("meter");
             v.FightsRequested += anchor => ShowFightMenu(anchor, intoFightTab: true);
             v.EnableFightPicker();
         });
-        _fightKey = key;
-        _fightView.SetFight(view, actorId);
-        SelectTab("fight");
-    }
 
     /// <summary>The fight tab's own fight list: that fight opens in the tab, on your character (else the top of the party).</summary>
     private void OpenFight(PickItem item)
@@ -870,6 +895,11 @@ public partial class OverlayWindow : Window
         if (_tab == "fight" && _fightView?.Fight is { } fight)
         {
             AppHost.Current.ShowBreakdownWindow(_fightKey ?? fight, fight, _fightView.Actor);
+            SelectTab("meter");
+        }
+        else if (_tab == "fight" && _fightView?.Card is { } card)
+        {
+            AppHost.Current.ShowProfileWindow(card, _fightView.CurrentTab, null);
             SelectTab("meter");
         }
         else AppHost.Current.PopOut(_tab, Width, Height);
