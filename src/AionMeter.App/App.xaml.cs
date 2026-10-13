@@ -81,14 +81,15 @@ public partial class App : Application
         _singleInstance = new Mutex(true, "AionMeter.SingleInstance", out var first);
         if (!first)
         {
-            // Started again (the shortcut clicked twice): the running meter shows its overlay, this copy leaves quietly.
+            // Started again (the autostart task, a shortcut, a hotkey): the running meter shows its overlay, this copy leaves quietly.
+            // No message box: Diego got it on every double start (2026-10-13) because the event used to be created only after the data
+            // load, so a second start inside that second found the mutex but not the event. Now the event exists before any loading.
             if (EventWaitHandle.TryOpenExisting(ShowRequestName, out var running))
                 using (running) running.Set();
-            else // a version from before 0.2.2 is running
-                MessageBox.Show($"{AppInfo.Name} is already running — look for the gold \"A\" in the notification area.", AppInfo.Name);
             Shutdown();
             return;
         }
+        _showRequest = new EventWaitHandle(false, EventResetMode.AutoReset, ShowRequestName);
 
         DispatcherUnhandledException += (_, ex) =>
         {
@@ -161,8 +162,7 @@ public partial class App : Application
         if (!LiveCapture.IsNpcapInstalled())
             Dispatcher.BeginInvoke(ShowNpcapHelp, DispatcherPriority.ApplicationIdle);
 
-        // Another start of the app asks this one to show the overlay.
-        _showRequest = new EventWaitHandle(false, EventResetMode.AutoReset, ShowRequestName);
+        // Another start of the app asks this one to show the overlay (the event was created right after the single-instance mutex).
         _showWait = ThreadPool.RegisterWaitForSingleObject(_showRequest,
             (_, _) => Dispatcher.BeginInvoke(() => SetOverlayVisible(true)), null, Timeout.Infinite, executeOnlyOnce: false);
 
