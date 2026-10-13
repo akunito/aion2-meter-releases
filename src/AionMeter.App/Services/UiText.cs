@@ -882,14 +882,14 @@ public sealed class UiText
     public string CheckUpstream { get; init; } = "Also watch the public upstream project (maintainer only)";
     // A2M-45: Settings → Privacy, one switch per kind; each hint says what, to whom and how often
     public string SecPrivacy { get; init; } = "PRIVACY";
-    public string PrivacyIntro { get; init; } = "What the meter sends to Diego's server (example.invalid). Each kind has its own switch; nothing else about you leaves this PC.";
+    public string PrivacyIntro { get; init; } = "What the meter sends to Diego's server (example.invalid). Each kind has its own switch; nothing else about you leaves this PC. Builds and the backup copy are what Restore from code brings back on a new PC or after a reinstall: anything you stop sending can no longer be restored.";
     public string ShareUsage { get; init; } = "Usage statistics";
     public string ShareUsageHint { get; init; } = "Build, Windows version, Npcap present, capture health, crash and error counts, tabs used. No names. Once a day.";
     public string ShareBuilds { get; init; } = "Anonymous builds";
-    public string ShareBuildsHint { get; init; } = "Class, skills, levels, notes and Daevanion plan of each build you save, tagged with a hash of the character, never its name. At most once a day per build; shows Diego which builds the clan plays and is where Restore from code gets your builds back.";
+    public string ShareBuildsHint { get; init; } = "Class, skills, levels, notes and Daevanion plan of each build you save, tagged with a hash of the character, never its name. At most once a day per build. Shows Diego which builds the clan plays, and it is the copy Restore from code brings back: off, your builds live only on this PC.";
     public string ShareBackup { get; init; } = "Backup copy for Restore from code";
-    public string ShareBackupHint { get; init; } = "Watched prices and favourite recipes, kept under your backup code (the install id). When they change (at most every 30 min) and once a day.";
-    public string ShareBackupOff { get; init; } = "Off: Restore from code stops working for this PC.";
+    public string ShareBackupHint { get; init; } = "Watched prices and favourite recipes, kept under your backup code (the install id). When they change (at most every 30 min) and once a day. Restore from code brings them back on any PC with your code.";
+    public string ShareBackupOff { get; init; } = "Off: nothing is backed up and Restore from code stops working for this PC.";
     public string ShareBuildsOffBackup { get; init; } = "Anonymous builds are off: Restore from code brings back only watched prices and favourite recipes.";
     public string ShareReports { get; init; } = "Bug reports include";
     public string ShareReportsHint { get; init; } = "Only when you press Send to Diego in Report a problem. Logs and settings always go; the dialog lets you change these each time.";
