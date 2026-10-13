@@ -39,6 +39,7 @@ internal static class ViewRegistry
         ["atlas"] = s => new AtlasView(s),
         ["fight"] = s => new FightView(s),
         ["build"] = s => new BuildView(s),
+        ["items"] = s => new ItemsView(s),
     };
 
     public static bool Has(string key) => Factories.ContainsKey(key);
