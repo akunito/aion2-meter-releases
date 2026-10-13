@@ -97,9 +97,23 @@ internal static partial class LayerShell
     [StructLayout(LayoutKind.Sequential)]
     public struct GdkRect { public int X, Y, Width, Height; }
 
-    public readonly record struct Monitor(IntPtr Handle, string Connector, int Width, int Height, double Scale);
+    public readonly record struct Monitor(IntPtr Handle, string Connector, int X, int Y, int Width, int Height, double Scale)
+    {
+        public OutputRect Rect => new(Connector, X, Y, Width, Height, Scale);
+    }
 
-    /// <summary>The outputs GDK knows (connector name, logical size, scale). The monitor objects stay referenced by the display's list.</summary>
+    [LibraryImport("libgtk-4.so.1", EntryPoint = "gdk_display_get_monitor_at_surface")]
+    private static partial IntPtr DisplayGetMonitorAtSurface(IntPtr display, IntPtr surface);
+
+    /// <summary>The output the window's surface is on (the compositor's pick when no monitor was set), or zero before it is mapped.</summary>
+    public static IntPtr MonitorOf(IntPtr window)
+    {
+        var display = DisplayGetDefault();
+        var surface = NativeGetSurface(window);
+        return display == IntPtr.Zero || surface == IntPtr.Zero ? IntPtr.Zero : DisplayGetMonitorAtSurface(display, surface);
+    }
+
+    /// <summary>The outputs GDK knows (connector name, logical position and size, scale). The monitor objects stay referenced by the display's list.</summary>
     public static List<Monitor> Monitors()
     {
         var list = new List<Monitor>();
@@ -112,7 +126,7 @@ internal static partial class LayerShell
             var m = ListModelItem(model, i);
             if (m == IntPtr.Zero) continue;
             MonitorGetGeometry(m, out var r);
-            list.Add(new Monitor(m, Marshal.PtrToStringUTF8(MonitorGetConnector(m)) ?? "", r.Width, r.Height, MonitorGetScale(m)));
+            list.Add(new Monitor(m, Marshal.PtrToStringUTF8(MonitorGetConnector(m)) ?? "", r.X, r.Y, r.Width, r.Height, MonitorGetScale(m)));
             Unref(m);   // get_item returns a new reference; the list keeps its own
         }
         return list;

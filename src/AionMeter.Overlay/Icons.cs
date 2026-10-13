@@ -24,7 +24,9 @@ internal static class Icons
     public static readonly Icon Download = new("M8 2 L8 11 M4 7 L8 11 L12 7 M2.5 14 L13.5 14");
     public static readonly Icon Grip = new("M12 2 L2 12 M12 6 L6 12 M12 10 L10 12");
     // A2M-50: the tab host and the kit (Avalonia Visuals.Icon*)
-    public static readonly Icon Gear = new("M8 5.5 A2.5 2.5 0 1 1 7.99 5.5 Z M8 1 L8 3 M8 13 L8 15 M1 8 L3 8 M13 8 L15 8 M3 3 L4.4 4.4 M11.6 11.6 L13 13 M3 13 L4.4 11.6 M11.6 4.4 L13 3");
+    // A2M-50: a filled cog (8 teeth on a 5.1 root circle, 7.5 tips, hole 2.3 wound the other way so the nonzero fill leaves it open). The
+    // stroked sun-like gear (circle + 8 rays) read as a sun to Diego at 13 px; stroked teeth at 13-16 px merge into a blob (≈2 px gaps).
+    public static readonly Icon Gear = new("M6.85 3.03 L6.89 0.58 L9.11 0.58 L9.15 3.03 A5.1 5.1 0 0 1 10.7 3.67 L12.46 1.97 L14.03 3.54 L12.33 5.3 A5.1 5.1 0 0 1 12.97 6.85 L15.42 6.89 L15.42 9.11 L12.97 9.15 A5.1 5.1 0 0 1 12.33 10.7 L14.03 12.46 L12.46 14.03 L10.7 12.33 A5.1 5.1 0 0 1 9.15 12.97 L9.11 15.42 L6.89 15.42 L6.85 12.97 A5.1 5.1 0 0 1 5.3 12.33 L3.54 14.03 L1.97 12.46 L3.67 10.7 A5.1 5.1 0 0 1 3.03 9.15 L0.58 9.11 L0.58 6.89 L3.03 6.85 A5.1 5.1 0 0 1 3.67 5.3 L1.97 3.54 L3.54 1.97 L5.3 3.67 A5.1 5.1 0 0 1 6.85 3.03 Z M8 5.7 A2.3 2.3 0 1 0 8.01 5.7 Z", fill: true);
     public static readonly Icon Help = new("M8 1.5 A6.5 6.5 0 1 1 7.99 1.5 Z M6 6.2 C6 3.8 10 3.8 10 6.2 C10 7.8 8 7.8 8 9.6 M8 11.8 L8 12.2");
     public static readonly Icon Close = new("M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5");
     public static readonly Icon Back = new("M10 3 L5 8 L10 13");
@@ -54,8 +56,12 @@ internal sealed class Icon
     private readonly byte[] _ops;
     private readonly double[] _v;
 
-    public Icon(string d)
+    /// <summary>Filled (nonzero rule) instead of stroked.</summary>
+    public bool Filled { get; }
+
+    public Icon(string d, bool fill = false)
     {
+        Filled = fill;
         var ops = new List<byte>();
         var v = new List<double>();
         var t = System.Text.RegularExpressions.Regex.Matches(d, @"[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)").Select(m => m.Value).ToArray();
@@ -128,7 +134,7 @@ internal sealed class Icon
         }
     }
 
-    /// <summary>Strokes the icon fitted into a <paramref name="size"/> square at (x, y); the line width is in pixels, not icon units.</summary>
+    /// <summary>Strokes (or fills, <see cref="Filled"/>) the icon fitted into a <paramref name="size"/> square at (x, y); the line width is in pixels, not icon units.</summary>
     public void Stroke(Cairo.Context cr, double x, double y, double size, double thickness)
     {
         var k = size / 16.0;
@@ -144,6 +150,7 @@ internal sealed class Icon
                 default: cr.ClosePath(); break;
             }
         }
+        if (Filled) { cr.Fill(); return; }
         cr.LineWidth = thickness;
         cr.LineCap = Cairo.LineCap.Round;
         cr.LineJoin = Cairo.LineJoin.Round;

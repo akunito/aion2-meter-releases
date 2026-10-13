@@ -10,7 +10,7 @@ namespace AionMeter.Overlay;
 /// The overlay card (Avalonia OverlayWindow): header with the tab strip, fight title, time limit, state label and clock; boss HP bar; the
 /// ranking; update banner; status line, Fights menu and the timer/event pills. The DPS part comes from the daemon's `overlay` snapshots
 /// (OverlayBuilder); nothing is computed here. A2M-50: the tab host — a registered view (<see cref="ViewRegistry"/>) replaces the boss bar and
-/// the rows in a Gtk.Stack, the pill again / Back / Esc return, the gear opens Settings (and returns to the tab before it), `?` the tab's help.
+/// the rows in a Gtk.Stack, the pill again / Back / Esc return, the gear is the Settings pill (again: back to the tab before it), `?` the tab's help.
 /// The tab rules are <see cref="TabState"/>; the host applies keyboard mode and size on <c>tabChanged</c>.
 /// </summary>
 internal sealed class Card
@@ -94,10 +94,9 @@ internal sealed class Card
         tabs.Hexpand = false;
         // A2M-50: every pill switches this card in place (the tools window is only a fallback for the views not ported yet: Hyper+Shift+M)
         foreach (var spec in ViewRegistry.Strip) tabs.Append(TabPill(spec.Key, spec.Icon));
-        // the breakdown and Settings get a pill only while they are in front (WPF TabFight / TabSettings)
+        // the breakdown gets a pill only while it is in front (WPF TabFight); the gear is the Settings pill (TabState.PillVisible)
         tabs.Append(TabPill(TabState.Fight, Icons.Fight));
-        tabs.Append(TabPill(TabState.Settings, Icons.Gear));
-        var gear = Tool(Icons.Gear, UiText.Current.SettingsTitle, () => SelectTab(_tabs.GearTarget()));
+        var gear = TabPill(TabState.Settings, Icons.Gear);
         gear.MarginStart = Icons.Px(2);
         tabs.Append(gear);
         var help = Tool(Icons.Help, UiText.Current.TipHelp, () => _shell.ShowHelp(_tabs.Current is TabState.Meter or TabState.Fight ? "meter" : _tabs.Current));
@@ -306,8 +305,15 @@ internal sealed class Card
         _fightsMenu.SetParent(_fightsButton);
 
         // ------------------------------------------------ resize grip
-        var grip = Icons.View(Icons.Grip, 0x6E5A33, 14, 1.3).Widget;
+        // gold, brighter under the pointer: Sway's floating_modifier (Alt+drag / Alt+right-drag) never reaches a layer surface, so this
+        // corner is the only resize handle and must be seen on every tab (the dim 6E5A33 mark was missed, Diego 2026-10-13)
+        var gripIcon = Icons.View(Icons.Grip, 0xC9A45C, 14, 1.5);
+        var grip = gripIcon.Widget;
         grip.CanTarget = true;
+        var gripHover = Gtk.EventControllerMotion.New();
+        gripHover.OnEnter += (_, _) => gripIcon.Rgb = 0xFFE3A6;
+        gripHover.OnLeave += (_, _) => gripIcon.Rgb = 0xC9A45C;
+        grip.AddController(gripHover);
         grip.AddCssClass("grip");
         grip.Halign = Gtk.Align.End;
         grip.Valign = Gtk.Align.End;
@@ -431,8 +437,7 @@ internal sealed class Card
             if (usable) pill.AddCssClass("live"); else pill.RemoveCssClass("live");
             icon.Rgb = on ? 0x1A1407u : 0xF3D58Fu;
         }
-        _tabPills[TabState.Fight].Pill.Visible = cur == TabState.Fight;
-        _tabPills[TabState.Settings].Pill.Visible = cur == TabState.Settings;
+        _tabPills[TabState.Fight].Pill.Visible = TabState.PillVisible(TabState.Fight, cur);
     }
 
     private void ApplyLanguage()

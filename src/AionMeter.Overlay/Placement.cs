@@ -67,4 +67,49 @@ public static class Placement
         (Clamp(marginH, outW - cardW), Clamp(marginV, outH - cardH));
 
     private static int Clamp(int v, int max) => max <= 0 ? 0 : Math.Clamp(v, 0, max);
+
+    // ---- moving to another output (A2M-50): a layer surface lives on one output, so a drag past its edge re-creates the surface on the
+    // output under the pointer. Coordinates here are the compositor's global layout (GdkMonitor geometry = xdg-output logical position).
+
+    /// <summary>The card's top-left corner in layout coordinates.</summary>
+    public static (int X, int Y) Origin(Anchor a, OutputRect o, int marginH, int marginV, int cardW, int cardH) =>
+        (o.X + (IsRight(a) ? o.W - marginH - cardW : marginH), o.Y + (IsBottom(a) ? o.H - marginV - cardH : marginV));
+
+    /// <summary>Margins on <paramref name="o"/> that put the card's top-left at (<paramref name="left"/>, <paramref name="top"/>) in layout
+    /// coordinates, clamped so the card stays on <paramref name="o"/>.</summary>
+    public static (int H, int V) MarginsAt(Anchor a, OutputRect o, int left, int top, int cardW, int cardH)
+    {
+        int x = left - o.X, y = top - o.Y;
+        return Fit(IsRight(a) ? o.W - cardW - x : x, IsBottom(a) ? o.H - cardH - y : y, o.W, o.H, cardW, cardH);
+    }
+
+    /// <summary>The output containing the layout point, or -1 (the gap between outputs, or past the layout).</summary>
+    public static int OutputAt(ReadOnlySpan<OutputRect> outputs, double x, double y)
+    {
+        for (var i = 0; i < outputs.Length; i++)
+        {
+            var o = outputs[i];
+            if (x >= o.X && x < o.X + o.W && y >= o.Y && y < o.Y + o.H) return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// A drag update: the pointer is at the press point (<paramref name="pressX"/>, <paramref name="pressY"/>, layout coordinates) plus
+    /// the GestureDrag offsets (totals since the press, see <see cref="Drag"/>). When it is over another output than
+    /// <paramref name="current"/>, that output and the margins that keep the grab point (<paramref name="grabX"/>, <paramref name="grabY"/>,
+    /// the press inside the card) under the pointer; null while it stays on the current output or is over no output.
+    /// </summary>
+    public static (int Output, int H, int V)? Cross(Anchor a, ReadOnlySpan<OutputRect> outputs, int current, double pressX, double pressY,
+        double dx, double dy, double grabX, double grabY, int cardW, int cardH)
+    {
+        double px = pressX + dx, py = pressY + dy;
+        var i = OutputAt(outputs, px, py);
+        if (i < 0 || i == current) return null;
+        var (h, v) = MarginsAt(a, outputs[i], (int)Math.Round(px - grabX), (int)Math.Round(py - grabY), cardW, cardH);
+        return (i, h, v);
+    }
 }
+
+/// <summary>An output as GDK reports it: connector, logical position in the layout and logical size, scale.</summary>
+public readonly record struct OutputRect(string Connector, int X, int Y, int W, int H, double Scale = 1);

@@ -20,7 +20,16 @@ internal sealed class OverlayHost : ICardHost
     private AppShell? _shell;
     private IntPtr _monitor;
     private int _outW, _outH;
+    private double _outScale;
+    private readonly string _defaultMonitor;
     private int _dragH, _dragV;
+    // the drag in layout coordinates (A2M-50, moving to another output): outputs at the press, the one the card is on, press point, grab point
+    private LayerShell.Monitor[] _dragMons = [];
+    private OutputRect[] _dragRects = [];
+    private int _dragOut = -1;
+    private double _pressX, _pressY, _grabX, _grabY;
+    private bool _remapping, _dragClaimed;
+    private string _dragMonitor = "";
     private (int W, int H, int MH, int MV) _resizeStart;
     private bool _hidden;
 
@@ -33,9 +42,12 @@ internal sealed class OverlayHost : ICardHost
 
     /// <param name="uiJson">ui.json: the shared "UI scale" (unless <paramref name="scaleFixed"/>: --scale for this run) and LastTab.</param>
     /// <param name="startTab">--tab: a tab to open once the card is up; <paramref name="startHelp"/> --help-page, <paramref name="startWindow"/> --window.</param>
-    public OverlayHost(OverlaySettings settings, string socket, string uiJson, bool scaleFixed, string? startTab = null, string? startHelp = null, string? startWindow = null)
+    /// <param name="defaultMonitor">--monitor: the output when overlay.json names none, or when the saved one is not connected.</param>
+    public OverlayHost(OverlaySettings settings, string socket, string uiJson, bool scaleFixed, string? startTab = null, string? startHelp = null, string? startWindow = null,
+        string? defaultMonitor = null)
     {
         _s = settings;
+        _defaultMonitor = defaultMonitor ?? "";
         _socket = socket;
         _uiJson = uiJson;
         _scaleFixed = scaleFixed;
@@ -102,7 +114,7 @@ internal sealed class OverlayHost : ICardHost
         _shell = new AppShell(_client, this, _uiJson);
         BuildCard(null);
         ApplyPlacement();
-        win.OnRealize += (_, _) => Console.Error.WriteLine($"overlay: layer surface on {(_s.Monitor.Length > 0 ? _s.Monitor : "(compositor's output)")} {_outW}x{_outH}, anchor {Placement.Name(_s.Anchor)} margins {_s.MarginH},{_s.MarginV}, card {Px(_s.Width)}x{Px(_s.Height)}, scale {_s.Scale}");
+        win.OnRealize += (_, _) => Console.Error.WriteLine($"overlay: layer surface on {(_monitor != IntPtr.Zero ? LayerShell.Monitors().Find(m => m.Handle == _monitor).Connector : "(compositor's output)")} {_outW}x{_outH}, anchor {Placement.Name(_s.Anchor)} margins {_s.MarginH},{_s.MarginV}, card {Px(_s.Width)}x{Px(_s.Height)}, scale {_s.Scale}");
         win.Present();
         if (_s.ClickThrough) SetClickThrough(true);
         _client.Start();
@@ -153,14 +165,19 @@ internal sealed class OverlayHost : ICardHost
         ApplySize();
         if (tab is not null && tab != TabState.Meter) _card.SelectTab(tab);
 
+        // on the card's root, not the window: on the window the grip's claim did not deny it, and both gestures fought over the margins
+        // during a resize (WAYLAND_DEBUG, nested sway 2026-10-13); a drag ends at a re-map on another output either way
         var drag = Gtk.GestureDrag.New();
-        drag.OnDragBegin += (_, _) => (_dragH, _dragV) = (_s.MarginH, _s.MarginV);
+        drag.OnDragBegin += (_, e) => DragBegin(e.StartX, e.StartY);
         drag.OnDragUpdate += (g, e) =>
         {
-            (_s.MarginH, _s.MarginV) = Placement.Drag(_s.Anchor, _dragH, _dragV, e.OffsetX, e.OffsetY, _outW, _outH, win.GetWidth(), win.GetHeight());
-            ApplyMargins();
+            // Measured in the nested sway (2026-10-13): a pill, the BOSS chip or a check pressed and dragged moved the card AND clicked on
+            // release (the pointer stays over the widget, which moves with it): DPS pill dragged on Settings switched to DPS. Past a few px
+            // the move claims the press, which cancels the children's click gestures.
+            if (!_dragClaimed && e.OffsetX * e.OffsetX + e.OffsetY * e.OffsetY > 16) _dragClaimed = g.SetState(Gtk.EventSequenceState.Claimed);
+            DragUpdate(e.OffsetX, e.OffsetY);
         };
-        drag.OnDragEnd += (_, _) => { if ((_dragH, _dragV) != (_s.MarginH, _s.MarginV)) _s.Save(); };
+        drag.OnDragEnd += (_, _) => DragEnd();
         _card.Root.AddController(drag);
 
         var resize = Gtk.GestureDrag.New();
@@ -201,22 +218,103 @@ internal sealed class OverlayHost : ICardHost
 
     private int Px(int v) => (int)Math.Round(v * _s.Scale);
 
+    /// <summary>The saved output (overlay.json Monitor), else --monitor, else the compositor's pick. A missing saved output is kept in
+    /// overlay.json, so the card returns to it once it is connected again.</summary>
     private void PickMonitor()
     {
         var mons = LayerShell.Monitors();
-        foreach (var m in mons)
+        foreach (var want in (ReadOnlySpan<string>)[_s.Monitor, _defaultMonitor])
         {
-            if (_s.Monitor.Length == 0 || m.Connector != _s.Monitor) continue;
-            LayerShell.SetMonitor(_w, m.Handle);
-            _monitor = m.Handle;
-            (_outW, _outH) = (m.Width, m.Height);
-            Console.Error.WriteLine($"overlay: output {m.Connector} {m.Width}x{m.Height} logical, scale {m.Scale}");
-            return;
+            if (want.Length == 0) continue;
+            foreach (var m in mons)
+            {
+                if (m.Connector != want) continue;
+                LayerShell.SetMonitor(_w, m.Handle);
+                UseMonitor(m);
+                Console.Error.WriteLine($"overlay: output {m.Connector} {m.Width}x{m.Height}+{m.X}+{m.Y} logical, scale {m.Scale}");
+                return;
+            }
+            Console.Error.WriteLine($"overlay: no output {want} (have {string.Join(", ", mons.Select(m => m.Connector))})");
         }
-        if (_s.Monitor.Length > 0)
-            Console.Error.WriteLine($"overlay: no output {_s.Monitor} (have {string.Join(", ", mons.Select(m => m.Connector))}); the compositor picks one");
+        Console.Error.WriteLine("overlay: the compositor picks the output");
         // unknown output: clamp against the largest one so a saved place is not thrown away
         foreach (var m in mons) { _outW = Math.Max(_outW, m.Width); _outH = Math.Max(_outH, m.Height); }
+    }
+
+    private void UseMonitor(LayerShell.Monitor m)
+    {
+        _monitor = m.Handle;
+        (_outW, _outH, _outScale) = (m.Width, m.Height, m.Scale);
+    }
+
+    private void DragBegin(double x, double y)
+    {
+        (_dragH, _dragV, _dragMonitor, _dragClaimed) = (_s.MarginH, _s.MarginV, _s.Monitor, false);
+        _dragMons = LayerShell.Monitors().ToArray();
+        _dragRects = Array.ConvertAll(_dragMons, m => m.Rect);
+        // the compositor's pick (no saved output, or it was missing at start): ask GDK which output the surface entered
+        if (_monitor == IntPtr.Zero && LayerShell.MonitorOf(_w) is var on && on != IntPtr.Zero)
+            foreach (var m in _dragMons) if (m.Handle == on) UseMonitor(m);
+        _dragOut = Array.FindIndex(_dragMons, m => m.Handle == _monitor);
+        if (_dragOut < 0) return;
+        // the gesture is on the card's root, which fills the window: its coordinates are the surface's
+        var (ox, oy) = Placement.Origin(_s.Anchor, _dragRects[_dragOut], _s.MarginH, _s.MarginV, _win!.GetWidth(), _win.GetHeight());
+        (_grabX, _grabY) = (x, y);
+        (_pressX, _pressY) = (ox + x, oy + y);
+    }
+
+    private void DragUpdate(double dx, double dy)
+    {
+        if (_remapping) return;
+        var (w, h) = (_win!.GetWidth(), _win.GetHeight());
+        if (_dragOut < 0)
+        {
+            (_s.MarginH, _s.MarginV) = Placement.Drag(_s.Anchor, _dragH, _dragV, dx, dy, _outW, _outH, w, h);
+            ApplyMargins();
+            return;
+        }
+        if (Placement.Cross(_s.Anchor, _dragRects, _dragOut, _pressX, _pressY, dx, dy, _grabX, _grabY, w, h) is { } c)
+        {
+            // the surface is re-created on the other output: not inside the gesture's own event dispatch
+            _remapping = true;
+            _dragOut = c.Output;
+            var m = _dragMons[c.Output];
+            Post(() => { MoveToMonitor(m, c.H, c.V); _remapping = false; });
+            return;
+        }
+        // in layout space (= Drag on the output of the press): Sway keeps sending motion to the same wl_surface after the layer surface
+        // is re-created, relative to its position at the press (WAYLAND_DEBUG), so the offsets would still be valid if GTK kept the drag
+        (_s.MarginH, _s.MarginV) = Placement.MarginsAt(_s.Anchor, _dragRects[_dragOut], (int)Math.Round(_pressX + dx - _grabX),
+            (int)Math.Round(_pressY + dy - _grabY), w, h);
+        ApplyMargins();
+    }
+
+    private void DragEnd()
+    {
+        if ((_dragH, _dragV, _dragMonitor) != (_s.MarginH, _s.MarginV, _s.Monitor)) _s.Save();
+    }
+
+    /// <summary>
+    /// The card onto another output. gtk4-layer-shell 1.2 re-creates the layer surface itself when the monitor of a mapped window changes
+    /// (WAYLAND_DEBUG: zwlr_layer_surface_v1.destroy + get_layer_surface on the same wl_surface); an explicit hide/show around it did the
+    /// same plus a "Broken accounting of active state" GTK warning. A different output scale rebuilds the card as a UI-scale change does.
+    /// Measured in a nested Sway 1.11 (2026-10-13, HEADLESS-1 1600×900 at 1.5 + HEADLESS-2 at 1 and at 1.5): the drag ends at the re-map in
+    /// every variant (no update after it with or without a rebuild, one with hide/show), so the card stays where it crossed (the grab point
+    /// under the pointer, clamped to the new output) and a second drag continues from there; the place and the output are saved then.
+    /// </summary>
+    private void MoveToMonitor(LayerShell.Monitor m, int marginH, int marginV)
+    {
+        if (_win is null || _card is null) return;
+        var rescale = Math.Abs(m.Scale - _outScale) > 0.001;
+        LayerShell.SetMonitor(_w, m.Handle);
+        UseMonitor(m);
+        _s.Monitor = m.Connector;
+        (_s.MarginH, _s.MarginV) = (marginH, marginV);
+        if (rescale) BuildCard(_card.Tab);
+        ApplyPlacement();
+        if (_s.ClickThrough) LayerShell.SetClickThrough(_w, true);
+        _s.Save();
+        Console.Error.WriteLine($"overlay: moved to {m.Connector} ({m.Width}x{m.Height}+{m.X}+{m.Y}, scale {m.Scale}{(rescale ? ", card rebuilt" : "")}), margins {_s.MarginH},{_s.MarginV}");
     }
 
     private void ApplyPlacement()
