@@ -45,8 +45,12 @@ internal sealed class TabState
     /// <summary>Back chip, Esc, a view's CloseRequested: Settings returns to the tab before it, everything else to DPS.</summary>
     public string Back() => Current == Settings ? BeforeSettings : Meter;
 
-    /// <summary>The gear: Settings, or (Settings in front) back where it came from.</summary>
-    public string GearTarget() => Current == Settings ? BeforeSettings : Settings;
+    /// <summary>
+    /// Whether a pill shows in the strip with <paramref name="current"/> in front: the breakdown's only while it is in front (WPF TabFight);
+    /// the gear is the Settings pill and always shows (Diego 2026-10-13: a separate gear button plus a Settings pill that appeared next to
+    /// it showed two gold icons). Its click is <see cref="PillTarget"/> like every pill: Settings, again → back where it came from.
+    /// </summary>
+    public static bool PillVisible(string key, string current) => key != Fight || current == Fight;
 
     /// <summary>The tab saved as ui.json LastTab (the tools window's start tab): not DPS, Settings or the breakdown.</summary>
     public static bool Persisted(string tab) => tab is not (Meter or Settings or Fight);

@@ -42,18 +42,32 @@ public class GtkTabsTests
     {
         var t = NewTabs();
         t.Select("items");
-        Assert.Equal("settings", t.GearTarget());
+        Assert.Equal("settings", t.PillTarget("settings")); // the gear is the Settings pill
         t.Select("settings");
         Assert.Equal("items", t.BeforeSettings);
-        Assert.Equal("items", t.GearTarget());          // gear again
+        Assert.Equal("items", t.PillTarget("settings")); // gear again
         Assert.Equal("items", t.Back());                // Back / Esc / Cancel / Save
-        Assert.Equal("items", t.PillTarget("settings")); // its pill again
         t.Select(t.Back());
         Assert.Equal("items", t.Current);
         // from DPS, Settings goes back to DPS
         t.Select("meter");
         t.Select("settings");
         Assert.Equal("meter", t.Back());
+    }
+
+    /// <summary>One control per tab: the gear is the Settings pill and always shows (no second pill appears next to it when Settings is
+    /// in front, Diego 2026-10-13); the breakdown's pill shows only while the breakdown is in front; the strip pills always show.</summary>
+    [Fact]
+    public void Tabs_StripShowsTheGearAlwaysAndTheFightPillOnlyInFront()
+    {
+        foreach (var cur in (string[])["meter", "settings", "items", "fight"])
+        {
+            Assert.True(TabState.PillVisible("settings", cur), cur);
+            Assert.Equal(cur == "fight", TabState.PillVisible("fight", cur));
+            foreach (var k in UiTabs.Strip) Assert.True(TabState.PillVisible(k, cur), k);
+        }
+        Assert.Same(Icons.Gear, Icons.ForTab("settings"));
+        Assert.True(Icons.Gear.Filled);
     }
 
     [Fact]
