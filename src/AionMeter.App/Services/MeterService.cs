@@ -73,6 +73,7 @@ public sealed class MeterService : IDisposable
         Inventory.Changed += OnLiveInventoryChanged;
         Tracker.EncounterFinished += OnEncounterFinished;
         if (!settings.Transient) Prices.Changed += () => Telemetry.QueueState(this);   // hourly polls raise it too: unchanged state is not sent
+        if (!settings.Transient) Prices.Listings = new Core.Market.ExchangeListingsSource();   // expanded row's cheapest listings (the render tool keeps its StaticListingsSource)
         // A recording's or the demo's bosses must not move the live respawn timers.
         Tracker.BossNoticed += n =>
         {

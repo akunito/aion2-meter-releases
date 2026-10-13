@@ -1,3 +1,9 @@
+using System.Globalization;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using AionMeter.Core.Net;
+
 namespace AionMeter.Core.Market;
 
 /// <summary>One broker listing: what the whole stack costs, how many units, the unit price, the seller when the source names one.</summary>
@@ -48,4 +54,58 @@ public static class Listings
         if (copy.Count > n) copy.RemoveRange(n, copy.Count - n);
         return copy;
     }
+}
+
+/// <summary>
+/// Cheapest current listings from aion2.exchange's price-ladder call — <c>/api/items/{key}/depth/ladder?server=…</c>, the one the
+/// item page itself makes (endpoint + shape confirmed 2026-10-13: <c>levels</c> come cheapest first, each a <c>unit_price</c> with
+/// its <c>units</c> and the <c>listings</c> count that sit at it; aggregated, no seller, so Seller stays null). It is a periodic
+/// SITE capture, not live: the response carries <c>captured_at</c> (hours–days old) and many servers — Vaizel (11303) among them on
+/// 2026-10-13 — have no capture at all, so levels is empty and the row shows "no listings". One read per expanded item, cached by
+/// the view, through the Cloudflare solver when the site walls off a plain client.
+/// </summary>
+public sealed class ExchangeListingsSource : IListingsSource, IDisposable
+{
+    private readonly HttpClient _http;
+    private readonly string _siteUrl;
+
+    public ExchangeListingsSource(string siteUrl = "https://aion2.exchange")
+    {
+        _siteUrl = siteUrl.TrimEnd('/');
+        _http = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(25) };
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("AION2DpsMeter/0.1 (private build; one listings read per expanded item)");
+        _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+    }
+
+    public bool Configured => true;
+
+    public async Task<ListingsResult> GetAsync(int item, int exchangeServer, CancellationToken ct = default)
+    {
+        var url = $"{_siteUrl}/api/items/{item}/depth/ladder?server={exchangeServer}";
+        var json = await CloudflareHttp.GetStringAsync(_http, url, ct, expectJson: true).ConfigureAwait(false);
+        return Parse(json);
+    }
+
+    /// <summary>Ladder JSON → the 5 cheapest levels as listings (unit price × units = stack cost), plus the site's capture time.</summary>
+    public static ListingsResult Parse(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        DateTimeOffset? at = root.TryGetProperty("captured_at", out var c) && c.ValueKind == JsonValueKind.String
+            && DateTimeOffset.TryParse(c.GetString(), null, DateTimeStyles.AssumeUniversal, out var t) ? t : null;
+        var list = new List<MarketListing>();
+        if (root.TryGetProperty("levels", out var levels) && levels.ValueKind == JsonValueKind.Array)
+            foreach (var lv in levels.EnumerateArray())
+            {
+                var unit = Num(lv, "unit_price");
+                var units = (int)Num(lv, "units");
+                if (unit > 0 && units > 0) list.Add(new MarketListing(unit * units, units, unit, null));
+            }
+        return new ListingsResult(Listings.Cheapest(list, 5), at, null);
+    }
+
+    private static long Num(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? (long)Math.Round(v.GetDouble()) : 0;
+
+    public void Dispose() => _http.Dispose();
 }
