@@ -111,6 +111,8 @@ public sealed class HeadlessMeter : IDisposable
                     Event("status", w => { w.WriteString("state", st.State.ToString()); w.WriteString("message", st.Message); }, $"capture: {st.Message}");
                     _server?.Broadcast(StatusLine(st));
                 }
+                // A2M-48: the Linux UI saves settings.json / the price-watch list itself; a 2 s mtime poll picks them up (`reload-settings` is the fast path)
+                if (ticks % 10 == 0) WatchFiles();
                 if (_server is not null) Serve(st, ticks);
                 if (++ticks % 5 == 0) Alerts();
                 if (_o.StatusEverySeconds > 0 && now - lastStatus >= _o.StatusEverySeconds * 1000L) { lastStatus = now; Heartbeat(st); }
@@ -135,6 +137,14 @@ public sealed class HeadlessMeter : IDisposable
             Log.Info("Daemon stopped");
         }
         return 0;
+    }
+
+    private bool _forceOverlay;
+
+    private void WatchFiles()
+    {
+        if (Engine.ReloadSettingsIfChanged()) { _forceOverlay = true; Human($"settings reloaded (language {Settings.Language}, measure {Settings.TargetMode})"); }
+        if (Engine.Prices.ReloadIfChanged()) Human($"price watch list reloaded ({Engine.Prices.Count} items)");
     }
 
     private void Heartbeat(CaptureStatus st)
@@ -268,7 +278,8 @@ public sealed class HeadlessMeter : IDisposable
     private void Serve(CaptureStatus st, int ticks)
     {
         var srv = _server!;
-        var force = false;
+        var force = _forceOverlay;
+        _forceOverlay = false;
         while (srv.Commands.TryDequeue(out var c))
         {
             switch (c.Cmd)
@@ -292,9 +303,31 @@ public sealed class HeadlessMeter : IDisposable
                 case "set-measure":
                     TargetMode? mode = c.Arg?.ToLowerInvariant() switch { "boss" or "bossonly" => TargetMode.BossOnly, "all" => TargetMode.All, _ => null };
                     if (mode is not { } m) { c.From.Send(Error("mode is boss or all")); break; }
+                    Engine.ReloadSettingsIfChanged();   // never write back over a save the UI made in the last 2 s
                     Settings.TargetMode = m;
                     Engine.ApplySettings();
                     Settings.Save();
+                    force = true;
+                    break;
+                case "fight-detail":
+                    // the breakdown of a live/session fight (saved ones the UI may read from fights/ itself, "h:" works here too)
+                    if (FightDetail.Resolve(Engine, _sel, c.Arg ?? "live") is not { } fd) { c.From.Send(Error($"no fight {c.Arg}")); break; }
+                    var asked = c.Arg ?? "live";
+                    c.From.Send(SocketLine("fight-detail", w =>
+                    {
+                        w.WriteStartObject();
+                        w.WriteString("id", fd.Id);
+                        w.WriteString("asked", asked);
+                        w.WriteBoolean("live", fd.Live);
+                        w.WritePropertyName("record");
+                        JsonSerializer.Serialize(w, fd.Record, Core.Storage.HistoryStore.JsonOptions);
+                        w.WriteEndObject();
+                    }));
+                    break;
+                case "reload-settings":
+                    var reloaded = Engine.ReloadSettingsIfChanged(force: true);
+                    Engine.Prices.ReloadIfChanged();
+                    c.From.Send(SocketLine("settings-reloaded", w => { w.WriteStartObject(); w.WriteString("language", Settings.Language); w.WriteBoolean("reloaded", reloaded); w.WriteEndObject(); }));
                     force = true;
                     break;
                 case "fights":

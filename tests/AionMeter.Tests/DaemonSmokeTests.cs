@@ -57,6 +57,23 @@ public class DaemonSmokeTests
             Assert.Contains("fight", events);
             Assert.Equal("stopped", events[^1]);
             Assert.Contains("fight ", human.ToString());
+
+            // A2M-48 phase 3b: the Linux UI's viewer engine over the files the daemon just wrote — everything readable, nothing written
+            var before = Stamps(root);
+            using (var viewer = MeterEngine.OpenViewer())
+            {
+                Assert.True(viewer.Viewer);
+                Assert.Contains(key, viewer.CharacterKeys());
+                Assert.NotEmpty(viewer.History.List());
+                Assert.True(viewer.Data.Skills.Count > 1000);
+                Assert.NotNull(viewer.History.Load(viewer.History.List()[0].Path));
+                Assert.Equal(1303, viewer.Server.ServerId);
+                viewer.Tick();          // a no-op in viewer mode (the daemon owns every periodic write)
+                viewer.FlushState();
+            }
+            var after = Stamps(root);
+            Assert.Equal(before.Count, after.Count);
+            foreach (var (file, stamp) in before) Assert.True(after.TryGetValue(file, out var a) && a == stamp, "viewer wrote " + file);
         }
         finally
         {
@@ -125,6 +142,42 @@ public class DaemonSmokeTests
             await writer.WriteLineAsync("{\"cmd\":\"set-measure\",\"mode\":\"all\"}");
             await Next("overlay", e => e.GetProperty("data").GetProperty("mode").GetString() == "All");
 
+            // A2M-48 phase 3b `fight-detail`: the whole fight (a fights/*.json record) for a session or saved id, and for "live"
+            await writer.WriteLineAsync($"{{\"cmd\":\"fight-detail\",\"id\":\"{id}\"}}");
+            var detail = (await Next("fight-detail")).GetProperty("data");
+            Assert.Equal(id, detail.GetProperty("asked").GetString());
+            var record = detail.GetProperty("record").Deserialize<AionMeter.Core.Combat.FightRecord>(AionMeter.Core.Storage.HistoryStore.JsonOptions)!;
+            Assert.NotEmpty(record.Summary.Combatants);
+            Assert.NotEmpty(record.Details);
+            Assert.Contains(record.Details, x => x.Skills.Count > 0 && x.PerSecond.Count > 0);
+            await writer.WriteLineAsync("{\"cmd\":\"fight-detail\",\"id\":\"live\"}");
+            var live = (await Next("fight-detail", e => e.GetProperty("data").GetProperty("asked").GetString() == "live")).GetProperty("data");
+            Assert.Matches("^[sh]:", live.GetProperty("id").GetString()!);
+            await writer.WriteLineAsync("{\"cmd\":\"fight-detail\",\"id\":\"s:nope\"}");
+            await Next("error");
+
+            // settings.json saved by another process (the UI): the daemon's 2 s mtime poll takes it without being told...
+            var ui = AppSettings.Load();
+            ui.HistoryMinSeconds = 77;
+            ui.Save();
+            for (var i = 0; i < 60 && m.Settings.HistoryMinSeconds != 77; i++) await Task.Delay(100, cts.Token);
+            Assert.Equal(77, m.Settings.HistoryMinSeconds);
+            Assert.Equal(AionMeter.Core.Combat.TargetMode.All, m.Settings.TargetMode);   // the daemon's own set-measure save survived the reload
+            // ...and `reload-settings` applies the next one at once (meter options too)
+            ui = AppSettings.Load();
+            ui.IdleTimeoutSec = 42;
+            ui.Save();
+            await writer.WriteLineAsync("{\"cmd\":\"reload-settings\"}");
+            var reloaded = (await Next("settings-reloaded")).GetProperty("data");
+            Assert.True(reloaded.GetProperty("reloaded").GetBoolean());
+            Assert.Equal(42, m.Settings.IdleTimeoutSec);
+            Assert.Equal(42_000, m.Engine.Options.IdleTimeoutMs);
+            Assert.True(m.Settings.Offline, "a reload must keep the process switches");
+            // the watch list the UI edits reaches the daemon the same way
+            new AionMeter.Core.Market.PriceWatchStore(Path.Combine(root, "state", "price-watch.json")).Add(930100031, "Kinah test", 1000);
+            for (var i = 0; i < 60 && m.Engine.Prices.Count == 0; i++) await Task.Delay(100, cts.Token);
+            Assert.Equal(1, m.Engine.Prices.Count);
+
             await writer.WriteLineAsync("{\"cmd\":\"nope\"}");
             await Next("error");
 
@@ -137,6 +190,15 @@ public class DaemonSmokeTests
             try { Directory.Delete(root, recursive: true); } catch (IOException) { }
             try { File.Delete(sock); } catch (IOException) { }
         }
+    }
+
+    /// <summary>Every file under the data dir with its mtime, logs/ left out (the viewer's own log lines go there).</summary>
+    private static Dictionary<string, DateTime> Stamps(string root)
+    {
+        var d = new Dictionary<string, DateTime>();
+        foreach (var f in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            if (!Path.GetRelativePath(root, f).StartsWith("logs", StringComparison.Ordinal)) d[Path.GetRelativePath(root, f)] = File.GetLastWriteTimeUtc(f);
+        return d;
     }
 
     [Fact]

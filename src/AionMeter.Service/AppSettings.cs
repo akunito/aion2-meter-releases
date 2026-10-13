@@ -254,6 +254,7 @@ public sealed class AppSettings
                 if (s.BuildTelemetryVersion < CurrentBuildTelemetry) { s.BuildTelemetrySent.Clear(); s.BuildTelemetryVersion = CurrentBuildTelemetry; }
                 s.Language = UiText.Normalize(s.Language);
                 s.LayoutVersion = CurrentLayout;
+                s.KnownStamp = File.GetLastWriteTimeUtc(FilePath);
                 return s;
             }
         }
@@ -280,6 +281,34 @@ public sealed class AppSettings
         var tmp = FilePath + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(this, Json));
         File.Move(tmp, FilePath, overwrite: true);
+        KnownStamp = File.GetLastWriteTimeUtc(FilePath);
+    }
+
+    /// <summary>settings.json's mtime when this instance last read or wrote it: another process saved when the file's differs (A2M-48:
+    /// the Linux UI writes settings.json, the daemon reloads it).</summary>
+    [JsonIgnore]
+    public DateTime KnownStamp { get; private set; }
+
+    /// <summary>True when settings.json was written by someone else since this instance read or wrote it.</summary>
+    public bool ChangedOnDisk()
+    {
+        try { return File.Exists(FilePath) && File.GetLastWriteTimeUtc(FilePath) != KnownStamp; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    private static System.Reflection.PropertyInfo[]? _copied;
+
+    /// <summary>Takes every saved value of <paramref name="other"/> (a fresh <see cref="Load"/>) in place, so the engine's references stay valid;
+    /// Transient / Offline (process switches, never saved) stay as they are.</summary>
+    public void CopyFrom(AppSettings other)
+    {
+        _copied ??= typeof(AppSettings).GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Where(p => p.CanRead && p.CanWrite && p.SetMethod!.IsPublic && p.GetIndexParameters().Length == 0
+                        && p.GetCustomAttributes(typeof(JsonIgnoreAttribute), false) is not [JsonIgnoreAttribute { Condition: JsonIgnoreCondition.Always }])
+            .Where(p => !p.SetMethod!.ReturnParameter.GetRequiredCustomModifiers().Any(m => m.Name == "IsExternalInit"))
+            .ToArray();
+        foreach (var p in _copied) p.SetValue(this, p.GetValue(other));
+        KnownStamp = other.KnownStamp;
     }
 
     public void ApplyTo(MeterOptions options)

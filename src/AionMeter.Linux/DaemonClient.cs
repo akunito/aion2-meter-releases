@@ -2,9 +2,13 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Avalonia.Threading;
+using AionMeter.Core.Combat;
+using AionMeter.Core.Storage;
 using AionMeter.Service.Overlay;
 
 namespace AionMeter.Linux;
+
+public sealed record FightDetailReply(string Id, string Asked, bool Live, FightRecord Record);
 
 /// <summary>
 /// The daemon's socket (OverlayServer): newline-delimited JSON. Reconnects with backoff (0.5 s doubling to 5 s) while the daemon is away.
@@ -27,6 +31,11 @@ public sealed class DaemonClient : IDisposable
     public event Action<OverlayFightItem[]>? Fights;
     public event Action<bool>? ConnectionChanged;
     public event Action<string>? FightClosed;
+    /// <summary>`fight-detail` reply: the concrete id ("s:…"/"h:…"), the id asked for, whether the fight still runs, the whole fight.</summary>
+    public event Action<FightDetailReply>? FightDetail;
+    /// <summary>`settings-reloaded`: the daemon took settings.json (language it now uses).</summary>
+    public event Action<string>? SettingsReloaded;
+    public event Action<string>? Error;
 
     public void Start() => _ = Task.Run(Loop);
 
@@ -109,6 +118,22 @@ public sealed class DaemonClient : IDisposable
                 case "fights":
                     if (data.Deserialize(OverlayJson.Default.OverlayFightItemArray) is { } list) Dispatcher.UIThread.Post(() => Fights?.Invoke(list));
                     break;
+                case "fight-detail":
+                    var rec = data.GetProperty("record").Deserialize<FightRecord>(HistoryStore.JsonOptions);
+                    if (rec is null) return;
+                    var reply = new FightDetailReply(data.GetProperty("id").GetString() ?? "", data.TryGetProperty("asked", out var a) ? a.GetString() ?? "" : "",
+                        data.TryGetProperty("live", out var lv) && lv.GetBoolean(), rec);
+                    Dispatcher.UIThread.Post(() => FightDetail?.Invoke(reply));
+                    break;
+                case "settings-reloaded":
+                    var lang = data.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "";
+                    Dispatcher.UIThread.Post(() => SettingsReloaded?.Invoke(lang));
+                    break;
+                case "error":
+                    var msg = root.TryGetProperty("data", out var ed) && ed.ValueKind == JsonValueKind.Object && ed.TryGetProperty("message", out var mm) ? mm.GetString() ?? ""
+                            : root.TryGetProperty("message", out var m2) ? m2.GetString() ?? "" : "";
+                    Dispatcher.UIThread.Post(() => Error?.Invoke(msg));
+                    break;
                 case "fight-closed":
                     var title = data.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
                     Dispatcher.UIThread.Post(() => FightClosed?.Invoke(title));
@@ -118,6 +143,7 @@ public sealed class DaemonClient : IDisposable
         catch (JsonException) { }
         catch (KeyNotFoundException) { }
         catch (InvalidOperationException) { }
+        catch (NotSupportedException) { }
     }
 
     /// <summary>Fire-and-forget command: reset, ping, show-fight (id), set-measure (mode), fights (max).</summary>

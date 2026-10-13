@@ -21,6 +21,14 @@ internal static class Visuals
     public static readonly IBrush Red = Solid(0xFFEF4D56), Green = Solid(0xFF3DD68C), Amber = Solid(0xFFF5B544);
     public static readonly IBrush LiveRed = Solid(0xFFEF4D56), SavedGold = Solid(0xFFC9A45C), Dim = Solid(0xFF8A93A8), LimitAmber = Solid(0xFFF0C060);
     public static readonly IBrush ColHeader = Solid(0xFFC9D0DC), FooterText = Solid(0xFFB4BCCB), FooterLink = Solid(0xFFD9B56A), GearText = Solid(0xFFE8ECF4);
+    // Theme.xaml backgrounds (the hosted views draw on these)
+    public static readonly IBrush Bg0 = Solid(0xFF0B0F17), Bg1 = Solid(0xFF111726), Bg2 = Solid(0xFF19203A), HoverFill = Solid(0x14FFFFFF);
+    // Item grades as Diego set them on 2026-10-11 (WPF ItemTile: the mock had rare blue and legendary purple, wrong for the game)
+    private static readonly IBrush[] GradeLines = [Solid(0xFF373737), Solid(0xFF8C8C8C), Solid(0xFF4CB05A), Solid(0xFF4F8FE0), Solid(0xFFD3AD0F), Solid(0xFFE0663A), Solid(0xFF3FB6B0)];
+    private static readonly IBrush[] GradeTexts = [Solid(0xFFFAFAFA), Solid(0xFFCFCFCF), Solid(0xFF7ED38A), Solid(0xFF7FB0F0), Solid(0xFFE7C74A), Solid(0xFFF08A5D), Solid(0xFF6FD3CD)];
+    public static IBrush GradeLine(Core.GameDb.Grade g) => GradeLines[(int)g < GradeLines.Length ? (int)g : 0];
+    public static IBrush GradeText(Core.GameDb.Grade g) => GradeTexts[(int)g < GradeTexts.Length ? (int)g : 0];
+    public static readonly IBrush SectionFill = Solid(0x0DFFFFFF), SectionLine = Solid(0x1AFFFFFF), TileFill = Solid(0x12FFFFFF), TileLine = Solid(0x1FFFFFFF);
 
     public static readonly IBrush CardFrame = VGradient((0xFF6E5B36, 0), (0xFF2E2A26, 0.35), (0xFF24252C, 1));
     public static readonly IBrush CardGloss = VGradient((0x0DFFFFFF, 0), (0x00FFFFFF, 0.4));
@@ -124,6 +132,11 @@ internal static class Visuals
     public static readonly Geometry IconChevron = Geometry.Parse("M3 6 L8 11 L13 6");
     public static readonly Geometry IconDownload = Geometry.Parse("M8 2 L8 11 M4 7 L8 11 L12 7 M2.5 14 L13.5 14");
     public static readonly Geometry IconGrip = Geometry.Parse("M12 2 L2 12 M12 6 L6 12 M12 10 L10 12");
+    public static readonly Geometry IconGear = Geometry.Parse("M8 5.5 A2.5 2.5 0 1 1 7.99 5.5 Z M8 1 L8 3 M8 13 L8 15 M1 8 L3 8 M13 8 L15 8 M3 3 L4.4 4.4 M11.6 11.6 L13 13 M3 13 L4.4 11.6 M11.6 4.4 L13 3");
+    public static readonly Geometry IconHelp = Geometry.Parse("M8 1.5 A6.5 6.5 0 1 1 7.99 1.5 Z M6 6.2 C6 3.8 10 3.8 10 6.2 C10 7.8 8 7.8 8 9.6 M8 11.8 L8 12.2");
+    public static readonly Geometry IconPopOut = Geometry.Parse("M9 1.5 L14.5 1.5 L14.5 7 M14.5 1.5 L7.5 8.5 M12 10 L12 14.5 L1.5 14.5 L1.5 4 L6 4");
+    public static readonly Geometry IconBack = Geometry.Parse("M10 3 L5 8 L10 13");
+    public static readonly Geometry IconFight = Geometry.Parse("M1.5 14.5 L1.5 1.5 M1.5 14.5 L14.5 14.5 M4 11 L7 7 L9.5 9 L14 3.5");
 
     public static Avalonia.Controls.Shapes.Path Icon(Geometry g, IBrush stroke, double size = 13, double thickness = 1.5) => new()
     {

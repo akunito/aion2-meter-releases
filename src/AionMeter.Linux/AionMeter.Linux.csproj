@@ -14,6 +14,8 @@
     <RootNamespace>AionMeter.Linux</RootNamespace>
     <Version>0.2.8</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- UiText.Culture asks for es-ES / en-US (dates, sort order): with invariant globalization that throws unless predefined-only is off -->
+    <PredefinedCulturesOnly>false</PredefinedCulturesOnly>
     <ServerGarbageCollector>false</ServerGarbageCollector>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <TieredPGO>true</TieredPGO>
@@ -30,6 +32,11 @@
   <ItemGroup>
     <!-- the official class emblems, the same files the WPF overlay embeds -->
     <AvaloniaResource Include="..\AionMeter.App\Assets\Classes\*.png" Link="Assets\Classes\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A2M-48 phase 3b: the viewer engine reads the same game data as the daemon (skills, npcs, catalogues, help pages) -->
+    <None Include="..\..\data\**\*" Link="data\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

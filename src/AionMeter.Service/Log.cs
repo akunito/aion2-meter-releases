@@ -6,7 +6,12 @@ namespace AionMeter.Service;
 public static class Log
 {
     private static readonly object Gate = new();
-    private static readonly string FilePath = Path.Combine(AppSettings.AppDataDir, "logs", $"aionmeter_{DateTime.Now:yyyyMMdd}.log");
+    private static string? _filePath;
+    // Fixed on first use (AppSettings.UseAppDataDir and Prefix must come before the first line).
+    private static string FilePath => _filePath ??= Path.Combine(AppSettings.AppDataDir, "logs", $"{Prefix}_{DateTime.Now:yyyyMMdd}.log");
+
+    /// <summary>File name stem: "aionmeter" (App, daemon); the Linux UI sets "aionmeter-ui" so two processes never append to one file.</summary>
+    public static string Prefix { get; set; } = "aionmeter";
 
     public static string Directory => Path.GetDirectoryName(FilePath)!;
 
@@ -47,8 +52,9 @@ public static class Log
                                          $"{(list.Complete ? "" : " INCOMPLETE")} {hex}{Environment.NewLine}");
             }
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            // a log dir another user owns (the daemon run as root in docker) must never take the caller down
         }
     }
 
@@ -68,8 +74,9 @@ public static class Log
                 File.AppendAllText(FilePath, $"{DateTime.Now:HH:mm:ss.fff} [{level}] {message}{Environment.NewLine}");
             }
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            // a log dir another user owns (the daemon run as root in docker) must never take the caller down
         }
     }
 }

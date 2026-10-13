@@ -10,20 +10,31 @@ using Avalonia.Threading;
 using AionMeter.Core;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
+using AionMeter.Linux.Shell;
+using AionMeter.Linux.Views;
 using AionMeter.Service;
 using AionMeter.Service.Overlay;
 
 namespace AionMeter.Linux;
 
 /// <summary>
-/// The overlay card (WPF OverlayWindow.xaml, meter tab only): header with the tab strip (disabled until later milestones), fight title,
-/// time limit, state label and clock; boss HP bar; the ranking; update banner; status line and the timer/event pills. Everything it shows
-/// comes from the daemon's `overlay` snapshots (OverlayBuilder), nothing is computed here.
+/// The overlay card (WPF OverlayWindow.xaml): header with the tab strip, fight title, time limit, state label and clock; boss HP bar; the
+/// ranking; update banner; status line and the timer/event pills. The DPS rows come from the daemon's `overlay` snapshots (OverlayBuilder),
+/// nothing is computed here. A2M-48 phase 3b: the tab host — a registered view (<see cref="ViewRegistry"/>) replaces the boss bar and the
+/// rows, Back / Esc / the pill again return, `?` opens the tab's help, the pop-out button moves the tab into its own window.
 /// </summary>
 public sealed class OverlayWindow : Window
 {
+    private readonly AppShell _shell;
     private readonly DaemonClient _client;
     private readonly UiSettings _ui;
+    private readonly ContentControl _tabHost;
+    private readonly Dictionary<string, (Border Pill, Avalonia.Controls.Shapes.Path Icon)> _tabPills = new();
+    private readonly Dictionary<string, IHostedView> _views = new();
+    private readonly Grid _statusLine;
+    private readonly Border _party, _popOut;
+    private readonly TextBlock _fightsLabel;
+    private string _tab = "meter", _beforeSettings = "meter";
     private readonly Border _frame, _frameBg;
     private readonly TextBlock _title, _label, _clock, _limitText, _footer, _abyss, _bossHp, _bossPercent, _empty, _timersText, _bannerText, _modeChip;
     private readonly Path _limitIcon;
@@ -39,10 +50,13 @@ public sealed class OverlayWindow : Window
     private OverlayModel? _last;
     private bool _connected;
 
-    public OverlayWindow(DaemonClient client, UiSettings ui)
+    public OverlayWindow(AppShell shell)
     {
-        _client = client;
-        _ui = ui;
+        _shell = shell;
+        _client = shell.Daemon;
+        _ui = shell.Ui;
+        var client = _client;
+        var ui = _ui;
         Title = AppInfo.Name;
         Width = Math.Max(340, ui.Width);
         Height = Math.Max(220, ui.Height);
@@ -76,11 +90,23 @@ public sealed class OverlayWindow : Window
         var header = new Grid { Height = 26, Background = Brushes.Transparent, ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         body.Children.Add(header);
         var tabs = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
-        // Atlas / Top / Prices / Craft / Build / Items / Timers come in later milestones (A2M-48): shown, not usable yet.
-        tabs.Children.Add(TabPill(Visuals.IconMeter, true, "DPS"));
-        foreach (var (icon, tip) in new[] { (Visuals.IconAtlas, "Atlas"), (Visuals.IconTop, "Top DPS"), (Visuals.IconPrices, "Prices"), (Visuals.IconCraft, "Craft"),
-                                             (Visuals.IconBuild, "Build"), (Visuals.IconItems, "Items"), (Visuals.IconClock, "Timers") })
-            tabs.Children.Add(TabPill(icon, false, tip + " (not on Linux yet)"));
+        // A pill per registered view; the others show dimmed until their view is ported (ViewRegistry.Factories).
+        foreach (var spec in ViewRegistry.Strip) tabs.Children.Add(TabPill(spec.Key, spec.Icon));
+        // the breakdown and Settings get a pill only while they are in front (WPF TabFight / TabSettings)
+        tabs.Children.Add(TabPill("fight", Visuals.IconFight));
+        tabs.Children.Add(TabPill("settings", Visuals.IconGear));
+        _tabPills["fight"].Pill.IsVisible = false;
+        _tabPills["settings"].Pill.IsVisible = false;
+        var gear = UiKit.IconButton(Visuals.IconGear, UiText.Current.SettingsTitle, () => SelectTab(_tab == "settings" ? _beforeSettings : "settings"));
+        gear.Margin = new Thickness(2, 0, 0, 0);
+        tabs.Children.Add(gear);
+        _popOut = UiKit.IconButton(Visuals.IconPopOut, UiText.Current.PopOut, PopOut);
+        _popOut.Margin = new Thickness(2, 0, 0, 0);
+        _popOut.IsVisible = false;
+        tabs.Children.Add(_popOut);
+        var help = UiKit.IconButton(Visuals.IconHelp, UiText.Current.TipHelp, () => _shell.ShowHelp(_tab is "meter" or "fight" ? "meter" : _tab));
+        help.Margin = new Thickness(2, 0, 0, 0);
+        tabs.Children.Add(help);
         header.Children.Add(tabs);
 
         _title = new TextBlock
@@ -130,7 +156,7 @@ public sealed class OverlayWindow : Window
         body.Children.Add(_boss);
 
         // ---------------------------------------------------------------- party (labels and rows share their value column widths)
-        var party = new Border { Margin = new Thickness(-10, 10, -10, 0), BorderBrush = Visuals.GoldDim, BorderThickness = new Thickness(1), Padding = new Thickness(18, 6, 18, 6) };
+        var party = _party = new Border { Margin = new Thickness(-10, 10, -10, 0), BorderBrush = Visuals.GoldDim, BorderThickness = new Thickness(1), Padding = new Thickness(18, 6, 18, 6) };
         Grid.SetRow(party, 3);
         var partyGrid = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         Grid.SetIsSharedSizeScope(partyGrid, true);
@@ -156,6 +182,11 @@ public sealed class OverlayWindow : Window
         partyGrid.Children.Add(_empty);
         party.Child = partyGrid;
         body.Children.Add(party);
+        // the tab host: over the boss bar and the rows, between the header and the footer (WPF TabHost)
+        _tabHost = new ContentControl { IsVisible = false, Margin = new Thickness(-8, 10, -8, 0) };
+        Grid.SetRow(_tabHost, 2);
+        Grid.SetRowSpan(_tabHost, 2);
+        body.Children.Add(_tabHost);
 
         // ---------------------------------------------------------------- footer
         var footer = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
@@ -171,13 +202,13 @@ public sealed class OverlayWindow : Window
         _banner.Children.Add(bannerBox);
         footer.Children.Add(_banner);
 
-        var statusLine = new Grid { Margin = new Thickness(0, 0, 12, 4), ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        var statusLine = _statusLine = new Grid { Margin = new Thickness(0, 0, 12, 4), ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         var status = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0) };
         status.Children.Add(_statusDot = new Ellipse { Width = 6, Height = 6, Margin = new Thickness(0, 0, 7, 0), Fill = Visuals.Amber });
         status.Children.Add(_footer = new TextBlock { FontSize = 12, Foreground = Visuals.FooterText, TextTrimming = TextTrimming.CharacterEllipsis, Effect = Visuals.TextShadow() });
         statusLine.Children.Add(status);
         var fights = new StackPanel { Orientation = Orientation.Horizontal, Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.Hand), Effect = Visuals.TextShadow(), VerticalAlignment = VerticalAlignment.Center };
-        fights.Children.Add(new TextBlock { Text = t.Fights, FontSize = 12, Foreground = Visuals.FooterLink, VerticalAlignment = VerticalAlignment.Center });
+        fights.Children.Add(_fightsLabel = new TextBlock { Text = t.Fights, FontSize = 12, Foreground = Visuals.FooterLink, VerticalAlignment = VerticalAlignment.Center });
         var chev = Visuals.Icon(Visuals.IconChevron, Visuals.FooterLink, 9, 1.6);
         chev.Margin = new Thickness(5, 1, 0, 0);
         chev.VerticalAlignment = VerticalAlignment.Center;
@@ -242,6 +273,108 @@ public sealed class OverlayWindow : Window
         client.ConnectionChanged += OnConnection;
         client.Fights += ShowFightMenu;
         OnConnection(false);
+        shell.SelectTabHandler = SelectTab;
+        shell.OpenFightHandler = OpenFight;
+        shell.LanguageChanged += ApplyLanguage;
+        KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape || e.Handled || _tab == "meter") return;
+            e.Handled = true;
+            SelectTab(_tab == "settings" ? _beforeSettings : "meter");
+        };
+    }
+
+    // ------------------------------------------------------------ tab host (A2M-48 phase 3b, WPF SelectTab)
+
+    public string Tab => _tab;
+
+    /// <summary>Shows a tab inside the card ("meter" = the DPS rows); the card keeps its size whatever the tab (Diego, 2026-10-10).</summary>
+    public void SelectTab(string tab)
+    {
+        if (tab != "meter" && !ViewRegistry.Has(tab)) return;
+        if (tab == "fight" && !_views.ContainsKey("fight")) tab = "meter";   // reached from a row / the fight list only
+        if (tab == _tab) { SyncPills(); return; }
+        if (tab == "settings") _beforeSettings = _tab;
+        if (_views.TryGetValue(_tab, out var old)) old.Hidden();
+        _tab = tab;
+        var meter = tab == "meter";
+        _statusLine.IsVisible = meter;   // the DPS status and the fight links belong to the DPS tab
+        _boss.IsVisible = meter && _last?.Fight.Boss is not null;
+        _party.IsVisible = meter;
+        if (meter) { _tabHost.Content = null; _tabHost.IsVisible = false; }
+        else
+        {
+            var v = View(tab);
+            _tabHost.Content = v.View;
+            _tabHost.IsVisible = true;
+            v.Shown();
+        }
+        _popOut.IsVisible = !meter;
+        SyncPills();
+    }
+
+    private IHostedView View(string key)
+    {
+        if (_views.TryGetValue(key, out var v)) return v;
+        v = ViewRegistry.Create(key, _shell)!;
+        v.Hosted = true;
+        v.CloseRequested += () => SelectTab(key == "settings" ? _beforeSettings : "meter");
+        _views[key] = v;
+        return v;
+    }
+
+    /// <summary>A2M-43: the fight's breakdown as this card's "fight" tab (a row click, the fight list).</summary>
+    private void OpenFight(string fightId, uint actor)
+    {
+        var v = (FightView)View("fight");
+        v.SetFight(fightId, actor);
+        if (_tab == "fight") v.Shown();
+        else SelectTab("fight");
+    }
+
+    /// <summary>The tab in front moves into its own window (a copy, or the view itself for Settings); the card goes back.</summary>
+    public void PopOut()
+    {
+        if (!_views.TryGetValue(_tab, out var v)) return;
+        var key = _tab;
+        var popped = v.PopOut();
+        if (ReferenceEquals(popped, v)) { v.Hidden(); _tabHost.Content = null; _views.Remove(key); }
+        SelectTab(key == "settings" ? _beforeSettings : "meter");
+        new PopOutWindow(_shell, popped, Math.Max(900, Bounds.Width), Math.Max(640, Bounds.Height)).Show();
+    }
+
+    private void SyncPills()
+    {
+        foreach (var (key, (pill, icon)) in _tabPills)
+        {
+            var on = key == _tab;
+            var usable = key == "meter" || ViewRegistry.Has(key);
+            pill.Background = on ? Visuals.Gold : Visuals.Solid(0x99111726);
+            pill.Opacity = on || usable ? 1 : 0.4;
+            icon.Stroke = on ? Visuals.Solid(0xFF1A1407) : Visuals.Solid(0xFFF3D58F);
+        }
+        _tabPills["fight"].Pill.IsVisible = _tab == "fight";
+        _tabPills["settings"].Pill.IsVisible = _tab == "settings";
+    }
+
+    private void ApplyLanguage()
+    {
+        var t = UiText.Current;
+        _fightsLabel.Text = t.Fights;
+        _empty.Text = t.EmptyParty;
+        foreach (var (key, (pill, _)) in _tabPills) ToolTip.SetTip(pill, PillTip(key));
+        foreach (var v in _views.Values) v.LanguageChanged();
+        if (_labels.Children is [_, TextBlock player, TextBlock gs, TextBlock cp, TextBlock dps, TextBlock dmg, TextBlock share])
+        {
+            player.Text = t.ColPlayer; gs.Text = t.ColGs; cp.Text = t.ColCp; dps.Text = t.ColDps; dmg.Text = t.ColDamage; share.Text = t.ColShare;
+        }
+    }
+
+    private static string PillTip(string key)
+    {
+        var t = UiText.Current;
+        var tip = key switch { "fight" => t.FightTab, "settings" => t.SettingsTitle, _ => Array.Find(ViewRegistry.Strip, s => s.Key == key)?.Tip(t) ?? key };
+        return key == "meter" || ViewRegistry.Has(key) ? tip : string.Format(t.LinuxNotYet, tip);
     }
 
     private Control? _fightsAnchor;
@@ -271,15 +404,26 @@ public sealed class OverlayWindow : Window
         return tb;
     }
 
-    private static Border TabPill(Geometry icon, bool selected, string tip)
+    /// <summary>WPF TabPill: icon toggle, the selected one filled gold; clicking the selected one goes back to the DPS rows.</summary>
+    private Border TabPill(string key, Geometry icon)
     {
+        var path = Visuals.Icon(icon, Visuals.Solid(0xFFF3D58F), 13, 1.5);
         var b = new Border
         {
             Width = 30, Height = 22, Margin = new Thickness(0, 0, 3, 0), CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1),
-            BorderBrush = Visuals.Gold, Background = selected ? Visuals.Gold : Visuals.Solid(0x99111726), Opacity = selected ? 1 : 0.45,
-            Child = Visuals.Icon(icon, selected ? Visuals.Solid(0xFF1A1407) : Visuals.Solid(0xFFF3D58F), 13, 1.5),
+            BorderBrush = Visuals.Gold, Background = Visuals.Solid(0x99111726), Child = path, Cursor = new Cursor(StandardCursorType.Hand),
         };
-        ToolTip.SetTip(b, tip);
+        _tabPills[key] = (b, path);
+        b.PointerEntered += (_, _) => { if (key != _tab) b.BorderBrush = Visuals.Solid(0xFFFFE3A6); };
+        b.PointerExited += (_, _) => b.BorderBrush = Visuals.Gold;
+        b.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(b).Properties.IsLeftButtonPressed) return;
+            e.Handled = true;
+            SelectTab(key != _tab ? key : key == "settings" ? _beforeSettings : "meter");
+        };
+        ToolTip.SetTip(b, PillTip(key));
+        if (key == "meter") b.Background = Visuals.Gold;
         return b;
     }
 
@@ -364,7 +508,7 @@ public sealed class OverlayWindow : Window
 
         if (f.Boss is { } boss)
         {
-            _boss.IsVisible = true;
+            _boss.IsVisible = _tab == "meter";
             _bossScale.ScaleX = boss.Fraction;
             _bossHp.Text = boss.HpText;
             _bossPercent.Text = boss.Percent;
@@ -380,6 +524,7 @@ public sealed class OverlayWindow : Window
         while (_rowViews.Count < rows.Length)
         {
             var rv = new RowView();
+            rv.Clicked += actor => OpenFight(_last?.FightId ?? "live", actor);
             _rowViews.Add(rv);
             _rows.Children.Add(rv);
         }
@@ -462,6 +607,7 @@ public sealed class OverlayWindow : Window
         }
         if (items.Length == 0) menu.Items.Add(new MenuItem { Header = t.NoFights, IsEnabled = false });
         menu.ShowAt(_fightsAnchor);
+        _fightsAnchor = null;   // a later `fights` reply (asked by the breakdown) is not ours
     }
 
     public void ToggleClickThrough() => SetClickThrough(!_ui.ClickThrough);

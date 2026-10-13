@@ -1003,11 +1003,29 @@ public sealed class UiText
     public string UpdateFound { get; init; } = "Version {0} is out.";
     public string UpdateCheckFailed { get; init; } = "Could not reach GitHub: {0}";
 
+    // A2M-48 phase 3b: the Linux UI (Avalonia) replaces the Windows-only parts of Settings with these notes
+    public string LinuxHotkeysNote { get; init; } = "On Linux the hotkeys are Sway bindings set by the dotfiles: Hyper+G shows or hides this card, $mod+Shift+M turns click-through off again. Change them in the Sway config, not here.";
+    public string LinuxUpdatesNote { get; init; } = "Linux: the daemon and this window are updated by deploy.sh (tools/linux/deploy.sh <sha>), not by the meter itself.";
+    public string LinuxGameNote { get; init; } = "Linux: the capture runs in the system service aion2-meter-daemon, which is always on; there is no task to start it with the game.";
+    public string LinuxCaptureNote { get; init; } = "Linux: the daemon (system service aion2-meter-daemon, CAP_NET_RAW) captures and this window reads its socket. A new adapter or recording switch restarts the daemon's capture when you save.";
+    public string LinuxNoDaemon { get; init; } = "No daemon on {0}: settings are saved and the daemon takes them when it starts.";
+    public string LinuxNotYet { get; init; } = "{0} (not on Linux yet)";
+    public string FightLoading { get; init; } = "Loading the fight…";
+    public string FightGone { get; init; } = "This fight is no longer available.";
+
     /// <summary>Every key of the English defaults, in Spanish (A2M-47). EsTextTests checks none is missing.</summary>
     private static readonly UiText Es = new()
     {
         Code = "es",
         LanguageName = "Español",
+        LinuxHotkeysNote = "En Linux los atajos son combinaciones de Sway que ponen los dotfiles: Hyper+G muestra u oculta esta tarjeta, $mod+Mayús+M quita el modo atravesar clics. Se cambian en la configuración de Sway, no aquí.",
+        LinuxUpdatesNote = "Linux: el daemon y esta ventana se actualizan con deploy.sh (tools/linux/deploy.sh <sha>), no desde el propio meter.",
+        LinuxGameNote = "Linux: la captura corre en el servicio de sistema aion2-meter-daemon, siempre activo; no hay tarea para arrancarlo con el juego.",
+        LinuxCaptureNote = "Linux: captura el daemon (servicio de sistema aion2-meter-daemon, CAP_NET_RAW) y esta ventana lee su socket. Al guardar otro adaptador o el interruptor de grabación, el daemon reinicia su captura.",
+        LinuxNoDaemon = "No hay daemon en {0}: los ajustes se guardan y el daemon los toma al arrancar.",
+        LinuxNotYet = "{0} (aún no en Linux)",
+        FightLoading = "Cargando el combate…",
+        FightGone = "Este combate ya no está disponible.",
         ClassNames = new Dictionary<Core.Events.GameClass, string>
         {
             [Core.Events.GameClass.Gladiator] = "Gladiador",

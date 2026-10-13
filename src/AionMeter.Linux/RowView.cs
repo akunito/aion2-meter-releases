@@ -81,7 +81,37 @@ internal sealed class RowView : Grid
 
         PointerEntered += (_, _) => _hover.BorderBrush = Visuals.Solid(0x66FFFFFF);
         PointerExited += (_, _) => _hover.BorderBrush = Brushes.Transparent;
+        Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+        // A click opens the breakdown; a press that moves drags the card (WPF DragAnywhere's JustDragged): BeginMoveDrag takes the press.
+        PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+            _press = e;
+            _pressAt = e.GetPosition(this);
+            e.Handled = true;
+        };
+        PointerMoved += (_, e) =>
+        {
+            if (_press is not { } p) return;
+            var d = e.GetPosition(this) - _pressAt;
+            if (Math.Abs(d.X) + Math.Abs(d.Y) < 5) return;
+            _press = null;
+            (Avalonia.Controls.TopLevel.GetTopLevel(this) as Window)?.BeginMoveDrag(p);
+        };
+        PointerReleased += (_, _) =>
+        {
+            if (_press is null) return;
+            _press = null;
+            if (ActorId != 0) Clicked?.Invoke(ActorId);
+        };
+        PointerCaptureLost += (_, _) => _press = null;
     }
+
+    private Avalonia.Input.PointerPressedEventArgs? _press;
+    private Point _pressAt;
+
+    /// <summary>The row was clicked (not dragged): the breakdown of the fight shown, on this player.</summary>
+    public event Action<uint>? Clicked;
 
     private static TextBlock Number(int column, double size, IBrush fg)
     {

@@ -182,11 +182,29 @@ public sealed class PriceWatchStore : IDisposable
         {
             if (_path is not null && File.Exists(_path))
             {
+                var stamp = File.GetLastWriteTimeUtc(_path);
                 var list = JsonSerializer.Deserialize<List<PriceWatch>>(File.ReadAllText(_path), Json);
-                if (list is not null) _watches.AddRange(list);
+                if (list is not null) lock (_gate) { _watches.Clear(); _watches.AddRange(list); }
+                _stamp = stamp;
             }
         }
         catch (Exception) { }
+    }
+
+    private DateTime _stamp;
+
+    /// <summary>
+    /// A2M-48: the file changed under us (the Linux UI edits the list, the daemon polls it; or the other way round): take the file's list.
+    /// False when it is the one this store last read or wrote.
+    /// </summary>
+    public bool ReloadIfChanged()
+    {
+        if (_path is null) return false;
+        try { if (!File.Exists(_path) || File.GetLastWriteTimeUtc(_path) == _stamp) return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        Load();
+        Changed?.Invoke();
+        return true;
     }
 
     // No seeded watches: the exe is shared with the clan (2026-10-10); Diego's own list lives in his state/price-watch.json.
@@ -198,7 +216,11 @@ public sealed class PriceWatchStore : IDisposable
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             string json; lock (_gate) json = JsonSerializer.Serialize(_watches, Json);
-            File.WriteAllText(_path, json);
+            // aside then swapped in: the other process (daemon / Linux UI) re-reads it on its mtime and must never see half a file
+            var tmp = _path + ".tmp";
+            File.WriteAllText(tmp, json);
+            File.Move(tmp, _path, overwrite: true);
+            _stamp = File.GetLastWriteTimeUtc(_path);
         }
         catch (IOException) { }
     }

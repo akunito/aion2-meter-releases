@@ -8,7 +8,7 @@ using System.Threading.Channels;
 namespace AionMeter.Service.Overlay;
 
 /// <summary>A command a client sent: `{"cmd":"reset"}`, `{"cmd":"show-fight","id":"…"}`, `{"cmd":"set-measure","mode":"boss|all"}`,
-/// `{"cmd":"fights","max":40}`, `{"cmd":"ping"}`.</summary>
+/// `{"cmd":"fights","max":40}`, `{"cmd":"fight-detail","id":"live|s:…|h:…"}`, `{"cmd":"reload-settings"}`, `{"cmd":"ping"}`.</summary>
 public sealed record OverlayCommand(OverlayServer.Client From, string Cmd, string? Arg, int Max);
 
 /// <summary>

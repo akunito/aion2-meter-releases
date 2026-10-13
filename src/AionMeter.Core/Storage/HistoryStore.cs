@@ -41,6 +41,9 @@ public sealed class HistoryStore
         Converters = { new JsonStringEnumConverter() },
     };
 
+    /// <summary>The fight files' format (one line, enums as text): the daemon's `fight-detail` socket reply uses it too (A2M-48).</summary>
+    public static JsonSerializerOptions JsonOptions => Json;
+
     private readonly object _gate = new();
     private readonly List<HistoryEntry> _entries = new();
 

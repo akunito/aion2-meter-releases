@@ -12,6 +12,8 @@ public sealed class UiSettings
     public double Height { get; set; } = 540;
     public bool ClickThrough { get; set; }
     public double Opacity { get; set; } = 0.92;
+    /// <summary>Stand-alone windows (pop-outs "popout-&lt;tab&gt;", "help"): [left, top, width, height].</summary>
+    public Dictionary<string, double[]> Windows { get; set; } = new();
 
     [JsonIgnore] public string Path { get; private set; } = "";
 

@@ -10,15 +10,22 @@ string? Opt(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1
 if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
 {
     Console.WriteLine("""
-        AionMeter.Linux [--socket PATH] [--data-dir DIR]
+        AionMeter.Linux [--socket PATH] [--data-dir DIR] [--tab KEY] [--fight ID] [--help-page KEY] [--popout]
           --socket    the daemon's UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock)
-          --data-dir  where ui.json (window place, click-through) lives (default $XDG_DATA_HOME/AionMeter)
+          --data-dir  the meter's data dir: ui.json, and what the viewer engine reads (default $XDG_DATA_HOME/AionMeter)
+          --tab KEY   open a tab at start (settings, …); --fight ID opens the breakdown ("live", "s:<guid>", "h:<file>"); --help-page KEY a help page; --popout moves that tab into its own window
         SIGUSR1 toggles click-through; the pid is in $XDG_RUNTIME_DIR/aionmeter-ui.pid (Sway: exec kill -USR1 $(cat $XDG_RUNTIME_DIR/aionmeter-ui.pid)).
         """);
     return 0;
 }
 
 if (Opt("--data-dir") is { Length: > 0 } dir) AppSettings.UseAppDataDir(dir);
+// before the first log line: two processes (daemon, UI) never append to the same file
+Log.Prefix = "aionmeter-ui";
+App.StartTab = Opt("--tab");
+App.StartFight = Opt("--fight");
+App.StartHelp = Opt("--help-page");
+App.StartPopOut = Array.IndexOf(args, "--popout") >= 0;
 App.SocketPath = Opt("--socket") ?? OverlayServer.DefaultPath();
 App.Ui = UiSettings.Load(Path.Combine(AppSettings.AppDataDir, "ui.json"));
 // The game shares the box: a background UI must not compete for CPU with it.

@@ -111,8 +111,10 @@ public sealed class BossTimers
         public HashSet<int> ListedMaps { get; set; } = new();
     }
 
-    public BossTimers(string path, GameData data, string dataDirectory, bool persistent = true)
+    /// <param name="readOnly">The Linux UI's viewer engine (A2M-48): loads the daemon's files, never writes them.</param>
+    public BossTimers(string path, GameData data, string dataDirectory, bool persistent = true, bool readOnly = false)
     {
+        _readOnly = readOnly;
         _path = path;
         _learnedPath = Path.Combine(Path.GetDirectoryName(path)!, "field-boss-learned.json");
         _data = data;
@@ -123,6 +125,7 @@ public sealed class BossTimers
     }
 
     public bool Persistent { get; }
+    private readonly bool _readOnly;
 
     /// <summary>Raised (on any thread) when the list or a timer changes.</summary>
     public event Action? Changed;
@@ -624,7 +627,7 @@ public sealed class BossTimers
 
     private void SaveLearned()
     {
-        if (!Persistent) return;
+        if (!Persistent || _readOnly) return;
         try
         {
             string text;
@@ -640,7 +643,7 @@ public sealed class BossTimers
 
     private void Save()
     {
-        if (Persistent)
+        if (Persistent && !_readOnly)
         {
             try
             {

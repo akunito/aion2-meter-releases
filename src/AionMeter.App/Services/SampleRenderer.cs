@@ -55,7 +55,7 @@ public static class SampleRenderer
         {
             case "breakdown":
                 var segment = meter.Tracker.Segments()[0].Id;
-                var breakdown = new BreakdownWindow(new ViewModels.LiveFightView(meter.Tracker, segment), 2, meter.Data, meter.Icons, meter.Portraits, meter.AbyssLogsNoteFor)
+                var breakdown = new BreakdownWindow(new LiveFightView(meter.Tracker, segment), 2, meter.Data, meter.Icons, meter.Portraits, meter.AbyssLogsNoteFor)
                     { Width = o.Width ?? 900, Height = o.Height ?? 680 };
                 if (o.Tab is { } tab) breakdown.ShowTab(tab);
                 host = breakdown;
@@ -166,7 +166,7 @@ public static class SampleRenderer
                         meter.CardDeps = new Views.ProfileDeps(tabIcons, meter.Skills, () => "en", (_, _) => sampleProfile);
                     }
                     var fightSegment = meter.Tracker.Segments()[0].Id;
-                    card.ShowFight(new ViewModels.LiveFightView(meter.Tracker, fightSegment), 2, fightSegment);
+                    card.ShowFight(new LiveFightView(meter.Tracker, fightSegment), 2, fightSegment);
                 }
                 else card.SelectTab(o.Window);
                 switch (card.TabView)

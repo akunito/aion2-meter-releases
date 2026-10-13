@@ -1,8 +1,8 @@
 using AionMeter.Core.Combat;
 
-namespace AionMeter.App.ViewModels;
+namespace AionMeter.Service;
 
-/// <summary>Where a breakdown window reads its numbers from: a live in-memory segment or a saved fight.</summary>
+/// <summary>Where a breakdown reads its numbers from: a live in-memory segment or a saved fight (WPF BreakdownView, the daemon's `fight-detail`).</summary>
 public interface IFightView
 {
     bool IsLive { get; }

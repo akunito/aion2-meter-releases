@@ -29,8 +29,12 @@ public class MeterEngine : IDisposable
 
     /// <param name="availability">Whether Npcap is on this PC (A2M-27); null = probe this PC. Nothing in construction depends on it:
     /// without Npcap every non-capture feature works and the capture source reports <see cref="CaptureAvailability.NoCaptureStatus"/>.</param>
-    public MeterEngine(AppSettings settings, Func<GameData, IEventSource>? captureFactory, CaptureAvailability? availability = null)
+    /// <param name="viewer">A2M-48 Linux UI: the same stores over the daemon's data dir, read-only — no capture (pass no factory), no
+    /// network, no state writes; only what the UI itself saves (settings, builds, price-watch list, notes) touches the disk. See
+    /// <see cref="OpenViewer"/>.</param>
+    public MeterEngine(AppSettings settings, Func<GameData, IEventSource>? captureFactory, CaptureAvailability? availability = null, bool viewer = false)
     {
+        Viewer = viewer;
         Settings = settings;
         CaptureFactory = captureFactory;
         Availability = availability ?? CaptureAvailability.OfThisPc();
@@ -39,7 +43,7 @@ public class MeterEngine : IDisposable
         settings.ApplyTo(Options);
         Tracker = new CombatTracker(Data, Options);
         History = new HistoryStore(Path.Combine(AppSettings.AppDataDir, "fights"));
-        Timers = new BossTimers(Path.Combine(AppSettings.AppDataDir, "boss-timers.json"), Data, DataDirectory, persistent: !settings.Transient);
+        Timers = new BossTimers(Path.Combine(AppSettings.AppDataDir, "boss-timers.json"), Data, DataDirectory, persistent: !settings.Transient, readOnly: viewer);
         // render tool (Transient): an empty folder of its own, so the user's remembered nodes and last map stay out of the sample
         Atlas = new NodeStore(settings.Transient ? Path.Combine(Path.GetTempPath(), "aion2-render-atlas-" + Environment.ProcessId) : Path.Combine(AppSettings.AppDataDir, "atlas"));
         Log.Info($"Atlas: {Atlas.LoadSeeds(Path.Combine(DataDirectory, "atlas"))} seeded nodes from the map data");
@@ -51,13 +55,13 @@ public class MeterEngine : IDisposable
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
         Grades = ItemGrades.Load(Path.Combine(DataDirectory, "gamedb", "item-grades.json"));
         Names.AttachGrades(Grades);   // grade tags next to ambiguous names + "legendary stone" searches
-        NameResolver = new ItemNameResolver(Names, settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "item-names-extra.json")) { Enabled = !settings.Transient && !settings.Offline };
+        NameResolver = new ItemNameResolver(Names, settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "item-names-extra.json")) { Enabled = !settings.Transient && !settings.Offline && !viewer };
         Account = new AccountWarehouse(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "account-warehouse.json"));
-        if (!settings.Transient) SeedAccountWarehouse();
+        if (!settings.Transient && !viewer) SeedAccountWarehouse();
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
         Top = new TopDpsStore(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "top-dps.json"));
         // First run with the ranking: fill it from the fights already on disk, off the UI thread.
-        if (!settings.Transient && Top.Count == 0 && History.List(1).Count > 0)
+        if (!settings.Transient && !viewer && Top.Count == 0 && History.List(1).Count > 0)
             ThreadPool.QueueUserWorkItem(_ => { try { Top.Rebuild(History, Data); Top.Save(); } catch (Exception ex) { Log.Error("Top DPS rebuild failed", ex); } });
         _objectNames = new ObjectNames(Path.Combine(AppSettings.AppDataDir, "atlas", "objects.json"));
         _userNames = _objectNames.Load();
@@ -75,7 +79,7 @@ public class MeterEngine : IDisposable
         };
         Inventory.Changed += OnLiveInventoryChanged;
         Tracker.EncounterFinished += OnEncounterFinished;
-        if (!settings.Transient) Prices.Changed += () => Telemetry.QueueState(this);   // hourly polls raise it too: unchanged state is not sent
+        if (!settings.Transient && !viewer) Prices.Changed += () => Telemetry.QueueState(this);   // hourly polls raise it too: unchanged state is not sent
         // A recording's or the demo's bosses must not move the live respawn timers.
         Tracker.BossNoticed += n =>
         {
@@ -119,6 +123,45 @@ public class MeterEngine : IDisposable
         {
             if (!_replaying && !DemoRunning) { Timers.SetCurrentServer(Tracker.SelfServerId); BindCharacterStores(); RefreshServer(); }
         };
+    }
+
+    /// <summary>The Linux UI's read-only engine (A2M-48): no capture, network or state writes.</summary>
+    public bool Viewer { get; }
+
+    /// <summary>
+    /// A2M-48: the Linux UI's engine over the daemon's data dir (<see cref="AppSettings.AppDataDir"/>): settings.json as it is (loaded, not
+    /// re-saved), no capture factory, viewer mode. Slow (game data, catalogues: ~1 s): build it off the UI thread.
+    /// </summary>
+    public static MeterEngine OpenViewer(AppSettings? settings = null)
+    {
+        settings ??= AppSettings.Load();
+        UiText.Use(settings.Language);
+        return new MeterEngine(settings, null, CaptureAvailability.OfThisPc(), viewer: true);
+    }
+
+    /// <summary>
+    /// A2M-48 daemon: settings.json was saved by the Linux UI (mtime differs from what this process read or wrote): take its values in place
+    /// and apply them as a Settings save would (meter options, language, icons, server), without writing the file back. <paramref name="force"/>
+    /// re-reads even when the mtime is unchanged (the UI's `reload-settings`). True when something was reloaded.
+    /// </summary>
+    public bool ReloadSettingsIfChanged(bool force = false)
+    {
+        if (Settings.Transient || (!force && !Settings.ChangedOnDisk())) return false;
+        var fresh = AppSettings.Load();
+        var language = Settings.Language;
+        var capture = (Settings.CaptureDevice, Settings.RecordPackets);
+        Settings.CopyFrom(fresh);
+        // the factory reads CaptureDevice / RecordPackets when it opens the adapter: a new choice needs a reopen (the WPF Save does the same)
+        if (capture != (Settings.CaptureDevice, Settings.RecordPackets) && CaptureFactory is not null && !Viewer) Task.Run(RestartCapture);
+        if (UiText.Normalize(Settings.Language) != UiText.Normalize(language))
+        {
+            Data.ReloadNames(DataDirectory, Settings.Language);
+            UiText.Use(Settings.Language);
+        }
+        Core.Net.CloudflareHttp.SolverUrl = Settings.CloudflareSolverUrl;
+        ApplySettingsInPlace();
+        Log.Info($"Settings reloaded from settings.json (language {Settings.Language}, measure {Settings.TargetMode}, server {Settings.ServerId})");
+        return true;
     }
 
     /// <summary>The shipped game data (data/ next to the binary); settable before the first engine for tests and the daemon's --game-data.</summary>
@@ -179,7 +222,7 @@ public class MeterEngine : IDisposable
 
     private async Task PollPricesAsync(long now)
     {
-        if (Settings.Offline || Interlocked.Exchange(ref _pricePolling, 1) == 1) return;
+        if (Settings.Offline || Viewer || Interlocked.Exchange(ref _pricePolling, 1) == 1) return;
         try
         {
             foreach (var h in await Prices.PollAsync(now).ConfigureAwait(false)) _priceHits.Enqueue(h);
@@ -394,6 +437,7 @@ public class MeterEngine : IDisposable
 
     public void Tick()
     {
+        if (Viewer) return;   // nothing to process, and every periodic write below belongs to the daemon
         // The wall clock means nothing to a recording's timestamps: idle checks wait until the replay is done.
         if (!_replaying) Tracker.Tick(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         if (_capture is Core.Capture.LiveCapture live)
@@ -428,7 +472,7 @@ public class MeterEngine : IDisposable
     /// <summary>Daemon stop / end of a replay: the state files and the names cache now, not at the next 5 s tick (A2M-48).</summary>
     public void FlushState()
     {
-        if (Settings.Transient || _replaying || DemoRunning) return;
+        if (Settings.Transient || Viewer || _replaying || DemoRunning) return;
         if (_boundKey.Length == 0) BindCharacterStores();
         SaveState();
         Atlas.Save();
@@ -676,7 +720,7 @@ public class MeterEngine : IDisposable
     /// </summary>
     private async Task<bool> SyncProfileAsync(string key, string name, int server, bool force = false)
     {
-        if (Settings.Offline || Interlocked.Exchange(ref _profileSyncing, 1) == 1) return false;
+        if (Settings.Offline || Viewer || Interlocked.Exchange(ref _profileSyncing, 1) == 1) return false;
         try
         {
             var p = await Armory.LookupAsync(name, server, withDaevanion: true, force: force).ConfigureAwait(false);
@@ -982,6 +1026,14 @@ public class MeterEngine : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 0; }
     }
 
+    /// <summary><see cref="ApplySettings"/> without writing settings.json (the daemon after a reload, the Linux UI after its own save).</summary>
+    public void ApplySettingsInPlace()
+    {
+        Settings.ApplyTo(Options);
+        OnSettingsApplied();
+        RefreshServer();
+    }
+
     public void ApplySettings()
     {
         Settings.ApplyTo(Options);
@@ -1129,9 +1181,9 @@ public class MeterEngine : IDisposable
 
     public virtual void Dispose()
     {
-        var live = !Settings.Transient && !_replaying && !DemoRunning;
+        var live = !Settings.Transient && !Viewer && !_replaying && !DemoRunning;
         lock (_captureGate) _capture?.Dispose(); // no more packets: the running fight is as complete as it gets
-        if (!Settings.Transient) Atlas.Save();   // the render tool's sample nodes are never written
+        if (!Settings.Transient && !Viewer) Atlas.Save();   // the render tool's sample nodes are never written
         _replay?.Dispose();
         _demo?.Dispose();
         if (live)
@@ -1168,7 +1220,7 @@ public class MeterEngine : IDisposable
 
     private void RankOnAbyssLogs(EncounterSnapshot s)
     {
-        if (_replaying || DemoRunning || Settings.Transient || Settings.Offline || !Settings.AbyssLogsPercentile) return;
+        if (_replaying || DemoRunning || Settings.Transient || Settings.Offline || Viewer || !Settings.AbyssLogsPercentile) return;
 
         // kills only: Abyss Logs ranks cleared fights, and a wipe's DPS is not comparable
         if (s.Boss is not { NpcCode: > 0 } boss || s.Reason != EncounterEndReason.Kill) return;
