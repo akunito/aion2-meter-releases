@@ -32,6 +32,8 @@ internal static class ViewRegistry
     public static readonly Dictionary<string, Func<AppShell, IHostedView>> Factories = new()
     {
         ["settings"] = s => new SettingsView(s),
+        ["top"] = s => new TopDpsView(s),
+        ["timers"] = s => new BossTimersView(s),
     };
 
     public static bool Has(string key) => Factories.ContainsKey(key);
