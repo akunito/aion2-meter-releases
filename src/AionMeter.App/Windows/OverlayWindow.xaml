@@ -4,7 +4,7 @@
         xmlns:c="clr-namespace:AionMeter.App.Controls"
         xmlns:vm="clr-namespace:AionMeter.App.ViewModels"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
-        xmlns:s="clr-namespace:AionMeter.App.Services"
+        xmlns:s="clr-namespace:AionMeter.Service;assembly=AionMeter.Service"
         x:Name="Root"
         Title="AION2 DPS Meter" Width="470" Height="540" MinWidth="340" MinHeight="220"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:AionMeter.App.Controls"
-        xmlns:s="clr-namespace:AionMeter.App.Services" Background="{StaticResource Bg0}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        xmlns:s="clr-namespace:AionMeter.Service;assembly=AionMeter.Service" Background="{StaticResource Bg0}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
         FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}" FontSize="12.5">
     <UserControl.Resources>
         <!-- grade chip after an item name (GradeTag): same-named items differ only by grade -->

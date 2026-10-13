@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AionMeter.Core\AionMeter.Core.csproj" />
+    <ProjectReference Include="..\AionMeter.Service\AionMeter.Service.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -26,6 +27,9 @@
     <!-- WPF and WinForms both define Application, MessageBox, Brush... keep WinForms explicit (tray icon only). -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+    <!-- A2M-48: settings, Log, UiText, MeterEngine… live in AionMeter.Service (shared with the Linux daemon) -->
+    <Using Include="AionMeter.Service" />
+
   </ItemGroup>
 
   <ItemGroup>

@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Text.Json;
 using AionMeter.Core.Builds;
 
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
 /// <summary>
 /// A2M-20: one anonymous usage record per day to Diego's n8n (balloon the first time). What development needs and nothing that names a
@@ -25,7 +25,7 @@ public static class Telemetry
     public static bool Due(AppSettings s, DateTimeOffset now) =>
         s.ShareUsage && (s.TelemetryLastSent is null || now - s.TelemetryLastSent.Value >= TimeSpan.FromHours(24));
 
-    public static Dictionary<string, object?> Payload(MeterService m, DateTimeOffset now)
+    public static Dictionary<string, object?> Payload(MeterEngine m, DateTimeOffset now)
     {
         var s = m.Settings;
         s.EnsureInstallId();
@@ -59,6 +59,7 @@ public static class Telemetry
     /// <summary>The only way out: a kind switched off in Settings → Privacy (or the render tool's throw-away settings) is never sent (null).</summary>
     private static async Task<HttpResponseMessage?> PostAsync(AppSettings s, string kind, string body)
     {
+        if (s.Offline) return null;
         if (s.Transient || !s.CurrentSharePolicy().Filter(kind)) { Log.Info($"Telemetry \"{kind}\" not sent: off in Settings → Privacy"); return null; }
         using var req = new HttpRequestMessage(HttpMethod.Post, Url) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
         req.Headers.Add("X-Meter-Token", BugReport.UploadToken);
@@ -152,8 +153,7 @@ public static class Telemetry
                 if (old is not null) foreach (var k in old) s.BuildTelemetrySent.Remove(k);
                 try { s.Save(); } catch (IOException ex) { Log.Info($"Build telemetry: settings not saved: {ex.Message}"); }
             }
-            if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess()) await d.InvokeAsync(Record);
-            else Record();
+            await UiHost.Current.Invoke(Record);
             Log.Info($"Build telemetry sent: {build.Id}");
             return true;
         }
@@ -193,13 +193,13 @@ public static class Telemetry
 
     private static readonly object StateLock = new();
     private static Timer? _stateTimer;
-    private static MeterService? _stateMeter;
+    private static MeterEngine? _stateMeter;
     private static int _stateSending;
     /// <summary>n8n keeps 6 "watch" rows per install per day: change-driven sends are spaced at least this far apart.</summary>
     public static readonly TimeSpan StateGap = TimeSpan.FromMinutes(30);
 
     /// <summary>The watch list or the favourites changed: send the state 60 s after the last change (later if one went out recently).</summary>
-    public static void QueueState(MeterService m)
+    public static void QueueState(MeterEngine m)
     {
         var s = m.Settings;
         if (!s.ShareBackup || s.Transient) return;
@@ -213,17 +213,17 @@ public static class Telemetry
         }
     }
 
-    public static string StateJson(MeterService m) => BackupState.ToJson(m.Prices.All(), m.Settings.CraftFavourites.ToArray());
+    public static string StateJson(MeterEngine m) => BackupState.ToJson(m.Prices.All(), m.Settings.CraftFavourites.ToArray());
 
     /// <summary>daily: with the day's record, sent even when unchanged so the server copy stays the latest; otherwise only when it changed.</summary>
-    public static async Task SendStateAsync(MeterService m, bool daily)
+    public static async Task SendStateAsync(MeterEngine m, bool daily)
     {
         var s = m.Settings;
         if (!s.ShareBackup || s.Transient || Interlocked.Exchange(ref _stateSending, 1) == 1) return;
         try
         {
             // the favourites list is edited on the UI thread: read it there
-            var data = System.Windows.Application.Current?.Dispatcher is { } ui && !ui.CheckAccess() ? await ui.InvokeAsync(() => StateJson(m)) : StateJson(m);
+            var data = await UiHost.Current.Invoke(() => StateJson(m));
             var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(data)))[..16];
             var now = DateTimeOffset.UtcNow;
             if (hash == s.StateTelemetryHash && !(daily && (s.StateTelemetrySent is null || now - s.StateTelemetrySent.Value >= TimeSpan.FromHours(20)))) return;
@@ -234,9 +234,9 @@ public static class Telemetry
             if (resp is null) return;
             if (!resp.IsSuccessStatusCode) { Log.Info($"State telemetry refused: {(int)resp.StatusCode}"); return; }
             void Record() { s.StateTelemetrySent = now; s.StateTelemetryHash = hash; try { s.Save(); } catch (IOException ex) { Log.Info($"State telemetry: settings not saved: {ex.Message}"); } }
-            if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess()) await d.InvokeAsync(Record);
-            else Record();
+            await UiHost.Current.Invoke(Record);
             Log.Info($"State telemetry sent ({data.Length} bytes)");
+
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException) { Log.Info($"State telemetry not sent: {ex.Message}"); }
         finally { Interlocked.Exchange(ref _stateSending, 0); }
@@ -268,7 +268,7 @@ public static class Telemetry
     /// The 15-minute tick: the day's usage record when due and allowed (time recorded only on a 2xx so a failed send retries next tick),
     /// then, at most once a day per process, the backup copy and the sweep of unsent builds, each under its own switch.
     /// </summary>
-    public static async Task SendIfDueAsync(MeterService m)
+    public static async Task SendIfDueAsync(MeterEngine m)
     {
         var now = DateTimeOffset.UtcNow;
         if (Interlocked.Exchange(ref _sending, 1) == 1) return;

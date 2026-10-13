@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AionMeter.Core.Combat;
 
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
 public enum HistoryMode
 {
@@ -14,8 +14,17 @@ public enum HistoryMode
 
 public sealed class AppSettings
 {
-    public static string AppDataDir { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AionMeter");
+    /// <summary>
+    /// %AppData%\AionMeter on Windows; $XDG_DATA_HOME/AionMeter (~/.local/share/AionMeter) elsewhere (A2M-48): .NET maps ApplicationData
+    /// to $XDG_CONFIG_HOME on Linux and LocalApplicationData to $XDG_DATA_HOME. Same layout and file formats on both.
+    /// </summary>
+    public static string AppDataDir { get; private set; } = DefaultAppDataDir();
+
+    public static string DefaultAppDataDir() => Path.Combine(Environment.GetFolderPath(OperatingSystem.IsWindows()
+        ? Environment.SpecialFolder.ApplicationData : Environment.SpecialFolder.LocalApplicationData), "AionMeter");
+
+    /// <summary>Daemon --data-dir and tests: call before anything touches <see cref="Log"/> (its file path is fixed on first use).</summary>
+    public static void UseAppDataDir(string dir) => AppDataDir = Path.GetFullPath(dir);
 
     private static string FilePath => Path.Combine(AppDataDir, "settings.json");
 
@@ -257,6 +266,11 @@ public sealed class AppSettings
     /// <summary>Throw-away settings (render tool): never written to disk.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Transient { get; init; }
+
+    /// <summary>Daemon --offline and tests: state files are written as usual, but nothing goes to the network (profile sync, price polls, Abyss Logs, questlog names, telemetry).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Offline { get; set; }
+
 
     public void Save()
     {

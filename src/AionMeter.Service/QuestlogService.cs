@@ -2,7 +2,7 @@ using System.IO;
 using System.Net.Http;
 using AionMeter.Core.Builds;
 
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
 /// <summary>
 /// The app's one questlog client (one request at a time, 400 ms apart) and its session caches: search pages per (term, page, class)

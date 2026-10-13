@@ -5,7 +5,7 @@ using AionMeter.Core.Combat;
 using AionMeter.Core.Events;
 using AionMeter.Core.Game;
 
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
 /// <summary>One tracked world boss.</summary>
 /// <param name="NpcCode">The boss; a list slot whose boss is not known yet is keyed by <c>-SlotId</c>.</param>

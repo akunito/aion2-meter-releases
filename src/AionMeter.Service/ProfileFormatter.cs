@@ -4,7 +4,7 @@ using AionMeter.Core.Armory;
 using AionMeter.Core.Game;
 using AionMeter.Core.Ranking;
 
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
 /// <summary>Plain-text block of an official profile next to a ranking entry; the join with the rotation is by skill code.</summary>
 public static class ProfileFormatter

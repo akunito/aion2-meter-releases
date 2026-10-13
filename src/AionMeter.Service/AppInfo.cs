@@ -1,4 +1,4 @@
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
 public static class AppInfo
 {

@@ -1,7 +1,7 @@
 <UserControl x:Class="AionMeter.App.Views.BuildView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:s="clr-namespace:AionMeter.App.Services" Background="#0D0D0D" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        xmlns:s="clr-namespace:AionMeter.Service;assembly=AionMeter.Service" Background="#0D0D0D" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
         FontFamily="Segoe UI" Foreground="#FAFAFA" FontSize="13">
     <!-- The approved mock is docs/mockups/build-tab/index.html in the project repo (questlog's planner look): colours and sizes follow its CSS -->
     <UserControl.Resources>

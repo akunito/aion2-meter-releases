@@ -122,7 +122,7 @@ public sealed class RotationStrip : FrameworkElement
         {
             if (!rect.Contains(p)) continue;
             var c = _casts[index];
-            var flags = c.Flags == HitFlags.None ? "" : " · " + Services.UiText.Current.FlagsText(c.Flags);
+            var flags = c.Flags == HitFlags.None ? "" : " · " + UiText.Current.FlagsText(c.Flags);
             _tip.Content = $"{Format.ClockPrecise(c.OffsetMs)}  {_skillName(c.SkillCode)}\n{Format.Grouped(c.Damage)}{flags}";
             _tip.IsOpen = true;
             return;

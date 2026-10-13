@@ -21,12 +21,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AionMeter.Core\AionMeter.Core.csproj" />
+    <!-- A2M-48: the WPF-free service layer (UiText since A2M-47, MeterEngine, settings) is tested here on linux -->
+    <ProjectReference Include="..\..\src\AionMeter.Service\AionMeter.Service.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- A2M-47: the interface wording has no WPF dependency, so the Spanish table is checked here on linux -->
-    <Compile Include="..\..\src\AionMeter.App\Services\UiText.cs" Link="Linked\UiText.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />

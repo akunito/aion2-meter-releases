@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
-using AionMeter.App.Services;
+using AionMeter.Service;
 using AionMeter.Core.Events;
 
 namespace AionMeter.Tests;

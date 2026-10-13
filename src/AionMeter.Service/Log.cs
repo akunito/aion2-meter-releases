@@ -1,8 +1,8 @@
 using System.IO;
 
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
-/// <summary>Tiny append-only log in %AppData%\AionMeter\logs — enough to diagnose capture problems from user reports.</summary>
+/// <summary>Tiny append-only log in %AppData%\AionMeter\logs (Linux: ~/.local/share/AionMeter/logs) — enough to diagnose capture problems from user reports.</summary>
 public static class Log
 {
     private static readonly object Gate = new();
@@ -52,9 +52,14 @@ public static class Log
         }
     }
 
+    /// <summary>Daemon --verbose: every line also goes here (level, message).</summary>
+    public static Action<string, string>? Mirror { get; set; }
+
     private static void Write(string level, string message)
     {
         if (!Enabled) return;
+        Mirror?.Invoke(level, message);
+
         try
         {
             lock (Gate)

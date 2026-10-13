@@ -3,7 +3,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 
-namespace AionMeter.App.Services;
+namespace AionMeter.Service;
 
 /// <summary>
 /// Bug reports a clanmate can produce without knowing where anything is (A2M-19, part 1: local bundle; part 2 sends it).

@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AionMeter.Core\AionMeter.Core.csproj" />
+    <ProjectReference Include="..\AionMeter.Service\AionMeter.Service.csproj" />
+
   </ItemGroup>
 
   <PropertyGroup>

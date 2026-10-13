@@ -64,7 +64,7 @@ public sealed class PriceChart : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e) { if (_hover >= 0) { _hover = -1; InvalidateVisual(); } }
 
     private FormattedText Text(string s, double size, Brush b, double dpi) => new(s, UiTextCulture, FlowDirection.LeftToRight, Face, size, b, dpi);
-    private static CultureInfo UiTextCulture => Services.UiText.Current.Culture;
+    private static CultureInfo UiTextCulture => UiText.Current.Culture;
     private static string N(long v) => v.ToString("N0", CultureInfo.InvariantCulture);
 
     protected override void OnRender(DrawingContext dc)

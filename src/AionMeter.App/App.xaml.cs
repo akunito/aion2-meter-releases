@@ -52,7 +52,9 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        UiHost.Current = new WpfUiHost(Dispatcher);
         if (ArgValue(e.Args, "--render-sample") is { } samplePath)
+
         {
             Log.Enabled = false;
             // --render-sample <out.png | folder with --animate> [--lang es] [--window …] [--width N] [--height N] [--tab …]
@@ -109,6 +111,7 @@ public partial class App : Application
         TaskScheduler.UnobservedTaskException += (_, ex) => { Log.Error("Unobserved task exception", ex.Exception); ex.SetObserved(); };
 
         var settings = AppSettings.Load();
+
         settings.Save(); // persist any migration done while loading
         UiText.Use(settings.Language);
         Core.Net.CloudflareHttp.SolverUrl = settings.CloudflareSolverUrl; // scrapers fall back to the solver when set
