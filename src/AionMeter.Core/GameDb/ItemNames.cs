@@ -79,28 +79,92 @@ public sealed class ItemNames
         return i < 0 ? (null, null) : (_en[i].Length > 0 ? _en[i] : null, _es[i].Length > 0 ? _es[i] : null);
     }
 
-    /// <summary>Items whose name in <paramref name="lang"/> contains every word of the query; prefix hits first, then shorter names.</summary>
+    /// <summary>
+    /// Items whose name in <paramref name="lang"/> contains every word of the query, or whose grade a word names ("legendary stone",
+    /// "piedra legendaria"); ranked by the first word that hit the name: prefix, then word start, then anywhere; then shorter names.
+    /// </summary>
     public List<(int Id, string En, string Es)> Search(string query, string lang = "en", int max = 30)
     {
         var result = new List<(int Id, string En, string Es)>();
-        var q = Normalize(query);
-        if (q.Length < 2) return result;
-        var words = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var q = ItemQuery.Parse(query);
+        if (q.Text.Length < 2) return result;
+        var words = q.Words;
         var keys = lang == "es" ? _esKey : _enKey;
+        var grades = _grade;
         var scored = new List<(int Score, int Len, int Index)>();
         for (var i = 0; i < keys.Length; i++)
         {
             var k = keys[i];
             if (k.Length == 0) continue;
+            var gb = grades.Length > i ? (byte)(1 << grades[i]) : (byte)1;
+            string? lead = null;
             var ok = true;
-            foreach (var w in words) if (!k.Contains(w, StringComparison.Ordinal)) { ok = false; break; }
+            for (var w = 0; w < words.Length; w++)
+            {
+                if (k.Contains(words[w], StringComparison.Ordinal)) { lead ??= words[w]; continue; }
+                if ((q.Masks[w] & gb) == 0) { ok = false; break; }
+            }
             if (!ok) continue;
-            var score = k.StartsWith(words[0], StringComparison.Ordinal) ? 0 : k.Contains(" " + words[0], StringComparison.Ordinal) ? 1 : 2;
+            var score = lead is null ? 3 : k.StartsWith(lead, StringComparison.Ordinal) ? 0 : k.Contains(" " + lead, StringComparison.Ordinal) ? 1 : 2;
             scored.Add((score, k.Length, i));
         }
         scored.Sort((a, b) => a.Score != b.Score ? a.Score.CompareTo(b.Score) : a.Len != b.Len ? a.Len.CompareTo(b.Len) : a.Index.CompareTo(b.Index));
         for (var i = 0; i < scored.Count && i < max; i++) { var ix = scored[i].Index; result.Add((_ids[ix], _en[ix], _es[ix])); }
         return result;
+    }
+
+    // ── grades (A2M-29 data) ─────────────────────────────────────────────────────────────────────
+    // Measured 2026-10-13 on 13,018 ids: 3,234 EN names are shared by 7,051 ids, 195 of them across grades (711 ids, e.g. "Artisan's
+    // Refining Stone" rare 610530005 / legendary 610530008); ES 2,350 shared, 32 across grades (113 ids; the game's es-ES names split the
+    // stones: "de experto" rare / "de artesano" legendary / "suprema" unique). The hub disambiguates with "(Grade: X)", "(Tradable: …)",
+    // "(ID: n)" suffixes that item-names.py strips, so names stay as the game shows them and the grade goes next to them as a tag.
+    private byte[] _grade = Array.Empty<byte>(), _amb = Array.Empty<byte>();
+
+    /// <summary>Grade per id for tags and grade-word search, plus which names (EN bit 1, ES bit 2) another id of a different grade shares.</summary>
+    public void AttachGrades(ItemGrades grades)
+    {
+        var gr = new byte[_ids.Length];
+        for (var i = 0; i < gr.Length; i++) gr[i] = (byte)grades.Of(_ids[i]);
+        var amb = new byte[_ids.Length];
+        Mark(_en, null, 1);
+        Mark(_es, _en, 2);
+        _grade = gr; _amb = amb;
+
+        void Mark(string[] names, string[]? fallback, byte bit)
+        {
+            var first = new Dictionary<string, int>(names.Length, StringComparer.Ordinal);
+            var mixed = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < names.Length; i++)
+            {
+                var n = names[i].Length > 0 ? names[i] : fallback?[i] ?? "";
+                if (n.Length == 0) continue;
+                if (first.TryGetValue(n, out var j)) { if (gr[j] != gr[i]) mixed.Add(n); }
+                else first[n] = i;
+            }
+            if (mixed.Count == 0) return;
+            for (var i = 0; i < names.Length; i++)
+            {
+                var n = names[i].Length > 0 ? names[i] : fallback?[i] ?? "";
+                if (n.Length > 0 && mixed.Contains(n)) amb[i] |= bit;
+            }
+        }
+    }
+
+    public Grade GradeOf(int id) { var i = Array.BinarySearch(_ids, id); return i >= 0 && i < _grade.Length ? (Grade)_grade[i] : Grade.Unknown; }
+
+    /// <summary>True when the name <see cref="Name"/> returns for <paramref name="lang"/> also belongs to an item of another grade.</summary>
+    public bool Ambiguous(int id, string lang = "en") { var i = Array.BinarySearch(_ids, id); return i >= 0 && i < _amb.Length && (_amb[i] & (lang == "es" ? 2 : 1)) != 0; }
+
+    /// <summary>Name as the game shows it plus the grade for the tag next to it; Name null for an unknown id.</summary>
+    public (string? Name, Grade Grade) Display(int id, string lang = "en") => (Name(id, lang), GradeOf(id));
+
+    /// <summary>Plain-text form for lists inside a line: "Artisan's Refining Stone (legendary)" only when the name alone is ambiguous.</summary>
+    public string? Label(int id, string lang = "en")
+    {
+        var n = Name(id, lang);
+        if (n is null || !Ambiguous(id, lang)) return n;
+        var g = GradeOf(id);
+        return g == Grade.Unknown ? n : n + " (" + ItemGrades.Word(g, lang) + ")";
     }
 
     /// <summary>Lower-case, accents stripped, punctuation to spaces, single spaces.</summary>
@@ -118,5 +182,43 @@ public sealed class ItemNames
             else if (!space && sb.Length > 0) { sb.Append(' '); space = true; }
         }
         return sb.ToString().TrimEnd();
+    }
+}
+
+/// <summary>
+/// A normalised item query: every word must be in one of the names, or name the item's grade (<see cref="ItemGrades.WordMask"/>), so
+/// "legendary stone" and "piedra legendaria" find the legendary stones whose name carries no grade. Shared by Prices, Craft and Items.
+/// </summary>
+public sealed class ItemQuery
+{
+    public static readonly ItemQuery Empty = new("", Array.Empty<string>(), Array.Empty<byte>());
+    public string Text { get; }
+    public string[] Words { get; }
+    public byte[] Masks { get; }
+    private ItemQuery(string text, string[] words, byte[] masks) { Text = text; Words = words; Masks = masks; }
+    public bool IsEmpty => Words.Length == 0;
+
+    public static ItemQuery Parse(string? text)
+    {
+        var q = ItemNames.Normalize(text ?? "");
+        if (q.Length == 0) return Empty;
+        var words = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var masks = new byte[words.Length];
+        for (var i = 0; i < words.Length; i++) masks[i] = ItemGrades.WordMask(words[i]);
+        return new ItemQuery(q, words, masks);
+    }
+
+    /// <summary>Keys are already normalised (<see cref="ItemNames.Normalize"/>); empty keys are skipped.</summary>
+    public bool Matches(Grade grade, string k1, string k2 = "", string k3 = "", string k4 = "")
+    {
+        var gb = (byte)(1 << (int)grade);
+        for (var w = 0; w < Words.Length; w++)
+        {
+            var word = Words[w];
+            if (k1.Contains(word, StringComparison.Ordinal) || (k2.Length > 0 && k2.Contains(word, StringComparison.Ordinal)) ||
+                (k3.Length > 0 && k3.Contains(word, StringComparison.Ordinal)) || (k4.Length > 0 && k4.Contains(word, StringComparison.Ordinal))) continue;
+            if ((Masks[w] & gb) == 0) return false;
+        }
+        return true;
     }
 }

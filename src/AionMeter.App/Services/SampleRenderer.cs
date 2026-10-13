@@ -17,7 +17,7 @@ public static class SampleRenderer
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
     /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
-    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market).</param>
+    /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market). Prices: expanded (first row open) or search ("refining stone" in the add-item search, grade chips).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
     /// <param name="AbyssLogs">Inject a sample Abyss Logs percentile line (A2M-38) for the sample fight: breakdown header, overlay status line.</param>
@@ -150,6 +150,7 @@ public static class SampleRenderer
                         break;
                     case Views.PriceWatchView pricesView:
                         pricesView.ShowSample(SamplePrices(), tabIcons, DateTimeOffset.Now.AddMinutes(-12), o.Tab == "expanded");   // --tab expanded: first row open (listings + 30-day chart)
+                        if (o.Tab == "search") pricesView.SampleSearch("refining stone");   // --tab search: the add-item search with grade chips
                         break;
                     case Views.BossTimersView timersView:
                         FeedTimers(meter);
@@ -494,7 +495,7 @@ public static class SampleRenderer
         return all;
     }
 
-    /// <summary>Six made-up watches over items of the sample market (Vaizel, 2026-10-08): two buys and a sell at their price, two not yet, one holding in profit.</summary>
+    /// <summary>Eight made-up watches over items of the sample market (Vaizel, 2026-10-08): two buys and a sell at their price, two not yet, one holding in profit.</summary>
     private static List<Core.Market.PriceWatch> SamplePrices()
     {
         var now = DateTimeOffset.Now;
@@ -504,6 +505,8 @@ public static class SampleRenderer
             (610511014, "Wrathful Will", 250_000, false, 240_000, 236_000, 29, 0, 0),
             (610620016, "Radiant Orichalcum Ore", 60_000, true, 64_999, 61_500, 39, 40, 52_000),
             (610610016, "Radiant Odyle", 300_000, false, 355_544, 349_000, 84, 0, 0),
+            (610530005, "Artisan's Refining Stone", 45_000, false, 48_500, 47_000, 41, 0, 0),         // rare and legendary share the EN name: the grade chip tells them apart
+            (610530008, "Artisan's Refining Stone", 90_000, false, 96_000, 99_500, 27, 0, 0),
             (610530010, "Artisan's Ultimate Refining Stone", 200_000, false, 225_000, 241_000, 33, 0, 0),
             (110240012, "Expert's Splendent Orichalcum Longsword", 3_500_000, true, 2_950_000, 3_020_000, 23, 1, 2_400_000),
         ];

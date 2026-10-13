@@ -26,6 +26,34 @@ public sealed class ItemGrades
 
     public static string Name(Grade g) => g switch { Grade.Common => "common", Grade.Rare => "rare", Grade.Legendary => "legendary", Grade.Unique => "unique", Grade.Epic => "epic", Grade.Special => "special", _ => "" };
 
+    /// <summary>Tag shown after a name ("Artisan's Refining Stone" is rare 610530005 and legendary 610530008 in English): the grade word in the name's language.</summary>
+    public static string Word(Grade g, string lang) => lang == "es"
+        ? g switch { Grade.Common => "común", Grade.Rare => "raro", Grade.Legendary => "legendario", Grade.Unique => "único", Grade.Epic => "épico", Grade.Special => "especial", _ => "" }
+        : Name(g);
+
+    // Search words per grade (normalised: no accents). "heroic" is the hub's name for the orange top grade (tools/item-grades.py maps it to epic).
+    private static readonly (string Word, Grade G)[] SearchWords =
+    {
+        ("common", Grade.Common), ("comun", Grade.Common), ("rare", Grade.Rare), ("raro", Grade.Rare), ("rara", Grade.Rare),
+        ("legendary", Grade.Legendary), ("legendario", Grade.Legendary), ("legendaria", Grade.Legendary),
+        ("unique", Grade.Unique), ("unico", Grade.Unique), ("unica", Grade.Unique),
+        ("epic", Grade.Epic), ("epico", Grade.Epic), ("epica", Grade.Epic), ("heroic", Grade.Epic), ("heroico", Grade.Epic), ("heroica", Grade.Epic),
+        ("special", Grade.Special), ("especial", Grade.Special),
+    };
+
+    /// <summary>
+    /// Bit (1 &lt;&lt; grade) for every grade a normalised query word names: a prefix of the word ("legend", "unic") or the word plus a plural
+    /// ("legendarias", "comunes"). Under 4 letters never counts, so "com"/"esp" typed on the way to a name do not pull a whole grade in.
+    /// </summary>
+    public static byte WordMask(string word)
+    {
+        if (word.Length < 4) return 0;
+        byte m = 0;
+        foreach (var (w, g) in SearchWords)
+            if (w.StartsWith(word, StringComparison.Ordinal) || word.StartsWith(w, StringComparison.Ordinal)) m |= (byte)(1 << (int)g);
+        return m;
+    }
+
     public static Grade ParseGrade(string? s) => s switch { "common" => Grade.Common, "rare" => Grade.Rare, "legendary" => Grade.Legendary, "unique" => Grade.Unique, "epic" => Grade.Epic, "special" => Grade.Special, _ => Grade.Unknown };
 
     public static ItemGrades Load(string path)

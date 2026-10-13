@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Controls;
 using System.Windows.Media;
+using AionMeter.App.Controls;
 using AionMeter.App.Services;
 using AionMeter.Core.GameDb;
 
@@ -22,6 +23,7 @@ public partial class CraftView : UserControl
     {
         public string Name { get; init; } = ""; public string Sub { get; init; } = ""; public string Times { get; init; } = ""; public Brush TimesBrush { get; init; } = Ok; public Brush Frame { get; init; } = CraftView.Frame;
         public int Output { get; init; } public bool Fav { get; init; }
+        public GradeTag? GradeChip { get; init; }
         public IconCache? Icons { get; init; }
         private ImageSource? _icon; private bool _asked;
         // asked only when the row is realised by the virtualised list, so a 1,684-row scope queues icons for the visible rows alone
@@ -86,9 +88,10 @@ public partial class CraftView : UserControl
     // 602 of the 1,684 hub recipes share their name with another one: the Elyos/Asmodian item pair (same materials, or the base item
     // of the other faction) and the two routes of the top gear (level 90 from the previous tier vs level 0 from a token). One row per
     // name and profession (Diego 2026-10-11, "están duplicadas otra vez"): the variant the character can craft, else the one missing least.
-    private static string TwinKey(Core.GameDb.Recipe r, string name) => name + "|" + r.Profession;
+    // grade in the key: same-named outputs of different grades ("Artisan's Refining Stone" rare/legendary in EN) are different recipes, not variants
+    private string TwinKey(Core.GameDb.Recipe r, string name) => name + "|" + r.Profession + "|" + (int)_meter.Grades.Of(r.Output);
     /// <summary>Output ids to show: the best variant per twin key, plus how many variants the key has (for the "+N" marker).</summary>
-    private static (HashSet<int> Keep, Dictionary<int, int> Variants) PickTwins(IReadOnlyList<Core.GameDb.CraftOption> opts, Func<int, string> Nm)
+    private (HashSet<int> Keep, Dictionary<int, int> Variants) PickTwins(IReadOnlyList<Core.GameDb.CraftOption> opts, Func<int, string> Nm)
     {
         var best = new Dictionary<string, Core.GameDb.CraftOption>(opts.Count);
         var count = new Dictionary<string, int>(opts.Count);
@@ -104,7 +107,8 @@ public partial class CraftView : UserControl
     }
     private static bool Better(Core.GameDb.CraftOption a, Core.GameDb.CraftOption b) =>
         a.Times != b.Times ? a.Times > b.Times : a.Missing.Length != b.Missing.Length ? a.Missing.Length < b.Missing.Length : a.Recipe.Level < b.Recipe.Level;
-    private static bool Match(string q, params string[] names) { foreach (var n in names) if (n.Length > 0 && ItemNames.Normalize(n).Contains(q, StringComparison.Ordinal)) return true; return false; }
+    private bool Match(ItemQuery q, int output, string name, string en, string es, string recipe) =>
+        q.Matches(_meter.Grades.Of(output), ItemNames.Normalize(name), ItemNames.Normalize(en), ItemNames.Normalize(es), ItemNames.Normalize(recipe));
     private void Profession_Checked(object sender, RoutedEventArgs e) { if (IsLoaded && sender is RadioButton { Tag: string key }) { _profession = key; Reload(); } }
 
     /// <summary>Craft → Load market file…: the JSON the browser-console script saved in Downloads (Prices → Copy market script).</summary>
@@ -120,7 +124,7 @@ public partial class CraftView : UserControl
     private static string Kinah(long v) => v >= 1_000_000 ? (v / 1_000_000.0).ToString("0.##", CultureInfo.InvariantCulture) + "M" : v >= 1_000 ? (v / 1_000.0).ToString("0.#", CultureInfo.InvariantCulture) + "k" : v.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>Profit mode: every recipe whose output is on the market, most profitable first (cheapest listings, fee from settings).</summary>
-    private void ReloadProfit(Func<int, string> Nm, string q)
+    private void ReloadProfit(Func<int, string> Nm, Func<int, string> Lb, ItemQuery q, string lang)
     {
         var m = MarketNow;
         if (m.Count == 0) { List.ItemsSource = Array.Empty<Row>(); StatusText.Text = T.CraftNoMarket; return; }
@@ -131,15 +135,15 @@ public partial class CraftView : UserControl
         {
             var name = Nm(p.Recipe.Output); var (en, es) = _meter.Names.Both(p.Recipe.Output);
             if (!seen.Add(TwinKey(p.Recipe, name))) continue;
-            if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", p.Recipe.Name)) continue;
+            if (!q.IsEmpty && !Match(q, p.Recipe.Output, name, en ?? "", es ?? "", p.Recipe.Name)) continue;
             if (++shown > 150) break;
-            var mats = string.Join(", ", p.Recipe.Materials.Select(x => $"{Nm(x.Item)} ×{x.Qty}" + (m.Price(x.Item) is { } mp ? $" @{Kinah(mp)}" : " @?")));
+            var mats = string.Join(", ", p.Recipe.Materials.Select(x => $"{Lb(x.Item)} ×{x.Qty}" + (m.Price(x.Item) is { } mp ? $" @{Kinah(mp)}" : " @?")));
             var margin = p.Cost > 0 ? (double)p.Profit / p.Cost * 100 : 0;
             var sub = $"{p.Recipe.Profession} {p.Recipe.Level} · {p.Recipe.Grade} · {T.CraftSells} {Kinah(p.OutUnit)}" + (p.Recipe.Yield > 1 ? $" ×{p.Recipe.Yield}" : "") +
                       $" → {Kinah(p.Value)} {T.CraftAfterFee} · {T.CraftCost} {Kinah(p.Cost)}" + (p.UnpricedMaterials > 0 ? $" ({p.UnpricedMaterials} {T.CraftUnpriced})" : "") +
                       (p.Times > 0 ? $" · ×{p.Times} {T.CraftNow}" : "") + "\n" + mats;
             var good = p.Profit > 0;
-            rows.Add(new Row { Name = name, Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output), Icons = RowIcons });
+            rows.Add(new Row { Name = name, GradeChip = GradeTag.Of(_meter.Grades.Of(p.Recipe.Output), lang), Sub = sub, Times = (good ? "+" : "") + Kinah(p.Profit) + (p.Cost > 0 ? $" ({margin:+0;-0}%)" : ""), TimesBrush = good ? Ok : Bad, Frame = good && p.Times > 0 ? OkFrame : Frame, Output = p.Recipe.Output, Fav = favs.Contains(p.Recipe.Output), Icons = RowIcons });
         }
         List.ItemsSource = rows;
         StatusText.Text = string.Format(T.CraftMarketFrom, m.Count, m.Server, m.CapturedAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "?", fee.ToString("0.#", CultureInfo.InvariantCulture));
@@ -149,10 +153,11 @@ public partial class CraftView : UserControl
     {
         var names = _meter.Names; var lang = _meter.Settings.PriceSearchLanguage;
         string Nm(int id) => names.Name(id, lang) ?? _meter.Items.NameOf(id);
-        var q = ItemNames.Normalize(SearchBox.Text);
-        if (ProfitBox.IsChecked == true) { ReloadProfit(Nm, q); return; }
+        string Lb(int id) => names.Label(id, lang) ?? _meter.Items.NameOf(id);   // materials: "(legendary)" only on an ambiguous name
+        var q = ItemQuery.Parse(SearchBox.Text);
+        if (ProfitBox.IsChecked == true) { ReloadProfit(Nm, Lb, q, lang); return; }
         // Typing searches the whole book (Diego 2026-10-11): the scope only applies while the box is empty
-        var scope = q.Length > 0 ? "all" : Scope; var favs = _meter.Settings.CraftFavourites;
+        var scope = !q.IsEmpty ? "all" : Scope; var favs = _meter.Settings.CraftFavourites;
         // one pass over every recipe (1,684: cheap); the scope filters, favourites bypass it and lead the list
         var opts = _meter.Recipes.Evaluate(CountOf, 99, _profession.Length == 0 ? null : _profession);
         var rows = new List<Row>(opts.Count); var craftable = 0; var (keep, variants) = PickTwins(opts, Nm);
@@ -163,14 +168,15 @@ public partial class CraftView : UserControl
             if (!fav && scope == "now" && o.Times == 0) continue;
             if (!fav && scope == "near" && o.Times == 0 && o.Missing.Length > 2) continue;
             var name = Nm(o.Recipe.Output); var (en, es) = _meter.Names.Both(o.Recipe.Output);
-            if (q.Length > 0 && !Match(q, name, en ?? "", es ?? "", o.Recipe.Name)) continue;
-            var mats = string.Join(", ", o.Recipe.Materials.Select(m => $"{Nm(m.Item)} ×{m.Qty}"));
+            if (!q.IsEmpty && !Match(q, o.Recipe.Output, name, en ?? "", es ?? "", o.Recipe.Name)) continue;
+            var chip = GradeTag.Of(_meter.Grades.Of(o.Recipe.Output), lang);
+            var mats = string.Join(", ", o.Recipe.Materials.Select(m => $"{Lb(m.Item)} ×{m.Qty}"));
             var sub = $"{o.Recipe.Profession} {o.Recipe.Level} · {o.Recipe.Grade}" + (variants[o.Recipe.Output] > 1 ? $" · +{variants[o.Recipe.Output] - 1} {T.CraftVariant}" : "") + $" · {mats}";
-            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icons = RowIcons }); }
-            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icons = RowIcons, Name = name, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Nm(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
+            if (o.Times > 0) { craftable++; rows.Add(new Row { Name = name, GradeChip = chip, Sub = sub, Times = "×" + o.Times.ToString(CultureInfo.InvariantCulture), TimesBrush = Ok, Frame = OkFrame, Output = o.Recipe.Output, Fav = fav, Icons = RowIcons }); }
+            else rows.Add(new Row { Output = o.Recipe.Output, Fav = fav, Icons = RowIcons, Name = name, GradeChip = chip, Sub = sub + "  —  " + T.CraftMissing + ": " + string.Join(", ", o.Missing.Select(m => $"{Lb(m.Item)} {m.Have}/{m.Need}" + (names.Source(m.Item) is { } src ? $" ({src})" : ""))), Times = "", TimesBrush = Near });
         }
         List.ItemsSource = rows;
-        StatusText.Text = q.Length > 0 ? string.Format(T.CraftMatches, rows.Count, craftable) : string.Format(T.CraftStatus, craftable, rows.Count - craftable);
+        StatusText.Text = !q.IsEmpty ? string.Format(T.CraftMatches, rows.Count, craftable) : string.Format(T.CraftStatus, craftable, rows.Count - craftable);
     }
 
     private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(sender is FrameworkElement { Tag: string t } ? t : "meter");

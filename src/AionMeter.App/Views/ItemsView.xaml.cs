@@ -55,6 +55,7 @@ public partial class ItemsView : UserControl
     private readonly HashSet<string> _collapsed = ["eq", "x17", "ach"], _listMode = [];
     private readonly CharacterFiles _charFiles = new();
     private readonly Dictionary<int, (string En, string Es)> _norm = new();
+    private ItemQuery _query = ItemQuery.Empty;   // words of _q: each in a name or naming the grade ("legendary stone")
     private readonly Dictionary<string, (DateTime Written, string Cls)> _cls = new();
     private ItemsIndex _index = new();
     private int _columns = 12;
@@ -81,7 +82,7 @@ public partial class ItemsView : UserControl
         _syncing = false;
         BuildLegend();
         _reloadTick.Tick += (_, _) => { _reloadTick.Stop(); Reload(); };
-        _searchTick.Tick += (_, _) => { _searchTick.Stop(); _q = ItemNames.Normalize(SearchBox.Text); Render(); };
+        _searchTick.Tick += (_, _) => { _searchTick.Stop(); _q = ItemNames.Normalize(SearchBox.Text); _query = ItemQuery.Parse(_q); Render(); };
         _iconTick.Tick += (_, _) => { _iconTick.Stop(); ItemTile.NotifyIcons(); };
         Loaded += (_, _) =>
         {
@@ -110,7 +111,7 @@ public partial class ItemsView : UserControl
     public void ShowSample(Data data) { _sample = true; _data = data; Render(); }
 
     /// <summary>Render tool (--tab search): the search box filled as a user would type it.</summary>
-    public void SampleSearch(string text) { SearchBox.Text = text; _searchTick.Stop(); _q = ItemNames.Normalize(text); Render(); }
+    public void SampleSearch(string text) { SearchBox.Text = text; _searchTick.Stop(); _q = ItemNames.Normalize(text); _query = ItemQuery.Parse(_q); Render(); }
 
     /// <summary>Render tool (--tab list): every card in list mode, Equipped open.</summary>
     public void SampleListMode() { _listMode.UnionWith(["bag", "wh", "acct", "eq", "x17"]); _collapsed.Clear(); Render(); }
@@ -181,6 +182,8 @@ public partial class ItemsView : UserControl
     // ------------------------------------------------------------------ helpers
 
     private string Nm(int id) => _meter.Names.Name(id, _lang) ?? _meter.Items.NameOf(id);
+    private string Lb(int id) => _meter.Names.Label(id, _lang) ?? _meter.Items.NameOf(id);   // inside a line: "(legendary)" only on an ambiguous name
+    private GradeTag? GradeChipOf(int id) => GradeTag.Of(_meter.Grades.Of(id), _lang);
     private string OtherName(int id) { var (en, es) = _meter.Names.Both(id); var other = _lang == "es" ? en : es; return other is not null && other != Nm(id) ? other : ""; }
     private long? Price(int id) => _data?.Market.Price(id);
 
@@ -193,7 +196,7 @@ public partial class ItemsView : UserControl
             n = (ItemNames.Normalize(en ?? _meter.Items.NameOf(id)), ItemNames.Normalize(es ?? ""));
             _norm[id] = n;
         }
-        return n.En.Contains(_q, StringComparison.Ordinal) || n.Es.Contains(_q, StringComparison.Ordinal);
+        return _query.Matches(_meter.Grades.Of(id), n.En, n.Es);
     }
 
     private bool InGroup(int id) => _group switch { "eq" => ItemKinds.Group(id) == ItemGroup.Equipment, "mat" => ItemKinds.Group(id) == ItemGroup.Materials, "use" => ItemKinds.Group(id) == ItemGroup.Consumables, _ => true };
@@ -371,7 +374,7 @@ public partial class ItemsView : UserControl
         Cell(g, 1, tier, Dim, 11.5);
         var rewards = info.Tiers[a.NextTier - 1].Rewards;
         var parts = new List<string>(rewards.Length);
-        foreach (var (item, amount) in rewards) parts.Add(Nm(item) + " ×" + N(amount));
+        foreach (var (item, amount) in rewards) parts.Add(Lb(item) + " ×" + N(amount));
         var rw = Cell(g, 2, string.Join(", ", parts), Num, 11.5);
         rw.ToolTip = string.Join("\n", parts);
         return new Border { BorderBrush = RowLine, BorderThickness = new Thickness(0, 0, 0, 0.8), Child = g };
@@ -528,6 +531,7 @@ public partial class ItemsView : UserControl
         var name = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         name.Inlines.Add(new Run(Nm(s.Item)) { Foreground = ItemTile.TextOf(grade) });
         if (s.Enchant > 0) name.Inlines.Add(new Run(" +" + s.Enchant.ToString(CultureInfo.InvariantCulture)) { Foreground = Num });
+        if (GradeChipOf(s.Item) is { } chip) name.Inlines.Add(chip.Inline());
         if (_meter.Grades.Bound(s.Item)) { name.Inlines.Add(new LineBreak()); name.Inlines.Add(new Run(T.ItemsBound) { Foreground = Mute, FontSize = 11 }); }
         Grid.SetColumn(name, 1); g.Children.Add(name);
         Cell(g, 2, N(s.Count), Text, 12.5, true);
@@ -618,12 +622,22 @@ public partial class ItemsView : UserControl
         tile.Set(item, 1, 0, grade, Nm(item), _icons);
         head.Children.Add(tile);
         var names = new StackPanel { Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        names.Children.Add(new TextBlock { Text = Nm(item), FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = ItemTile.TextOf(grade), TextWrapping = TextWrapping.Wrap });
+        names.Children.Add(NameLine(item, grade, 13.5, wrap: true));
         if (OtherName(item) is { Length: > 0 } other) names.Children.Add(new TextBlock { Text = other, FontSize = 11, Foreground = Mute, TextWrapping = TextWrapping.Wrap });
-        var g = grade == Grade.Unknown ? T.ItemsGradeUnknown : ItemGrades.Name(grade);
-        names.Children.Add(new TextBlock { Text = g + (_meter.Grades.Bound(item) ? " · " + T.ItemsBound : "") + " · id " + item.ToString(CultureInfo.InvariantCulture), FontSize = 11, Foreground = Mute });
+        // the grade is on the chip; the line keeps "grade unknown" when there is none
+        var meta = (grade == Grade.Unknown ? T.ItemsGradeUnknown + " · " : "") + (_meter.Grades.Bound(item) ? T.ItemsBound + " · " : "") + "id " + item.ToString(CultureInfo.InvariantCulture);
+        names.Children.Add(new TextBlock { Text = meta, FontSize = 11, Foreground = Mute });
         head.Children.Add(names);
         return head;
+    }
+
+    /// <summary>Name in the grade colour plus the grade chip (same-named items differ only by grade).</summary>
+    private TextBlock NameLine(int item, Grade grade, double size, bool wrap)
+    {
+        var t = new TextBlock { FontSize = size, FontWeight = FontWeights.SemiBold, TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap };
+        t.Inlines.Add(new Run(Nm(item)) { Foreground = ItemTile.TextOf(grade) });
+        if (GradeTag.Of(grade, _lang) is { } chip) t.Inlines.Add(chip.Inline());
+        return t;
     }
 
     // ------------------------------------------------------------------ Across characters
@@ -666,7 +680,7 @@ public partial class ItemsView : UserControl
         head.Children.Add(tile);
         var grade = _meter.Grades.Of(item);
         var names = new StackPanel { Margin = new Thickness(9, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        names.Children.Add(new TextBlock { Text = Nm(item), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = ItemTile.TextOf(grade), TextWrapping = TextWrapping.Wrap });
+        names.Children.Add(NameLine(item, grade, 13, wrap: true));
         if (OtherName(item) is { Length: > 0 } other) names.Children.Add(new TextBlock { Text = other, FontSize = 11, Foreground = Mute, TextTrimming = TextTrimming.CharacterEllipsis });
         head.Children.Add(names);
         root.Children.Add(head);
@@ -693,11 +707,14 @@ public partial class ItemsView : UserControl
         var t = new TextBlock { FontSize = 11.5, Foreground = Dim, TextWrapping = TextWrapping.Wrap, LineHeight = 17, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
         var outName = Nm(h.Recipe.Output);
         var link = new Hyperlink(new Run(T.ItemsOpenCraft)) { Foreground = Blue, TextDecorations = null, Cursor = Cursors.Hand };
-        link.Click += (_, _) => OpenInCraft?.Invoke(outName);
+        // an ambiguous name carries its grade word so Craft's search keeps only this grade
+        var craftQuery = _meter.Names.Ambiguous(h.Recipe.Output, _lang) && _meter.Grades.Of(h.Recipe.Output) is var og && og != Grade.Unknown ? outName + " " + ItemGrades.Word(og, _lang) : outName;
+        link.Click += (_, _) => OpenInCraft?.Invoke(craftQuery);
         var linkBlock = new TextBlock { FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8, 0, 0, 0) };
         linkBlock.Inlines.Add(link);
         t.Inlines.Add(new Run(T.ItemsUsedIn + " "));
         t.Inlines.Add(new Run(outName) { Foreground = ItemTile.TextOf(_meter.Grades.Of(h.Recipe.Output)) });
+        if (GradeChipOf(h.Recipe.Output) is { } chip) t.Inlines.Add(chip.Inline(10));
         t.Inlines.Add(new Run($" {h.Recipe.Profession} {h.Recipe.Level}") { Foreground = Mute });
         t.Inlines.Add(new LineBreak());
         t.Inlines.Add(new Run(string.Format(T.ItemsNeeds, N(h.Need), N(h.Have))));
@@ -705,7 +722,7 @@ public partial class ItemsView : UserControl
         if (h.Missing.Length > 0)
         {
             t.Inlines.Add(new LineBreak());
-            var miss = string.Join(" · ", h.Missing.Take(4).Select(m => $"{Nm(m.Item)} {N(m.Have)}/{m.Need}")) + (h.Missing.Length > 4 ? " " + string.Format(T.ItemsMore, h.Missing.Length - 4) : "");
+            var miss = string.Join(" · ", h.Missing.Take(4).Select(m => $"{Lb(m.Item)} {N(m.Have)}/{m.Need}")) + (h.Missing.Length > 4 ? " " + string.Format(T.ItemsMore, h.Missing.Length - 4) : "");
             t.Inlines.Add(new Run(string.Format(T.ItemsMissing, miss)) { Foreground = Amber });
         }
         else { t.Inlines.Add(new Run(" · ")); t.Inlines.Add(new Run(T.ItemsAllMats) { Foreground = Green }); }

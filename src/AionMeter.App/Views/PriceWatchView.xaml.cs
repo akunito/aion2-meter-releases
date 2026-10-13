@@ -6,7 +6,9 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using AionMeter.App.Controls;
 using AionMeter.App.Services;
+using AionMeter.Core.GameDb;
 using AionMeter.Core.Market;
 
 namespace AionMeter.App.Views;
@@ -59,7 +61,11 @@ public partial class PriceWatchView : UserControl
         public FrameworkElement? Detail { get; init; }
         public string Name { get; }
         public string Alt { get; init; } = "";
-        public object? AltTip => Alt.Length > 0 ? Alt : null;   // null = no tooltip at all
+        /// <summary>Chip after the English name; the Spanish tooltip carries the Spanish grade word.</summary>
+        public GradeTag? GradeChip { get; init; }
+        public string AltGrade { get; init; } = "";
+        /// <summary>Full name (it trims on a narrow card) with its grade, then the Spanish name with the Spanish grade word.</summary>
+        public string NameTip => (GradeChip is { } g ? Name + " · " + g.Text : Name) + (Alt.Length > 0 ? "\n" + (AltGrade.Length > 0 ? Alt + " · " + AltGrade : Alt) : "");
         public ImageSource? Icon { get; init; }
         public string Sub { get; }
         public string MaxText { get; }
@@ -76,7 +82,11 @@ public partial class PriceWatchView : UserControl
         public Brush Frame { get; }
     }
 
-    public sealed record Hit(int Id, string Label);
+    /// <summary>Search result: name in the search language, its grade chip right after it, then "· other-language name".</summary>
+    public sealed record Hit(int Id, string Main, string Alt, GradeTag? GradeChip)
+    {
+        public string Label => Alt.Length > 0 ? Main + Alt : Main;
+    }
 
     public PriceWatchView(MeterService meter)
     {
@@ -158,7 +168,9 @@ public partial class PriceWatchView : UserControl
             var open = w.Item == _expanded;
             var detail = open ? BuildDetail(w) : null;
             scrollTo ??= detail;
-            rows.Add(new Row(w, en ?? fallbackName(w)) { Alt = es ?? "", Icon = icon(w.Item), Expanded = open, Detail = detail });
+            var grade = _meter.Names.GradeOf(w.Item);
+            if (grade == Grade.Unknown) grade = _meter.Grades.Of(w.Item);
+            rows.Add(new Row(w, en ?? fallbackName(w)) { Alt = es ?? "", GradeChip = GradeTag.Of(grade, "en"), AltGrade = ItemGrades.Word(grade, "es"), Icon = icon(w.Item), Expanded = open, Detail = detail });
         }
         if (scrollTo is { } d && !_sample) d.Loaded += static (o, _) => ((FrameworkElement)o).BringIntoView();
         return rows;
@@ -423,6 +435,9 @@ public partial class PriceWatchView : UserControl
 
     private void Search_TextChanged(object sender, TextChangedEventArgs e) => RunSearch();
 
+    /// <summary>Render tool (--window prices --tab search): the add-item search box filled as a user would type it.</summary>
+    public void SampleSearch(string text) { SearchBox.Text = text; RunSearch(); }
+
     private void RunSearch()
     {
         var q = SearchBox.Text;
@@ -433,7 +448,7 @@ public partial class PriceWatchView : UserControl
         {
             var main = Lang == "es" && es.Length > 0 ? es : en;
             var alt = Lang == "es" ? en : es;
-            list.Add(new Hit(id, alt.Length > 0 && alt != main ? $"{main}  ·  {alt}" : main));
+            list.Add(new Hit(id, main, alt.Length > 0 && alt != main ? "  ·  " + alt : "", GradeTag.Of(_meter.Names.GradeOf(id), Lang)));
         }
         Results.ItemsSource = list;
         Results.Visibility = list.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -453,7 +468,7 @@ public partial class PriceWatchView : UserControl
     private void Pick(Hit h)
     {
         ItemBox.Text = h.Id.ToString();
-        AddHint.Text = h.Label;
+        AddHint.Text = h.GradeChip is { } g ? h.Main + " [" + g.Text + "]" + h.Alt : h.Label;
         Results.Visibility = Visibility.Collapsed;
         MaxBox.Focus();
     }

@@ -48,6 +48,7 @@ public sealed class MeterService : IDisposable
         Titles = TitleBook.Load(Path.Combine(DataDirectory, "gamedb", "titles.json"));
         Names.LoadSources(Path.Combine(DataDirectory, "gamedb", "item-sources.json"));
         Grades = ItemGrades.Load(Path.Combine(DataDirectory, "gamedb", "item-grades.json"));
+        Names.AttachGrades(Grades);   // grade tags next to ambiguous names + "legendary stone" searches
         Account = new AccountWarehouse(settings.Transient ? null : Path.Combine(AppSettings.AppDataDir, "account-warehouse.json"));
         if (!settings.Transient) SeedAccountWarehouse();
         Log.Info($"Item names: {Names.Count} (es: {Names.CountWith("es")})");
