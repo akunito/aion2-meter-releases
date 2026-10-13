@@ -36,6 +36,7 @@ public static class ViewRegistry
         ["items"] = s => new ItemsView(s),
         ["craft"] = s => new CraftView(s),
         ["prices"] = s => new PricesView(s),
+        ["build"] = s => new BuildView(s),
         // next view agents: ["build"] = s => new BuildView(s), ["items"] = …, ["timers"] = …, ["atlas"] = …, ["top"] = …, ["prices"] = …, ["craft"] = …
     };
 

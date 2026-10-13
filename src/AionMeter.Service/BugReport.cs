@@ -106,10 +106,39 @@ public static class BugReport
         return null;
     }
 
+    /// <summary>Explorer on the zip (Windows); on Linux the file manager on the reports folder through xdg-open (no portable "select this file").</summary>
     public static void Reveal(string path)
     {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); }
-        catch (System.ComponentModel.Win32Exception ex) { Log.Error("Could not open Explorer", ex); }
+        try
+        {
+            if (OperatingSystem.IsWindows()) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
+            else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", Path.GetDirectoryName(path) ?? path) { UseShellExecute = false });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { Log.Error("Could not open the reports folder", ex); }
+    }
+
+    /// <summary>
+    /// "Send to Diego" without the window (A2M-48 phase 3c, from the WPF BugReportWindow): the zip per <paramref name="policy"/>, the upload,
+    /// and the send recorded in <see cref="AppSettings.ReportSends"/> (saved) for <see cref="SendBlock"/>. Throws what Create/upload throw; the
+    /// zip path is in <see cref="SendFailure.Zip"/> when the upload failed after the zip was made. <paramref name="upload"/>/<paramref name="create"/>: tests.
+    /// </summary>
+    public static async Task<(string Zip, string Id)> SendAsync(AppSettings s, string note, Core.Diagnostics.SharePolicy policy, CancellationToken ct = default,
+        Func<string, string, CancellationToken, Task<string>>? upload = null, Func<string, Core.Diagnostics.SharePolicy, string>? create = null)
+    {
+        if (SendBlock(s, DateTimeOffset.UtcNow) is { } block) throw new InvalidOperationException($"report send blocked ({block.Reason}, {block.Wait:g})");
+        var zip = (create ?? Create)(note, policy);
+        string id;
+        try { id = await (upload ?? UploadAsync)(zip, note, ct).ConfigureAwait(true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException or TaskCanceledException) { throw new SendFailure(zip, ex); }
+        s.ReportSends.Add(DateTimeOffset.UtcNow);
+        try { s.Save(); } catch (IOException ex) { Log.Info($"Report send not recorded in settings.json: {ex.Message}"); }
+        return (zip, id);
+    }
+
+    /// <summary>The upload failed after the zip was written: <see cref="Zip"/> stays for the user to hand over by other means.</summary>
+    public sealed class SendFailure(string zip, Exception inner) : IOException(inner is TaskCanceledException ? "timeout" : inner.Message, inner)
+    {
+        public string Zip { get; } = zip;
     }
 
     private static string Environment()
@@ -117,7 +146,7 @@ public static class BugReport
         var build = "?";
         try { var p = Path.Combine(AppContext.BaseDirectory, "BUILD-INFO.txt"); if (File.Exists(p)) build = string.Join(" | ", File.ReadLines(p)); } catch (IOException) { }
         return $"build: {build}\nos: {System.Environment.OSVersion} 64bit={System.Environment.Is64BitOperatingSystem}\n" +
-               $"npcap: {(Core.Capture.LiveCapture.IsNpcapInstalled() ? "installed" : "MISSING")}\nuptime: {TimeSpan.FromMilliseconds(System.Environment.TickCount64):g}\n" +
+               $"{(OperatingSystem.IsWindows() ? "npcap" : "libpcap (this process)")}: {(Core.Capture.LiveCapture.IsNpcapInstalled() ? "installed" : "MISSING")}\nuptime: {TimeSpan.FromMilliseconds(System.Environment.TickCount64):g}\n" +
                $"culture: {System.Globalization.CultureInfo.CurrentUICulture.Name} ui={UiText.Current.Code}\nfolder: {AppContext.BaseDirectory}";
     }
 
@@ -125,7 +154,7 @@ public static class BugReport
     {
         try
         {
-            var f = Directory.EnumerateFiles(Log.Directory, "aionmeter_*.log").OrderByDescending(x => x).FirstOrDefault();
+            var f = Directory.EnumerateFiles(Log.Directory, Log.Prefix + "_*.log").OrderByDescending(x => x).FirstOrDefault();
             if (f is null) return [];
             using var fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var r = new StreamReader(fs);

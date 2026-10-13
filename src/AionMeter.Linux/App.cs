@@ -20,6 +20,7 @@ public sealed class App : Application
     /// <summary>--view key=value (repeatable): start state for the opened tab (search, open cards, expanded row…), the WPF render tool's
     /// Sample* hooks; screenshots need it because neither xdotool nor wlrctl clicks reach Avalonia under Xwayland (measured 2026-10-13).</summary>
     public static Dictionary<string, string> ViewArgs { get; } = new();
+    public static string? StartWindow { get; set; }
     private static OverlayWindow? _window;
 
     public override void Initialize()
@@ -39,6 +40,8 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // settings dictionaries the build telemetry records into (Telemetry.SendBuildAsync) are edited on the UI thread, as in WPF
+            AionMeter.Service.UiHost.Current = new AvaloniaUiHost();
             var client = new DaemonClient(SocketPath);
             var shell = new AppShell(client, Ui);
             _window = new OverlayWindow(shell);
@@ -50,9 +53,17 @@ public sealed class App : Application
             if (StartFight is { } fight) DispatcherTimer.RunOnce(() => shell.OpenFight(fight), TimeSpan.FromSeconds(1.5));
             if (StartPopOut) DispatcherTimer.RunOnce(() => _window.PopOut(), TimeSpan.FromSeconds(StartFight is null ? 1 : 3));
             if (StartHelp is { } help) Dispatcher.UIThread.Post(() => shell.ShowHelp(help), DispatcherPriority.Background);
+            if (StartWindow is { } win) DispatcherTimer.RunOnce(() => shell.ShowWindow(win), TimeSpan.FromSeconds(1));
         }
         base.OnFrameworkInitializationCompleted();
     }
 
     public static void ToggleClickThroughFromSignal() => Dispatcher.UIThread.Post(() => _window?.ToggleClickThrough());
+}
+
+/// <summary>The UI thread for Service code that edits UI-owned state (WPF installs a Dispatcher host the same way).</summary>
+internal sealed class AvaloniaUiHost : AionMeter.Service.IUiHost
+{
+    public Task Invoke(Action action) => Dispatcher.UIThread.InvokeAsync(action).GetTask();
+    public Task<T> Invoke<T>(Func<T> func) => Dispatcher.UIThread.InvokeAsync(func).GetTask();
 }

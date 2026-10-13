@@ -70,6 +70,26 @@ public sealed class AppShell : IDisposable
         _help.ShowTab(key);
     }
 
+    /// <summary>"Report a problem" (Settings → Privacy, --window report): one window, <paramref name="prefill"/> as the note (a crash file name).</summary>
+    public void ShowReport(string? prefill = null) => DialogCard.ShowSingle(() => new Views.ReportWindow(this, prefill));
+
+    /// <summary>"Restore from code" (Settings → Backup, --window restore).</summary>
+    public void ShowRestore() => DialogCard.ShowSingle(() => new Views.RestoreWindow(this));
+
+    /// <summary>The Build tab's "Import from questlog.gg" (--window import): the tab opens and raises it, so the picked build lands in that tab.</summary>
+    public event Action? ImportRequested;
+
+    /// <summary>--window KEY at start: report, restore, import.</summary>
+    public void ShowWindow(string key)
+    {
+        switch (key)
+        {
+            case "report": ShowReport(); break;
+            case "restore": ShowRestore(); break;
+            case "import": SelectTab("build"); WhenEngine(_ => ImportRequested?.Invoke()); break;
+        }
+    }
+
     public void StartEngine()
     {
         var settings = Settings;

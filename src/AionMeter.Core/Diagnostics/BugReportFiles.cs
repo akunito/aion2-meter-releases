@@ -19,6 +19,10 @@ public static class BugReportFiles
             var logs = Directory.GetFiles(logDir, "aionmeter_*.log");
             Array.Sort(logs, StringComparer.Ordinal);
             for (var i = logs.Length - 1; i >= 0 && i >= logs.Length - 2; i--) list.Add((logs[i], "logs/" + Path.GetFileName(logs[i])));
+            // Linux (A2M-48): the UI process logs apart (Log.Prefix "aionmeter-ui"); "aionmeter_*" above is the daemon's
+            var ui = Directory.GetFiles(logDir, "aionmeter-ui_*.log");
+            Array.Sort(ui, StringComparer.Ordinal);
+            for (var i = ui.Length - 1; i >= 0 && i >= ui.Length - 2; i--) list.Add((ui[i], "logs/" + Path.GetFileName(ui[i])));
             var crashes = Directory.GetFiles(logDir, "crash_*.txt");
             Array.Sort(crashes, StringComparer.Ordinal);
             for (var i = crashes.Length - 1; i >= 0 && i >= crashes.Length - 5; i--) list.Add((crashes[i], "logs/" + Path.GetFileName(crashes[i])));

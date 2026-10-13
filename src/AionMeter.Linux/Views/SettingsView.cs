@@ -26,10 +26,10 @@ public sealed class SettingsView : HostedView
     private CheckBox _barsRelative = null!, _showBoss = null!, _showGear = null!, _autoShow = null!, _showOnStart = null!, _allDesktops = null!;
     private CheckBox _saveHistory = null!, _record = null!, _icons = null!, _abyss = null!, _checkUpdates = null!, _autoInstall = null!, _checkUpstream = null!;
     private CheckBox _shareUsage = null!, _shareBuilds = null!, _shareBackup = null!, _repSummary = null!, _repTop = null!, _repInv = null!;
-    private TextBox _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!, _restoreCode = null!;
+    private TextBox _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!;
     private ComboBox _language = null!, _maxRows = null!, _mode = null!, _historyMode = null!, _device = null!, _region = null!, _server = null!, _channel = null!;
     private Slider _opacity = null!, _rowSize = null!;
-    private TextBlock _rowSizeText = null!, _backupWarn = null!, _backupOff = null!, _copyState = null!, _restoreState = null!, _serverNow = null!;
+    private TextBlock _rowSizeText = null!, _backupWarn = null!, _backupOff = null!, _copyState = null!, _serverNow = null!;
     private TextBox _backupCode = null!;
     private bool _loadingServer;
     private static readonly int[] RowChoices = [5, 8, 10, 12, 15, 20];
@@ -185,6 +185,10 @@ public sealed class SettingsView : HostedView
         pr.Children.Add(_repTop = UiKit.Check(T.ShareReportTopDps, s.ReportTopDps, 2));
         pr.Children.Add(_repInv = UiKit.Check(T.ShareReportInventory, s.ReportInventory, 2));
         foreach (var c in (CheckBox[])[_repSummary, _repTop, _repInv]) c.Margin = new Thickness(24, 2, 0, 0);
+        var report = UiKit.Ghost(T.TrayReport, () => Shell.ShowReport());
+        report.Margin = new Thickness(24, 8, 0, 0);
+        report.HorizontalAlignment = HorizontalAlignment.Left;
+        pr.Children.Add(report);
         _shareBuilds.IsCheckedChanged += (_, _) => ShowShareWarnings();
         _shareBackup.IsCheckedChanged += (_, _) => ShowShareWarnings();
         stack.Children.Add(UiKit.Section(pr, T.SecPrivacy));
@@ -205,15 +209,11 @@ public sealed class SettingsView : HostedView
         bk.Children.Add(codeRow);
         bk.Children.Add(UiKit.Hint(T.BackupHint, 0));
         bk.Children.Add(_backupOff = UiKit.Hint(T.BackupOff, 0, Visuals.Red));
-        bk.Children.Add(UiKit.SectionLabel(T.RestoreTitle, new Thickness(0, 10, 0, 4)));
-        bk.Children.Add(UiKit.Hint(T.RestoreIntro, 0));
-        var restoreRow = new WrapPanel();
-        restoreRow.Children.Add(_restoreCode = UiKit.Input("", 340));
-        var restore = UiKit.Ghost(T.RestoreGo, () => _ = RestoreAsync());
-        restore.Margin = new Thickness(8, 0, 0, 0);
-        restoreRow.Children.Add(restore);
-        bk.Children.Add(restoreRow);
-        bk.Children.Add(_restoreState = UiKit.Hint("", 0, Visuals.TextDim));
+        // WPF: the button opens the Restore from code dialog (A2M-30); the dialog runs Service/RestoreFlow
+        var restore = UiKit.Ghost(T.RestoreTitle + "…", () => Shell.ShowRestore());
+        restore.Margin = new Thickness(0, 10, 0, 0);
+        restore.HorizontalAlignment = HorizontalAlignment.Left;
+        bk.Children.Add(restore);
         stack.Children.Add(UiKit.Section(bk, T.SecBackup));
         ShowShareWarnings();
 
@@ -322,37 +322,6 @@ public sealed class SettingsView : HostedView
         catch (Exception e) when (e is InvalidOperationException or IOException) { _copyState.Text = e.Message; }
     }
 
-    private async Task RestoreAsync()
-    {
-        if (BackupCode.Parse(_restoreCode.Text ?? "") is not { } code) { RestoreStatus(T.RestoreBadCode, Visuals.Red); return; }
-        if (Shell.Engine is not { } engine) { RestoreStatus("…", Visuals.TextDim); return; }
-        RestoreStatus(T.RestoreWorking, Visuals.TextDim);
-        var (status, body, error) = await Telemetry.FetchRestoreAsync(code);
-        switch (status)
-        {
-            case 0: RestoreStatus(string.Format(T.RestoreFailed, error), Visuals.Red); return;
-            case 404: RestoreStatus(T.RestoreNotFound, Visuals.Red); return;
-            case 429: RestoreStatus(T.RestoreLimited, Visuals.Red); return;
-            case < 200 or >= 300: RestoreStatus(string.Format(T.RestoreRefused, status), Visuals.Red); return;
-        }
-        RestorePayload payload;
-        try { payload = await Task.Run(() => BuildTelemetryJson.ParseRestore(body)); }
-        catch (System.Text.Json.JsonException ex) { RestoreStatus(string.Format(T.RestoreBadAnswer, ex.Message), Visuals.Red); return; }
-        MeterEngine.RestoreSummary r;
-        try { r = engine.ApplyRestore(code, payload); }   // writes builds, the watch list and settings.json: the UI's own files
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { RestoreStatus(ex.Message, Visuals.Red); return; }
-        Shell.Daemon.Send("reload-settings");
-        var text = string.Format(T.RestoreDone, r.Builds, r.Placed, r.Waiting);
-        if (r.KeptLocal > 0) text += "; " + string.Format(T.RestoreKeptNewer, r.KeptLocal);
-        text += "; " + (!r.StateFound ? T.RestoreNoState : r.WatchRestored ? T.RestoreWatchRestored : T.RestoreWatchKept);
-        if (r.FavouritesRestored) text += "; " + T.RestoreFavRestored;
-        text += ".";
-        if (!engine.Settings.ShareBackup) text += " " + T.RestoreNoTelemetry;
-        RestoreStatus(text, Visuals.Green);
-        _backupCode.Text = BackupCode.Format(engine.Settings.InstallId);
-    }
-
-    private void RestoreStatus(string text, IBrush brush) { _restoreState.Text = text; _restoreState.Foreground = brush; }
 
     private static void Open(string path)
     {
