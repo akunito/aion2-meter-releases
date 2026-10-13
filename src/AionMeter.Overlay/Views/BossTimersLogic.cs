@@ -35,6 +35,29 @@ internal static class BossTimersLogic
     /// <summary>WPF Compact under 700 px: the actions drop to a second line.</summary>
     public const double CompactBelow = 700;
 
+    /// <summary>
+    /// Diego 2026-10-13: the rows 20 % more compact than the Avalonia port. Every vertical size of a row (paddings, gaps, portrait, chips,
+    /// bell, remove, secondary text) is the Avalonia px times <see cref="RowScale"/>; the countdown only times <see cref="StatusScale"/> so it
+    /// stays the thing read at a glance. Horizontal paddings and the chips' widths stay as they were (the 560 px budget is not the issue).
+    /// </summary>
+    public const double RowScale = 0.8, StatusScale = 0.85;
+
+    public static double Row(double avaloniaPx) => Math.Round(avaloniaPx * RowScale, 2);   // 7 * 0.8 prints 5.6000000000000005 in CSS otherwise
+
+    /// <summary>The countdown/state font size for <see cref="TimerStatus.Size"/> (Avalonia px).</summary>
+    public static double StatusPx(double avaloniaPx) => Math.Round(avaloniaPx * StatusScale, 2);
+
+    /// <summary>The timers-only rules (`k-tt-trow` on the row frame) appended to the Top/Timers kit sheet; Top DPS frames never carry the class.</summary>
+    public static string RowCss() => string.Create(CultureInfo.InvariantCulture, $$"""
+
+        .k-tt-frame.k-tt-trow { padding: {{Row(8)}}px 10px; margin-bottom: {{Row(7)}}px; }
+        .k-tt-trow .k-tt-portrait { min-width: {{Row(44)}}px; min-height: {{Row(44)}}px; border-radius: {{Row(23)}}px; }
+        .k-tt-trow .k-tt-bell { min-width: {{Row(26)}}px; min-height: {{Row(24)}}px; }
+        .k-tt-trow .k-chip { min-height: {{Row(22)}}px; }
+        .k-root .k-tt-trow .k-chip > box > label { font-size: {{Row(11.5)}}px; }
+        .k-tt-trow .k-icon { min-width: {{Row(22)}}px; min-height: {{Row(22)}}px; }
+        """);
+
     public static int Group(BossTimer t, DateTimeOffset now) => t.AliveNow || t.NextSpawn <= now ? 0 : t.NextSpawn is not null ? 1 : 2;
 
     /// <summary>Slots whose boss is not named yet stay out of sight until it is; "Watched" keeps the belled ones.</summary>

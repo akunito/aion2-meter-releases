@@ -9,6 +9,9 @@ namespace AionMeter.Overlay.Views;
 /// second while shown and at once on `timers-changed` / a boss alert. Killed, the bell (watch), the respawn interval and remove are `timer`
 /// commands to the daemon, which owns the file; without a daemon they are dimmed. The alert lead time is a setting (settings.json, UI-owned).
 /// The last alert shows as a line for 60 s. Rows are cached per NPC code and updated in place on every tick.
+/// Compact rows (BossTimersLogic.RowScale), measured in a nested sway on the login replay, 560×540 card: 100 % row 81.3 → 67.3 px, pitch
+/// 88 → 70.7, rows visible EN 3.0 → 3.8, ES 2.9 → 3.6; 125 % row 102.7 → 82, pitch 110 → 88, EN 3.1 → 3.9, ES 2.9 → 3.7; card width 540 / 676
+/// visible before and after in both languages.
 /// </summary>
 internal sealed class BossTimersView : HostedView
 {
@@ -43,7 +46,7 @@ internal sealed class BossTimersView : HostedView
         public bool Watch, PortraitSet, Hot, Enabled = true;
         public string NameText = "", MetaText = "", StatusText = "", DetailText = "", RespawnText = "", StatusTip = "", RespawnTip = "";
         public Fg StatusFg = Fg.Text;
-        public double StatusSize = 19;
+        public double StatusSize = BossTimersLogic.StatusPx(19);
     }
 
     public BossTimersView(AppShell shell) : base(shell, "timers", UiText.Current.TimersTitle)
@@ -182,20 +185,20 @@ internal sealed class BossTimersView : HostedView
 
     private Row NewRow(int code)
     {
-        var name = UiKit.Line("", 14, Fg.Text, 600);
-        var meta = UiKit.Line("", 11.5, Fg.Mute);
-        meta.MarginTop = UiKit.Px(2);
+        var name = UiKit.Line("", BossTimersLogic.Row(14), Fg.Text, 600);
+        var meta = UiKit.Line("", BossTimersLogic.Row(11.5), Fg.Mute);
+        meta.MarginTop = UiKit.Px(BossTimersLogic.Row(2));
         var who = UiKit.VBox();
         who.Valign = Gtk.Align.Center;
         who.Hexpand = true;
         UiKit.Margin(who, 12, 0, 10, 0);
         who.Append(name);
         who.Append(meta);
-        var status = UiKit.Text("", 19, Fg.GoldBright, 700);
+        var status = UiKit.Text("", BossTimersLogic.StatusPx(19), Fg.GoldBright, 700);
         status.AddCssClass("k-tt-num");
         status.Wrap = false;
         status.Xalign = 1;
-        var detail = UiKit.Line("", 11, Fg.Dim);
+        var detail = UiKit.Line("", BossTimersLogic.Row(11), Fg.Dim);
         detail.Xalign = 1;
         var statusBox = UiKit.VBox();
         statusBox.SetSizeRequest(UiKit.Px(150), -1);
@@ -221,7 +224,7 @@ internal sealed class BossTimersView : HostedView
         bellBox.OnClicked += (_, _) => Command(self!.Watch ? "unwatch" : "watch", code);
         var killed = UiKit.Chip(T.BtnKilled, () => Command("killed", code), T.TipKilled);
         killed.MarginEnd = UiKit.Px(4);
-        var remove = UiKit.IconButton(Icons.Close, T.TipRemoveTimer, () => Command("remove", code));
+        var remove = UiKit.IconButton(Icons.Close, T.TipRemoveTimer, () => Command("remove", code), BossTimersLogic.Row(22));
         var actions = UiKit.HBox();
         actions.Valign = Gtk.Align.Center;
         actions.Hexpand = false;
@@ -242,6 +245,7 @@ internal sealed class BossTimersView : HostedView
         g.Attach(statusBox, 2, 0, 1, 1);
         var frame = UiKit.VBox();
         frame.AddCssClass("k-tt-frame");
+        frame.AddCssClass("k-tt-trow");
         frame.Append(g);
         self = new Row
         {
@@ -260,7 +264,7 @@ internal sealed class BossTimersView : HostedView
         if (compact) r.Grid.Attach(r.Actions, 1, 1, 2, 1);
         else r.Grid.Attach(r.Actions, 3, 0, 1, 1);
         r.Actions.MarginStart = UiKit.Px(compact ? 12 : 0);
-        r.Actions.MarginTop = UiKit.Px(compact ? 6 : 0);
+        r.Actions.MarginTop = UiKit.Px(compact ? BossTimersLogic.Row(6) : 0);
         r.Actions.Halign = compact ? Gtk.Align.Start : Gtk.Align.End;
     }
 
@@ -303,11 +307,12 @@ internal sealed class BossTimersView : HostedView
         Set(row.Status, ref row.StatusText, s.Text);
         Set(row.Detail, ref row.DetailText, s.Detail);
         if (s.Fg != row.StatusFg) { row.StatusFg = s.Fg; UiKit.SetFg(row.Status, s.Fg); }
-        if (Math.Abs(s.Size - row.StatusSize) > 0.01)
+        var size = BossTimersLogic.StatusPx(s.Size);
+        if (Math.Abs(size - row.StatusSize) > 0.01)
         {
             row.Status.RemoveCssClass(KitCss.SizeClass(row.StatusSize));
-            row.Status.AddCssClass(KitCss.SizeClass(s.Size));
-            row.StatusSize = s.Size;
+            row.Status.AddCssClass(KitCss.SizeClass(size));
+            row.StatusSize = size;
         }
         if (s.Hot != row.Hot)
         {
@@ -334,14 +339,14 @@ internal sealed class BossTimersView : HostedView
         {
             if (child is null)
             {
-                var clock = Icons.View(Icons.Clock, Palette.GoldDim, 18, 1.4).Widget;
+                var clock = Icons.View(Icons.Clock, Palette.GoldDim, (int)Math.Round(BossTimersLogic.Row(18)), 1.4).Widget;
                 clock.Vexpand = true;
                 r.Portrait.Append(clock);
             }
             return false;
         }
         if (child is not null) r.Portrait.Remove(child);
-        var img = ItemKit.Image(tex, 44);
+        var img = ItemKit.Image(tex, BossTimersLogic.Row(44));
         img.Vexpand = true;
         r.Portrait.Append(img);
         return true;

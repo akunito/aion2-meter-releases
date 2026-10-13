@@ -31,7 +31,7 @@ internal static class TopTimersKit
         .k-root popover.k-tt-menu button { all: unset; padding: 4px 10px; border-radius: 5px; }
         .k-root popover.k-tt-menu button:hover { background-color: rgba(201,164,92,0.18); }
         .k-root popover.k-tt-menu label, .k-root .k-chip popover.k-tt-menu label { font-size: 12.5px; font-weight: 400; color: {{Palette.Hex(Palette.Text)}}; }
-        """;
+        """ + Views.BossTimersLogic.RowCss();
 
     /// <summary>Loads (or rescales) this kit's provider; the views call it on construction (they are rebuilt with the card on a rescale).</summary>
     public static void EnsureCss(double scale)

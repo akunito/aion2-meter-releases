@@ -3,6 +3,25 @@ using AionMeter.Service.Overlay;
 
 namespace AionMeter.Overlay;
 
+/// <summary>
+/// Vertical sizes of a DPS row and the column header (unscaled px, Css.Sheet and RowWidget). Diego 2026-10-13: 25 % more compact than the
+/// Avalonia card (row 42 + gap 6 = 48 px pitch → 32 + 4 = 36), fonts unchanged, so a third more players fit; widths untouched (the header's
+/// slots in Card.cs are 30 + 32 px).
+/// Measured in a nested sway (14 fake players, 560×540 card): 100 % row 42 → 32 px, pitch 48 → 36, column header (party border to first row)
+/// 25.3 → 20.7, rows visible 7.8 → 10.6; 125 % (700×675) row 52.5 → 40, pitch 60 → 45, header 31.3 → 24.7, rows 8.0 → 10.8; card width 540 / 676
+/// visible before and after.
+/// </summary>
+internal static class RowMetrics
+{
+    public const int Height = 32, Gap = 4, Pitch = Height + Gap;
+    /// <summary>The bar's top gloss band (19 of 42 before).</summary>
+    public const int Gloss = 14;
+    public const int Rank = 22, Coin = 26, CoinInset = 1, Emblem = 22, Unknown = 20;
+    /// <summary>Top/bottom inset of the GS/CP | DPS rule inside the row.</summary>
+    public const int RuleInset = 6;
+    public const int ColsGap = 2, PartyPadV = 4;
+}
+
 /// <summary>Column size groups shared by the column labels and every row (Avalonia SharedSizeGroup).</summary>
 internal sealed class Columns
 {
@@ -57,11 +76,11 @@ internal sealed class RowWidget
         _coin.Halign = Gtk.Align.Start;
         // GtkImage at a pixel size, not GtkPicture: a picture is height-for-width and inflated the 42 px row to 112 (measured)
         _emblem = Gtk.Image.New();
-        _emblem.PixelSize = Icons.Px(25);
+        _emblem.PixelSize = Icons.Px(RowMetrics.Emblem);
         _emblem.Halign = Gtk.Align.Center;
         _emblem.Valign = Gtk.Align.Center;
         _coin.Append(_emblem);
-        _unknown = Icons.View(Icons.Unknown, 0x94A3B8, 22, 2);
+        _unknown = Icons.View(Icons.Unknown, 0x94A3B8, RowMetrics.Unknown, 2);
         _coin.Append(_unknown.Widget);
         coinSlot.Append(_coin);
         c.Append(coinSlot);
@@ -174,8 +193,9 @@ internal sealed class RowWidget
             Paint.RoundRect(cr, 0, 0, fw, h, Math.Min(r, fw / 2));
             Paint.FillWith(cr, Paint.FillOf(_class), 0, 0, fw, h);
         }
-        Paint.RoundRect(cr, 0, 0, w, Math.Min(19, h), r, r, 0, 0);
-        Paint.FillWith(cr, Paint.RowGloss, 0, 0, w, Math.Min(19, h));
+        var gloss = Math.Min(Icons.Px(RowMetrics.Gloss), h);
+        Paint.RoundRect(cr, 0, 0, w, gloss, r, r, 0, 0);
+        Paint.FillWith(cr, Paint.RowGloss, 0, 0, w, gloss);
         if (_self)
         {
             // gold frame with a soft inner glow (WPF: BoxShadow 0 0 8 #CCE7C67F outside; a layer surface clips at the row, so inside)
