@@ -183,6 +183,10 @@ public sealed class InventoryStore
                 foreach (var s in inv.Stacks) if (s.Container == Containers.Bag && IsCurrency(s.Item)) { bagAnchored = true; break; }
                 foreach (var s in inv.Stacks) if (Plausible(s) && (s.Container != Containers.Bag || bagAnchored)) Replace(s.Container, t, _wholeReplaced);
             }
+            // Slots this packet names: a uid that appears in two of them at once (a partial Kina deposit may report the bag purse and the
+            // warehouse purse under one uid) keeps both copies; only a copy the packet does not mention is a stale origin.
+            var named = inv.Stacks.Count > 1 ? new HashSet<int>(inv.Stacks.Count) : null;
+            if (named is not null) foreach (var s in inv.Stacks) named.Add(s.Container << 8 | s.Slot);
             foreach (var s in inv.Stacks)
             {
                 // Shape-scan false positives read misaligned words as ids (855638016 = 0x33000000, 899461376 = 0x359C0000, container 0): real item ids are 9 digits with a non-zero low half.
@@ -194,7 +198,7 @@ public sealed class InventoryStore
                 // warehouse slot never did), and the shared account warehouse only drops a slot that carries a fresh stamp.
                 foreach (var (cid, cont) in _containers)
                     foreach (var (slot, st) in cont)
-                        if (st.Uid == s.Uid && (cid != s.Container || slot != s.Slot)) { cont.Remove(slot); Stamp(cid, slot, t); goto next; }
+                        if (st.Uid == s.Uid && (cid != s.Container || slot != s.Slot) && (named is null || !named.Contains(cid << 8 | slot))) { cont.Remove(slot); Stamp(cid, slot, t); goto next; }
                 next:
                 if (!_containers.TryGetValue(s.Container, out var c)) _containers[s.Container] = c = new();
                 c[s.Slot] = s;

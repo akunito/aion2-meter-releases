@@ -479,6 +479,7 @@ public sealed class UiText
     public string ItemsAcctFull { get; init; } = "Full list read by {0} at {1}";
     public string ItemsAcctNewer { get; init; } = "{0} slots updated by {1} at {2}";
     public string ItemsAcctDot { get; init; } = "(blue dot). Kina stored here is in the footer.";
+    public string ItemsKinaHere { get; init; } = "{0} Kina";
     public string ItemsAcctNoFull { get; init; } = "No full list yet: open the warehouse once with any character of this server.";
     public string ItemsNothing { get; init; } = "Nothing seen here yet.";
     public string ItemsToday { get; init; } = "Today";

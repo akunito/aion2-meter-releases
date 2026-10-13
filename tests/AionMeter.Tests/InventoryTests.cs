@@ -58,6 +58,26 @@ public class InventoryTests
         Assert.Equal(kina, store.CountOf(InventoryStore.Kinah));
     }
 
+    /// <summary>Real packet of 2026-10-13 12:17:22: Akunita deposited all her Kina; the stack keeps its uid and moves bag slot 0 → account warehouse slot 64 (one record, no bag record). A packet that names both purses under one uid keeps both.</summary>
+    [Fact]
+    public void Kina_deposit_moves_the_purse_to_the_warehouse_and_a_packet_naming_both_purses_keeps_both()
+    {
+        var store = new InventoryStore(null);
+        store.OnEvent(Parse(Opcodes.Inventory, Fixture("full-1156.hex"))[0]);
+        var dep = Assert.IsType<InventoryEvent>(Assert.Single(Parse(Opcodes.InventoryUpdate, Fixture("kina-deposit-1b56.hex"))));
+        var st = Assert.Single(dep.Stacks);
+        Assert.Equal((930100031, 2_092_580, (byte)2, (byte)64, 150424u), (st.Item, st.Count, st.Container, st.Slot, st.Uid));
+        // the fixture's login bag has its own Kina uid; give the move the same uid as that purse to reproduce the real sequence
+        var bagKina = store.Items(Containers.Bag).Single(x => x.Item == InventoryStore.Kinah);
+        store.OnEvent(new InventoryEvent(2_000, false, [st with { Uid = bagKina.Uid }]));
+        Assert.DoesNotContain(store.Items(Containers.Bag), x => x.Item == InventoryStore.Kinah);
+        Assert.Equal(2_092_580, store.Items(Containers.AccountWarehouse).Single(x => x.Slot == 64).Count);
+        // partial deposit shape (assumed until captured): both purses in one packet under one uid → both stay
+        store.OnEvent(new InventoryEvent(3_000, false, [bagKina with { Count = 1_000 }, st with { Uid = bagKina.Uid, Count = 2_091_580 }]));
+        Assert.Equal(1_000, store.Items(Containers.Bag).Single(x => x.Item == InventoryStore.Kinah).Count);
+        Assert.Equal(2_091_580, store.Items(Containers.AccountWarehouse).Single(x => x.Slot == 64).Count);
+    }
+
     [Fact]
     public void Store_replaces_a_container_on_refresh_and_patches_one_slot_on_a_gather()
     {

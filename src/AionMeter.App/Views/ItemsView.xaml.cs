@@ -89,13 +89,13 @@ public partial class ItemsView : UserControl
             if (_sample) return;
             Reload();
             _meter.Inventory.Changed += OnChanged; _meter.ViewInventoryChanged += OnChanged; _meter.CharacterChanged += OnChanged; _meter.MarketChanged += OnChanged; _meter.Account.Changed += OnChanged; _icons.Loaded += OnIcon;
-            _meter.ProgressChanged += OnChanged; _meter.ProfileChanged += OnChanged; _meter.ServerChanged += OnChanged;
+            _meter.ProgressChanged += OnChanged; _meter.ProfileChanged += OnChanged; _meter.ServerChanged += OnChanged; _meter.Names.Changed += OnNames;
         };
         Unloaded += (_, _) =>
         {
             if (_sample) return;
             _meter.Inventory.Changed -= OnChanged; _meter.ViewInventoryChanged -= OnChanged; _meter.CharacterChanged -= OnChanged; _meter.MarketChanged -= OnChanged; _meter.Account.Changed -= OnChanged; _icons.Loaded -= OnIcon;
-            _meter.ProgressChanged -= OnChanged; _meter.ProfileChanged -= OnChanged; _meter.ServerChanged -= OnChanged;
+            _meter.ProgressChanged -= OnChanged; _meter.ProfileChanged -= OnChanged; _meter.ServerChanged -= OnChanged; _meter.Names.Changed -= OnNames;
             _reloadTick.Stop(); _iconTick.Stop();
         };
         // hidden tab: one reload when it comes back, not one per packet
@@ -105,6 +105,8 @@ public partial class ItemsView : UserControl
 
     // packets arrive on the capture thread: coalesce to one reload 300 ms after the last change
     private void OnChanged() => Dispatcher.BeginInvoke(() => { if (!IsVisible) { _stale = true; return; } _reloadTick.Stop(); _reloadTick.Start(); });
+    // a questlog name arrived (resolver thread): the search keys cached under "Item n" are stale
+    private void OnNames() { Dispatcher.BeginInvoke(() => _norm.Clear()); OnChanged(); }
     private void OnIcon() { if (!_iconTick.IsEnabled) _iconTick.Start(); }
 
     /// <summary>Offscreen render (SampleRenderer "items"): this data, nothing read from or written to disk.</summary>
@@ -187,8 +189,8 @@ public partial class ItemsView : UserControl
 
     // ------------------------------------------------------------------ helpers
 
-    private string Nm(int id) => _meter.Names.Name(id, _lang) ?? _meter.Items.NameOf(id);
-    private string Lb(int id) => _meter.Names.Label(id, _lang) ?? _meter.Items.NameOf(id);   // inside a line: "(legendary)" only on an ambiguous name
+    private string Nm(int id) => _meter.Names.Name(id, _lang) ?? _meter.UnnamedItem(id);
+    private string Lb(int id) => _meter.Names.Label(id, _lang) ?? _meter.UnnamedItem(id);   // inside a line: "(legendary)" only on an ambiguous name
     private GradeTag? GradeChipOf(int id) => GradeTag.Of(_meter.Grades.Of(id), _lang);
     private string OtherName(int id) { var (en, es) = _meter.Names.Both(id); var other = _lang == "es" ? en : es; return other is not null && other != Nm(id) ? other : ""; }
     private long? Price(int id) => _data?.Market.Price(id);
@@ -400,7 +402,10 @@ public partial class ItemsView : UserControl
         string who, Place place, HashSet<byte>? dots)
     {
         var visible = new List<ItemStack>(stacks.Count);
-        foreach (var s in stacks) if (!InventoryStore.IsCurrency(s.Item) && InGroup(s.Item)) visible.Add(s);
+        long kina = 0;
+        foreach (var s in stacks) { if (s.Item == InventoryStore.Kinah) kina += s.Count; if (!InventoryStore.IsCurrency(s.Item) && InGroup(s.Item)) visible.Add(s); }
+        // Currencies stay out of the grid (the footer sums them); the purse itself is named in the header so a warehouse deposit is visible at a glance (Diego 2026-10-13).
+        if (kina > 0) right = right + " · " + string.Format(T.ItemsKinaHere, N(kina));
         ItemKinds.Sort(visible, _sort, Nm, _meter.Grades.Of, Price);
         long value = 0;
         foreach (var s in visible) value += (Price(s.Item) ?? 0) * s.Count;
