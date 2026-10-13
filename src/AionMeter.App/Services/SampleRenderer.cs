@@ -15,7 +15,7 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft (that tab inside the overlay card, made-up data).</param>
+    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
@@ -59,12 +59,13 @@ public static class SampleRenderer
                 host = history;
                 refresh = history.Reload;
                 break;
-            case "timers":
+            case "timers" when o.Tab == "window":
+                // the stand-alone window (tray, hotkey) around the same view
                 FeedTimers(meter);
                 WaitForPortraits(meter);
                 var timers = new BossTimersWindow(meter) { Width = o.Width ?? 780, Height = o.Height ?? 640 };
                 host = timers;
-                refresh = timers.ReloadNow;
+                refresh = timers.View.ReloadNow;
                 break;
             case "build" or "build-es":
                 meter.Settings.SkillLanguage = o.Window == "build-es" ? "es" : "en";
@@ -131,7 +132,7 @@ public static class SampleRenderer
                 host = new UpdateWindow(meter.Updates, release, installed: o.Window == "update") { Width = 580, Height = 560 };
                 refresh = () => { };
                 break;
-            case "atlas" or "top" or "prices" or "craft":
+            case "atlas" or "top" or "prices" or "craft" or "timers":
                 // a tab inside the overlay card as the player sees it, filled with made-up data (README screenshots); --tab profit: Craft's profit list
                 var card = new OverlayWindow(meter) { Width = o.Width ?? 560, Height = o.Height ?? 820 };
                 var tabIcons = new IconCache(Core.GameDb.ItemIcons.Load(Path.Combine(MeterService.DataDirectory, "gamedb", "item-icons.json")), o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
@@ -149,6 +150,11 @@ public static class SampleRenderer
                         break;
                     case Views.PriceWatchView pricesView:
                         pricesView.ShowSample(SamplePrices(), tabIcons, DateTimeOffset.Now.AddMinutes(-12));
+                        break;
+                    case Views.BossTimersView timersView:
+                        FeedTimers(meter);
+                        WaitForPortraits(meter);
+                        fill = timersView.ReloadNow;
                         break;
                     case Views.CraftView craftView:
                         var sample = SampleItems();

@@ -30,7 +30,7 @@ public partial class HelpWindow : Window
     {
         _tab = tab;
         var t = UiText.Current;
-        TitleText.Text = t.HelpTitle + " · " + tab switch { "atlas" => t.AtlasTitle, "top" => t.TopTitle, "prices" => t.PricesTitle, "craft" => t.CraftTitle, "build" => t.BuildTitle, "items" => t.ItemsTitle, "settings" => t.SettingsTitle, _ => "DPS" };
+        TitleText.Text = t.HelpTitle + " · " + tab switch { "atlas" => t.AtlasTitle, "top" => t.TopTitle, "prices" => t.PricesTitle, "craft" => t.CraftTitle, "build" => t.BuildTitle, "items" => t.ItemsTitle, "timers" => t.TimersTitle, "settings" => t.SettingsTitle, _ => "DPS" };
         Render();
         if (!IsVisible) Show(); else Activate();
     }

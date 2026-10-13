@@ -612,7 +612,7 @@ public partial class OverlayWindow : Window
 
     private void Timers_Click(object sender, RoutedEventArgs e)
     {
-        if (!_drag.JustDragged) AppHost.Current.ShowBossTimers();
+        if (!_drag.JustDragged) SelectTab("timers");
     }
 
     /// <summary>"Shugo 39m" until the start, "Shugo ● 7m" while it runs; the same list every second, items replaced in place.</summary>
@@ -691,6 +691,7 @@ public partial class OverlayWindow : Window
     private Views.CraftView? _craftView;
     private Views.BuildView? _buildView;
     private Views.ItemsView? _itemsView;
+    private Views.BossTimersView? _timersView;
 
     public string Tab => _tab;
     public bool TabActive => _tab != "meter";
@@ -725,6 +726,7 @@ public partial class OverlayWindow : Window
                 "craft" => _craftView ??= Wire(new Views.CraftView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
                 "build" => _buildView ??= Wire(new Views.BuildView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
                 "items" => _itemsView ??= Wire(new Views.ItemsView(_meter), v => { v.CloseRequested += () => SelectTab("meter"); v.OpenInCraft += OpenInCraft; }),
+                "timers" => _timersView ??= Wire(new Views.BossTimersView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
                 _ => _pricesView ??= Wire(new Views.PriceWatchView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
             };
             TabHost.Visibility = Visibility.Visible;
@@ -806,7 +808,7 @@ public partial class OverlayWindow : Window
 
     private void SyncTabChecks()
     {
-        TabMeter.IsChecked = _tab == "meter"; TabAtlas.IsChecked = _tab == "atlas"; TabTop.IsChecked = _tab == "top"; TabPrices.IsChecked = _tab == "prices"; TabCraft.IsChecked = _tab == "craft"; TabBuild.IsChecked = _tab == "build"; TabItems.IsChecked = _tab == "items";
+        TabMeter.IsChecked = _tab == "meter"; TabAtlas.IsChecked = _tab == "atlas"; TabTop.IsChecked = _tab == "top"; TabPrices.IsChecked = _tab == "prices"; TabCraft.IsChecked = _tab == "craft"; TabBuild.IsChecked = _tab == "build"; TabItems.IsChecked = _tab == "items"; TabTimers.IsChecked = _tab == "timers";
         if (TabPrices.IsChecked == true) TabPrices.Foreground = (Brush)FindResource("Text");
     }
 

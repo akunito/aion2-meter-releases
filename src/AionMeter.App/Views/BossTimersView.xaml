@@ -1,0 +1,133 @@
+<UserControl x:Class="AionMeter.App.Views.BossTimersView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:AionMeter.App.Controls"
+        xmlns:s="clr-namespace:AionMeter.App.Services"
+        xmlns:v="clr-namespace:AionMeter.App.Views"
+        Background="{StaticResource Bg0}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}" FontSize="12.5">
+
+    <Border BorderBrush="{StaticResource GoldDim}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Margin="18,0,8,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE121;" FontFamily="{StaticResource IconFont}" FontSize="17" Foreground="{StaticResource Gold}"
+                               VerticalAlignment="Center" Margin="0,2,10,0" />
+                    <TextBlock Text="{Binding TimersTitle, Source={x:Static s:UiText.Current}}" FontFamily="{StaticResource TitleFont}"
+                               FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button Style="{StaticResource IconButton}" Content="&#xE897;" FontSize="13" Click="Help_Click" Margin="8,2,0,0" VerticalAlignment="Center"
+                            WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="{Binding TipHelp, Source={x:Static s:UiText.Current}}" />
+                    <!-- Every server runs its own bosses: whose timers these are -->
+                    <Button x:Name="ServerButton" Style="{StaticResource Chip}" Height="26" FontSize="12" Margin="10,0,0,0"
+                            VerticalAlignment="Center" Click="Server_Click" WindowChrome.IsHitTestVisibleInChrome="True"
+                            ToolTip="{Binding TipServer, Source={x:Static s:UiText.Current}}" />
+                </StackPanel>
+                <Button Style="{StaticResource IconButton}" Content="&#xE711;" Click="Close_Click" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="{Binding TipClose, Source={x:Static s:UiText.Current}}" />
+            </Grid>
+
+            <!-- the alert picker sits on the filter line, not in the header: a 560 px overlay tab has no room for both -->
+            <StackPanel Grid.Row="1" Margin="18,0,18,10">
+                <DockPanel Margin="-4,0,0,6">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                        <TextBlock Text="&#xEA8F;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource TextDim}"
+                                   VerticalAlignment="Center" Margin="0,1,6,0" />
+                        <TextBlock Text="{Binding AlertLabel, Source={x:Static s:UiText.Current}}" Foreground="{StaticResource TextDim}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0" TextTrimming="CharacterEllipsis" />
+                        <Button x:Name="AlertButton" Style="{StaticResource Chip}" Height="26" MinWidth="78" FontSize="12" Click="Alert_Click" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="FilterAll" Style="{StaticResource TabToggle}" IsChecked="True" Checked="Filter_Changed"
+                                     Content="{Binding FilterAll, Source={x:Static s:UiText.Current}}" />
+                        <RadioButton x:Name="FilterWatched" Style="{StaticResource TabToggle}" Checked="Filter_Changed"
+                                     Content="{Binding FilterWatched, Source={x:Static s:UiText.Current}}" />
+                    </StackPanel>
+                </DockPanel>
+                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextMute}"
+                           Text="{Binding TimersHint, Source={x:Static s:UiText.Current}}" />
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="14,0,14,12">
+                <Grid>
+                    <ItemsControl x:Name="List">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#0DFFFFFF" BorderBrush="{Binding FrameBrush}" BorderThickness="1" CornerRadius="9"
+                                        Padding="10,8" Margin="0,0,0,7">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <c:BossPortrait Grid.RowSpan="2" Width="46" Height="46" Source="{Binding Portrait}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Meta}" FontSize="11.5" Foreground="{StaticResource TextMute}" Margin="0,2,0,0"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Width="150" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                    Background="Transparent" ToolTip="{Binding SourceTip}">
+                                            <TextBlock Text="{Binding Status}" Foreground="{Binding StatusBrush}" HorizontalAlignment="Right"
+                                                       FontFamily="{StaticResource NumberFont}" FontSize="{Binding StatusSize}" FontWeight="Bold" />
+                                            <TextBlock Text="{Binding StatusDetail}" HorizontalAlignment="Right" FontSize="11"
+                                                       Foreground="{StaticResource TextDim}" Margin="0,-1,0,0" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <!-- Narrow (the overlay tab): the actions drop to a second line under name and status -->
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Grid.Column" Value="3" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Compact, RelativeSource={RelativeSource AncestorType=v:BossTimersView}}" Value="True">
+                                                            <Setter Property="Grid.Row" Value="1" />
+                                                            <Setter Property="Grid.Column" Value="1" />
+                                                            <Setter Property="Grid.ColumnSpan" Value="2" />
+                                                            <Setter Property="Margin" Value="12,6,0,0" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Button Style="{StaticResource Chip}" Height="26" MinWidth="96" FontSize="12"
+                                                    Margin="0,0,8,0" VerticalAlignment="Center" Click="Respawn_Click" ToolTip="{Binding RespawnTip}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFont}" FontSize="10" Margin="0,1,6,0"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding RespawnLabel}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="8" Margin="6,2,0,0"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <ToggleButton Style="{StaticResource IconToggle}" Content="&#xEA8F;" VerticalAlignment="Center"
+                                                          IsChecked="{Binding Watch, Mode=OneWay}" Click="Watch_Click" Margin="0,0,4,0"
+                                                          ToolTip="{Binding TipWatch, Source={x:Static s:UiText.Current}}" />
+                                            <Button Style="{StaticResource Chip}" VerticalAlignment="Center" Margin="0,0,4,0"
+                                                    Content="{Binding BtnKilled, Source={x:Static s:UiText.Current}}" Click="Killed_Click"
+                                                    ToolTip="{Binding TipKilled, Source={x:Static s:UiText.Current}}" />
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE74D;" VerticalAlignment="Center"
+                                                    Click="Remove_Click" ToolTip="{Binding TipRemoveTimer, Source={x:Static s:UiText.Current}}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="EmptyText" Text="{Binding TimersEmpty, Source={x:Static s:UiText.Current}}" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextMute}" HorizontalAlignment="Center" TextAlignment="Center"
+                               Margin="30,40,30,0" MaxWidth="380" />
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>
