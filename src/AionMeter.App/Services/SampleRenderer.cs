@@ -15,7 +15,7 @@ namespace AionMeter.App.Services;
 public static class SampleRenderer
 {
     /// <param name="Window">overlay (default), overlay-update, overlay-crowd (a world boss whose crowd's damage never
-    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window).</param>
+    /// arrives), breakdown, history, timers, settings, restore (the Restore-from-code dialog after a restore), update, update-portable, build or build-es (the Build tab, skill texts in Spanish), build-daev (its Daevanion sub-tab), import (the questlog import dialog), items (the Items tab with the sample inventories), atlas / top / prices / craft / timers / fight (that tab inside the overlay card, made-up data; timers --tab window: the stand-alone window; fight = the breakdown tab, --tab as breakdown or party).</param>
     /// <param name="Width">Overlay width (default 560): narrow sizes show how the footer copes.</param>
     /// <param name="Tab">Breakdown tab: dps (default), accuracy, rotation or defense. Build: done (finished skills hidden), tip (Explosion Trap and Deadshot tooltips), rel (Marking Shot selected), suggest (no build: suggestions card with "Your questlog builds") or update ("Check questlog" found a newer version). Import: mine / mine-all ("My builds", class filter on / off). Items: search ("odyle" typed in the box), list (every card as a list, Equipped open) or es (item names in Spanish). Craft: profit (the profit list against the sample market). Prices: expanded (first row open) or search ("refining stone" in the add-item search, grade chips).</param>
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
@@ -52,7 +52,7 @@ public static class SampleRenderer
                     { Width = o.Width ?? 900, Height = o.Height ?? 680 };
                 if (o.Tab is { } tab) breakdown.ShowTab(tab);
                 host = breakdown;
-                refresh = breakdown.ReloadNow;
+                refresh = breakdown.View.ReloadNow;
                 break;
             case "history":
                 var history = new HistoryWindow(meter) { Width = 900, Height = 600 };
@@ -132,12 +132,18 @@ public static class SampleRenderer
                 host = new UpdateWindow(meter.Updates, release, installed: o.Window == "update") { Width = 580, Height = 560 };
                 refresh = () => { };
                 break;
-            case "atlas" or "top" or "prices" or "craft" or "timers":
+            case "atlas" or "top" or "prices" or "craft" or "timers" or "fight":
                 // a tab inside the overlay card as the player sees it, filled with made-up data (README screenshots); --tab profit: Craft's profit list
                 var card = new OverlayWindow(meter) { Width = o.Width ?? 560, Height = o.Height ?? 820 };
                 var tabIcons = new IconCache(Core.GameDb.ItemIcons.Load(Path.Combine(MeterService.DataDirectory, "gamedb", "item-icons.json")), o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
-                card.SelectTab(o.Window);
                 Action fill = () => { };
+                if (o.Window == "fight")
+                {
+                    // A2M-43: the breakdown as the card's fight tab (what "Open the fight" shows); --tab dps|accuracy|rotation|defense, or party (the narrow dropdown open)
+                    var fightSegment = meter.Tracker.Segments()[0].Id;
+                    card.ShowFight(new ViewModels.LiveFightView(meter.Tracker, fightSegment), 2, fightSegment);
+                }
+                else card.SelectTab(o.Window);
                 switch (card.TabView)
                 {
                     case Views.AtlasView atlasView:
@@ -151,6 +157,11 @@ public static class SampleRenderer
                     case Views.PriceWatchView pricesView:
                         pricesView.ShowSample(SamplePrices(), tabIcons, DateTimeOffset.Now.AddMinutes(-12), o.Tab == "expanded");   // --tab expanded: first row open (listings + 30-day chart)
                         if (o.Tab == "search") pricesView.SampleSearch("refining stone");   // --tab search: the add-item search with grade chips
+                        break;
+                    case Views.BreakdownView fightView:
+                        if (o.Tab == "party") fightView.SampleOpenParty();
+                        else if (o.Tab is { } fightTab) fightView.ShowTab(fightTab);
+                        fill = fightView.ReloadNow;
                         break;
                     case Views.BossTimersView timersView:
                         FeedTimers(meter);

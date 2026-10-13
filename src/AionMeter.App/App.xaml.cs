@@ -200,8 +200,8 @@ public partial class App : Application
                 var seg = _meter.Tracker.Segments().OrderByDescending(s => s.TotalDamage).FirstOrDefault();
                 if (seg is null || _meter.Tracker.Snapshot(seg.Id, 0) is not { } snap || snap.Combatants.Count == 0) return;
                 var who = snap.Combatants.FirstOrDefault(c => c.IsSelf) ?? snap.Combatants[0];
-                ShowBreakdown(seg.Id, who.ActorId);
-                if (ArgValue(e.Args, "--tab") is { } tab && _breakdowns.TryGetValue(seg.Id, out var w)) w.ShowTab(tab);
+                var w = ShowBreakdownWindow(seg.Id, new LiveFightView(_meter.Tracker, seg.Id), who.ActorId);   // always the window (dev switch)
+                if (ArgValue(e.Args, "--tab") is { } tab) w.ShowTab(tab);
             };
             once.Start();
         }
@@ -370,19 +370,34 @@ public partial class App : Application
 
     public void ShowBreakdown(IFightView view, uint actorId) => ShowBreakdown(view, view, actorId);
 
+    /// <summary>
+    /// A2M-43: the fight tab of the card the click came from (a popped-out copy under the mouse, else the main overlay) while that
+    /// card is visible; the separate window only when no card is shown.
+    /// </summary>
     private void ShowBreakdown(object key, IFightView view, uint actorId)
+    {
+        OverlayWindow? card = null;
+        for (var i = 0; i < _extras.Count; i++) if (_extras[i].IsVisible && _extras[i].IsMouseOver) { card = _extras[i]; break; }
+        card ??= _overlay.IsVisible ? _overlay : null;
+        if (card is not null) card.ShowFight(view, actorId, key);
+        else ShowBreakdownWindow(key, view, actorId);
+    }
+
+    /// <summary>The fight in its own window (pop-out from the fight tab, --open-last); one window per fight.</summary>
+    public BreakdownWindow ShowBreakdownWindow(object key, IFightView view, uint actorId)
     {
         if (_breakdowns.TryGetValue(key, out var existing))
         {
             existing.Select(actorId);
             Activate(existing);
-            return;
+            return existing;
         }
         var w = new BreakdownWindow(view, actorId, _meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor);
         _breakdowns[key] = w;
         w.Closed += (_, _) => _breakdowns.Remove(key);
         WindowPinning.KeepAboveGame(w);
         w.Show();
+        return w;
     }
 
     /// <summary>English ⇄ Russian, live: names reload, the overlay re-binds, other windows reopen in the new language.</summary>

@@ -342,10 +342,11 @@ public partial class OverlayWindow : Window
 
     private void Resize_DragCompleted(object sender, DragCompletedEventArgs e) => SavePlacement();
 
+    /// <summary>A row, "Open the fight" or the row menu: the shown fight in this card's fight tab (A2M-43).</summary>
     private void OpenBreakdown(uint actorId)
     {
-        if (_saved is { } saved) AppHost.Current.ShowBreakdown(saved.View, actorId);
-        else if (_vm.SegmentId is { } seg) AppHost.Current.ShowBreakdown(seg, actorId);
+        if (_saved is { } saved) ShowFight(saved.View, actorId, saved.Entry.FileName);
+        else if (_vm.SegmentId is { } seg) ShowFight(new LiveFightView(_meter.Tracker, seg), actorId, seg);
     }
 
     private EncounterSnapshot? ShownSummary() =>
@@ -463,17 +464,24 @@ public partial class OverlayWindow : Window
         Refresh();
     }
 
-    private void Segments_Click(object sender, RoutedEventArgs e)
+    private void Segments_Click(object sender, RoutedEventArgs e) => ShowFightMenu((UIElement)sender, intoFightTab: false);
+
+    /// <summary>The fight list: on the meter tab a pick shows that fight in the rows; from the fight tab's "Fights" chip it opens
+    /// that fight's breakdown in the tab (no "Live" entry there: a breakdown is always of one fight).</summary>
+    private void ShowFightMenu(UIElement anchor, bool intoFightTab)
     {
-        var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = PlacementMode.Bottom, MinWidth = 380 };
-        var live = new MenuItem
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = PlacementMode.Bottom, MinWidth = 380 };
+        if (!intoFightTab)
         {
-            Header = PickHeader(UiText.Current.Live, UiText.Current.LiveHint, null, 0, EncounterEndReason.None, active: true, partyDps: 0, portrait: null),
-            IsCheckable = true,
-            IsChecked = _saved is null && _segment is null,
-        };
-        live.Click += (_, _) => SelectLive();
-        menu.Items.Add(live);
+            var live = new MenuItem
+            {
+                Header = PickHeader(UiText.Current.Live, UiText.Current.LiveHint, null, 0, EncounterEndReason.None, active: true, partyDps: 0, portrait: null),
+                IsCheckable = true,
+                IsChecked = _saved is null && _segment is null,
+            };
+            live.Click += (_, _) => SelectLive();
+            menu.Items.Add(live);
+        }
 
         var items = BuildFightList(SavedInMenu);
         string? section = null;
@@ -495,10 +503,11 @@ public partial class OverlayWindow : Window
             {
                 Header = PickHeader(item.Title, meta, item.SelfDps > 0 ? item.SelfDps : null, item.Place, item.Reason, item.Active, item.PartyDps, item.Portrait),
                 IsCheckable = true,
-                IsChecked = IsSelected(item),
+                IsChecked = intoFightTab ? IsFightShown(item) : IsSelected(item),
             };
             var pick = item;
-            row.Click += (_, _) => Select(pick);
+            if (intoFightTab) row.Click += (_, _) => OpenFight(pick);
+            else row.Click += (_, _) => Select(pick);
             menu.Items.Add(row);
         }
         if (items.Count == 0)
@@ -693,6 +702,8 @@ public partial class OverlayWindow : Window
     private Views.BuildView? _buildView;
     private Views.ItemsView? _itemsView;
     private Views.BossTimersView? _timersView;
+    private Views.BreakdownView? _fightView;
+    private object? _fightKey;   // segment id, saved fight file name or the view itself: the stand-alone window's key on pop-out
 
     public string Tab => _tab;
     public bool TabActive => _tab != "meter";
@@ -709,6 +720,7 @@ public partial class OverlayWindow : Window
     /// <summary>Shows one of the tabs inside the card; the card keeps its size whatever the tab (Diego, 2026-10-10).</summary>
     public void SelectTab(string tab)
     {
+        if (tab == "fight" && _fightView?.Fight is null) tab = "meter";   // a breakdown needs a fight: reached from ShowFight only
         if (tab == _tab) { SyncTabChecks(); return; }
         _tab = tab;
         Services.Telemetry.Count("tab." + tab);
@@ -728,6 +740,7 @@ public partial class OverlayWindow : Window
                 "build" => _buildView ??= Wire(new Views.BuildView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
                 "items" => _itemsView ??= Wire(new Views.ItemsView(_meter), v => { v.CloseRequested += () => SelectTab("meter"); v.OpenInCraft += OpenInCraft; }),
                 "timers" => _timersView ??= Wire(new Views.BossTimersView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
+                "fight" => _fightView!,
                 _ => _pricesView ??= Wire(new Views.PriceWatchView(_meter), v => v.CloseRequested += () => SelectTab("meter")),
             };
             TabHost.Visibility = Visibility.Visible;
@@ -736,7 +749,59 @@ public partial class OverlayWindow : Window
         ApplyClickThrough();
     }
 
-    private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(_tab);
+    private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(_tab == "fight" ? "meter" : _tab);
+
+    /// <summary>A tab stops above the footer: on a narrow card the event pills wrap to a second line, which a fixed 52 px margin covered (A2M-43).</summary>
+    private void Footer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (TabHost.Parent is not FrameworkElement host || host.ActualHeight <= 0) return;
+        var bottom = Math.Max(52, Math.Ceiling(host.ActualHeight - FooterPanel.TranslatePoint(default, host).Y + 6));
+        if (Math.Abs(TabHost.Margin.Bottom - bottom) > 0.5) TabHost.Margin = new Thickness(8, 46, 8, bottom);
+    }
+
+    /// <summary>
+    /// A2M-43: the fight's breakdown as this card's "fight" tab (Back / Esc return to the DPS tab). <paramref name="key"/> identifies
+    /// the fight for the stand-alone window the pop-out icon opens.
+    /// </summary>
+    public void ShowFight(IFightView view, uint actorId, object key)
+    {
+        _fightView ??= Wire(new Views.BreakdownView(_meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor, hosted: true), v =>
+        {
+            v.CloseRequested += () => SelectTab("meter");
+            v.FightsRequested += anchor => ShowFightMenu(anchor, intoFightTab: true);
+            v.EnableFightPicker();
+        });
+        _fightKey = key;
+        _fightView.SetFight(view, actorId);
+        SelectTab("fight");
+    }
+
+    /// <summary>The fight tab's own fight list: that fight opens in the tab, on your character (else the top of the party).</summary>
+    private void OpenFight(PickItem item)
+    {
+        IFightView view;
+        object key;
+        if (item.Saved is { } h)
+        {
+            if (_meter.History.Load(h.Path) is not { } record) { AppHost.Current.ShowHistory(); return; }
+            view = new RecordFightView(record);
+            key = h.FileName;
+        }
+        else if (item.Segment is { } seg)
+        {
+            view = new LiveFightView(_meter.Tracker, seg);
+            key = seg;
+        }
+        else return;
+        var combatants = view.Summary()?.Combatants;
+        if (combatants is null || combatants.Count == 0) return;
+        var actor = combatants[0].ActorId;
+        for (var i = 0; i < combatants.Count; i++) if (combatants[i].IsSelf) { actor = combatants[i].ActorId; break; }
+        ShowFight(view, actor, key);
+    }
+
+    private bool IsFightShown(PickItem item) =>
+        item.Saved is { } h ? _fightKey is string file && file == h.FileName : _fightKey is Guid seg && seg == item.Segment;
 
     /// <summary>Items tab → "Open in Craft →": the Craft tab with the recipe's name in its search box.</summary>
     private void OpenInCraft(string text)
@@ -800,7 +865,14 @@ public partial class OverlayWindow : Window
 
     private void PopOut_Click(object sender, RoutedEventArgs e)
     {
-        if (!_drag.JustDragged) AppHost.Current.PopOut(_tab, Width, Height);
+        if (_drag.JustDragged) return;
+        // the fight tab pops out as the breakdown window (resizable, its own size), and this card goes back to the DPS rows
+        if (_tab == "fight" && _fightView?.Fight is { } fight)
+        {
+            AppHost.Current.ShowBreakdownWindow(_fightKey ?? fight, fight, _fightView.Actor);
+            SelectTab("meter");
+        }
+        else AppHost.Current.PopOut(_tab, Width, Height);
     }
 
     private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
@@ -810,6 +882,8 @@ public partial class OverlayWindow : Window
     private void SyncTabChecks()
     {
         TabMeter.IsChecked = _tab == "meter"; TabAtlas.IsChecked = _tab == "atlas"; TabTop.IsChecked = _tab == "top"; TabPrices.IsChecked = _tab == "prices"; TabCraft.IsChecked = _tab == "craft"; TabBuild.IsChecked = _tab == "build"; TabItems.IsChecked = _tab == "items"; TabTimers.IsChecked = _tab == "timers";
+        TabFight.IsChecked = _tab == "fight";
+        TabFight.Visibility = _tab == "fight" ? Visibility.Visible : Visibility.Collapsed;
         if (TabPrices.IsChecked == true) TabPrices.Foreground = (Brush)FindResource("Text");
     }
 

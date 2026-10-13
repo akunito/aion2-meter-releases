@@ -753,6 +753,11 @@ public sealed class UiText
     public string CraftNow { get; init; } = "now";
     public string PopOut { get; init; } = "Open this tab in another card (the copy has an X to close it)";
     public string CloseCopy { get; init; } = "Close this card";
+    public string Back { get; init; } = "Back";
+    public string TipBack { get; init; } = "Back to the DPS tab (Esc)";
+    public string PartyToggle { get; init; } = "Party";
+    public string FightTab { get; init; } = "Fight breakdown (the pop-out icon opens it in its own window)";
+    public string TipFightPicker { get; init; } = "Show another fight here";
     public string TrayPrices { get; init; } = "Price watch (aion2.exchange, once an hour)";
     public string PricesHint { get; init; } = "Items to buy below a price. aion2.exchange is read once an hour per item; a Windows notification and a chime fire while the lowest listing is at or under your maximum. The globe opens the item on the site.";
     public string PriceHit { get; init; } = "{0}: {1:N0} Kinah (≤ {2:N0}), {3} listings";
@@ -1229,6 +1234,11 @@ public sealed class UiText
         CraftVariant = "вариант (другая фракция или путь)",
         CraftStatus = "{0} можно скрафтить · {1} почти",
         PopOut = "Открыть эту вкладку в отдельной карточке (у копии есть крестик)",
+        Back = "Назад",
+        TipBack = "Назад к вкладке DPS (Esc)",
+        PartyToggle = "Группа",
+        FightTab = "Разбор боя (значок «открыть отдельно» показывает его в своём окне)",
+        TipFightPicker = "Показать здесь другой бой",
         CloseCopy = "Закрыть эту карточку",
         TrayPrices = "Слежение за ценами (aion2.exchange, раз в час)",
         PricesHint = "Предметы, которые нужно купить дешевле заданной цены. aion2.exchange читается раз в час на предмет; уведомление Windows и сигнал звучат, пока минимальный лот не выше вашего максимума. Глобус открывает предмет на сайте.",
