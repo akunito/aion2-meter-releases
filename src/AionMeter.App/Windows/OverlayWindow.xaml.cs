@@ -817,15 +817,19 @@ public partial class OverlayWindow : Window
 
     private long _timersLabelAt;
 
-    /// <summary>The next respawn among watched bosses (or all, when none is watched): "Gartua 12:34".</summary>
+    private readonly List<Core.Atlas.BossSpawn> _pillSpawns = new();
+
+    /// <summary>The next field boss to spawn on the player's map, else on the server: "Gartua 12:34" (rule in FieldBossPill.Pick).</summary>
     private void UpdateTimersLabel()
     {
         UpdateEventLabels();
         _timersLabelAt = Environment.TickCount64;
         var now = DateTimeOffset.Now;
-        var timers = _meter.Timers.ForServer(_meter.Timers.CurrentServer).Where(t => t.NpcCode > 0).ToList();
-        var pool = timers.Any(t => t.Watch) ? timers.Where(t => t.Watch) : timers;
-        var next = pool.Where(t => !t.AliveNow && t.NextSpawn > now).MinBy(t => t.NextSpawn);
+        var timers = _meter.Timers.ForServer(_meter.Timers.CurrentServer);
+        _pillSpawns.Clear();
+        for (var i = 0; i < timers.Count; i++) { var t = timers[i]; _pillSpawns.Add(new(t.NpcCode, t.MapId, t.NextSpawn, t.AliveNow)); }
+        var pick = Core.Atlas.FieldBossPill.Pick(_pillSpawns, _meter.Atlas.MapId, now);
+        var next = pick >= 0 ? timers[pick] : null;
         if (next?.NextSpawn is not { } at)
         {
             _vm.TimersLabel = UiText.Current.TimersButton;

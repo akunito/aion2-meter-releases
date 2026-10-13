@@ -42,7 +42,7 @@ public sealed record BossTimer(
     public DateTimeOffset? AliveAt => Max(LastSeenAlive, ListedAt is { } at && ListedAlive ? at : null);
 
     [JsonIgnore]
-    public bool AliveNow => AliveAt is { } alive && (DeadAt is not { } dead || alive > dead);
+    public bool AliveNow => Core.Atlas.FieldBossPill.AliveNow(LastKill, LastSeenAlive, LastSeenDead, ListedAt, ListedAlive);
 
     /// <summary>When a living boss appeared, as far as known.</summary>
     [JsonIgnore]
@@ -50,10 +50,7 @@ public sealed record BossTimer(
 
     /// <summary>The game's own respawn time while the list is the newest word on it; else the last kill + the interval.</summary>
     [JsonIgnore]
-    public DateTimeOffset? NextSpawn =>
-        ListedAt is { } listed && !ListedAlive && ListedTime is { } back && (LastKill is not { } k || k <= listed) ? back
-        : LastKill is { } kill && RespawnMinutes > 0 ? kill.AddMinutes(RespawnMinutes)
-        : null;
+    public DateTimeOffset? NextSpawn => Core.Atlas.FieldBossPill.NextSpawn(ListedAt, ListedAlive, ListedTime, LastKill, RespawnMinutes);
 
     /// <summary>The state comes from the in-game list rather than from the meter's own observations.</summary>
     [JsonIgnore]

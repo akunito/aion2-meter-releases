@@ -798,7 +798,7 @@ public sealed class UiText
     public string TopBoardFailed { get; init; } = "The ranking pages did not answer: {0}";
     public string TopProfileFetch { get; init; } = "Load profile";
     public string TopProfileLoading { get; init; } = "Loading…";
-    public string TopProfileMissing { get; init; } = "Not found on the official character search (renamed, deleted or another server).";
+    public string TopProfileMissing { get; init; } = "\"{0}\" on {1} is not on the official character search (renamed, deleted or moved server).";
     public string TopProfileFailed { get; init; } = "The character page did not answer: {0}";
     public string AtlasTitle { get; init; } = "Atlas";
     public string AtlasNoMap { get; init; } = "No calibrated map for zone {0}. Nodes are still being recorded.";

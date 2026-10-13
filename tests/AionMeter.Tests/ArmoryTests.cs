@@ -60,6 +60,56 @@ public class ArmoryTests
     }
 }
 
+/// <summary>A2M-38: ranked players came back "not found" — real searches of 2026-10-13 (region=eu).</summary>
+public class ArmoryMatchTests
+{
+    private static List<CharacterRef> Search(string name) => ArmoryParser.ParseSearch(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "armory", name)));
+
+    private static Dictionary<int, string> RealServers()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var i = 0; i < 8 && dir is not null; i++, dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "data", "servers.json"))) return AionMeter.Core.Game.GameData.Load(Path.Combine(dir.FullName, "data")).Servers;
+        Assert.Fail("data/servers.json not found");
+        return [];
+    }
+
+    [Fact]
+    public void Ranking_server_name_resolves_to_the_id_in_the_players_region()
+    {
+        var servers = RealServers();
+        // "Vaizel" is 1003, 1103, … 1503 (and more): the first one (1003) is not EU, and the EU search never returns it.
+        Assert.True(servers.Count(kv => kv.Value == "Vaizel") > 1);
+        Assert.Equal(1303, ArmoryClient.ServerIdFor(servers, "Vaizel", 1303));
+        Assert.Equal(2304, ArmoryClient.ServerIdFor(servers, "Lumiel", 1303));    // the other faction, same region
+        Assert.Equal(1303, ArmoryClient.ServerIdFor(servers, "vaizel", 2318));
+        Assert.Equal(0, ArmoryClient.ServerIdFor(servers, "Vaizel", 0));          // own server unknown: ambiguous, match by name instead
+        Assert.Equal(0, ArmoryClient.ServerIdFor(servers, "Nowhere", 1303));
+    }
+
+    [Fact]
+    public void Match_takes_exact_name_on_the_wanted_server()
+    {
+        var teinmeir = Search("search-teinmeir.json");
+        Assert.Equal(1303, ArmoryClient.Match(teinmeir, "Teinmeir", 1303, null)!.ServerId);
+        Assert.Null(ArmoryClient.Match(teinmeir, "Teinmeir", 1003, null));        // the id the old lookup asked for
+        Assert.Equal(1303, ArmoryClient.Match(teinmeir, "Teinmeir", 0, "Vaizel")!.ServerId);
+
+        // Substring hits ("Noushh", "Inoush") and other servers are skipped.
+        var noush = Search("search-noush.json");
+        var n = ArmoryClient.Match(noush, "Noush", 1303, null)!;
+        Assert.Equal(("Noush", 14), (n.Name, n.PcId));
+        Assert.Equal(1301, ArmoryClient.Match(noush, "noush", 0, "Siel")!.ServerId);
+        Assert.Null(ArmoryClient.Match(noush, "Noush", 1303 + 1, null));
+
+        // Exact case first: "ВАСИЛИЙ" (Lumiel) is ranked, the four "Василий" are other characters.
+        var v = Search("search-vasiliy.json");
+        Assert.Equal(2304, ArmoryClient.Match(v, "ВАСИЛИЙ", 2304, null)!.ServerId);
+        Assert.Equal("ВАСИЛИЙ", ArmoryClient.Match(v, "ВАСИЛИЙ", 0, "Lumiel")!.Name);
+        Assert.Null(ArmoryClient.Match(v, "ВАСИЛИЙ", 0, null));
+    }
+}
+
 public class LeaderboardTests
 {
     [Fact]

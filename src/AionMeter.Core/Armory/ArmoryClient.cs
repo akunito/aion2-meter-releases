@@ -48,17 +48,55 @@ public sealed class ArmoryClient : IDisposable
     /// <summary>
     /// The character with exactly this name on this server. The search is a substring match over every server ("Baby" has
     /// thousands of hits), so up to 4 pages of 50 are read until the exact name on the wanted server shows up.
+    /// <paramref name="serverId"/> 0 = match on <paramref name="serverName"/> instead (the region's names are unique).
     /// </summary>
-    public async Task<CharacterRef?> FindAsync(string name, int serverId, CancellationToken ct = default)
+    public async Task<CharacterRef?> FindAsync(string name, int serverId, string? serverName = null, CancellationToken ct = default)
     {
         for (var page = 1; page <= 4; page++)
         {
             var list = await SearchAsync(name, page, 50, ct).ConfigureAwait(false);
-            foreach (var r in list)
-                if (r.ServerId == serverId && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) return r;
+            if (Match(list, name, serverId, serverName) is { } r) return r;
             if (list.Count < 50) break;
         }
         return null;
+    }
+
+    /// <summary>
+    /// The search hit for this character: the exact name (an exact-case hit first: "ВАСИЛИЙ" and "Василий" are different
+    /// characters) on <paramref name="serverId"/>, or on the server called <paramref name="serverName"/> when the id is 0.
+    /// </summary>
+    public static CharacterRef? Match(List<CharacterRef> list, string name, int serverId, string? serverName)
+    {
+        CharacterRef? folded = null;
+        for (var i = 0; i < list.Count; i++)
+        {
+            var r = list[i];
+            if (serverId != 0 ? r.ServerId != serverId
+                : string.IsNullOrEmpty(serverName) || !string.Equals(r.ServerName, serverName, StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.Equals(r.Name, name, StringComparison.Ordinal)) return r;
+            if (folded is null && string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) folded = r;
+        }
+        return folded;
+    }
+
+    /// <summary>
+    /// The id of the server called <paramref name="name"/>. Every region reuses the names (Vaizel is 1003, 1103, … 1303, 2003 …;
+    /// EU is 13xx/23xx), so the id in the same region as <paramref name="sameRegionAs"/> (the hundreds digit) wins, then the only
+    /// id with that name; 0 when still ambiguous. Taking the first match picked 1003 for EU's Vaizel and every ranked player
+    /// came back "not found" (A2M-38, 2026-10-13).
+    /// </summary>
+    public static int ServerIdFor(IReadOnlyDictionary<int, string> servers, string name, int sameRegionAs)
+    {
+        var region = sameRegionAs / 100 % 10;
+        int only = 0, count = 0;
+        foreach (var (id, n) in servers)
+        {
+            if (!string.Equals(n, name, StringComparison.OrdinalIgnoreCase)) continue;
+            if (sameRegionAs != 0 && id / 100 % 10 == region) return id;
+            only = id;
+            count++;
+        }
+        return count == 1 ? only : 0;
     }
 
     public CharacterProfile? Cached(string name, int serverId)
@@ -70,10 +108,10 @@ public sealed class ArmoryClient : IDisposable
     }
 
     /// <summary>Cached profile when fresh, otherwise search + fetch; null when the character is not found.</summary>
-    public async Task<CharacterProfile?> LookupAsync(string name, int serverId, bool withDaevanion = true, bool force = false, CancellationToken ct = default)
+    public async Task<CharacterProfile?> LookupAsync(string name, int serverId, bool withDaevanion = true, bool force = false, string? serverName = null, CancellationToken ct = default)
     {
-        if (!force && Cached(name, serverId) is { } c && DateTimeOffset.UtcNow - c.FetchedAt < MaxAge && (!withDaevanion || c.Daevanion.Count > 0)) return c;
-        var r = await FindAsync(name, serverId, ct).ConfigureAwait(false);
+        if (!force && serverId != 0 && Cached(name, serverId) is { } c && DateTimeOffset.UtcNow - c.FetchedAt < MaxAge && (!withDaevanion || c.Daevanion.Count > 0)) return c;
+        var r = await FindAsync(name, serverId, serverName, ct).ConfigureAwait(false);
         if (r is null) return null;
         var p = await FetchAsync(r, withDaevanion, ct).ConfigureAwait(false);
         Store(p);

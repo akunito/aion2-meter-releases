@@ -167,6 +167,7 @@ public static class SampleRenderer
                 break;
             default:
                 if (o.Window == "overlay-update") meter.Updates.Preview(SampleRelease(meter.Updates.Current)); // with the footer's update banner
+                FeedTimers(meter);   // the footer's boss pill: the soonest spawn, not the watched one (A2M-38)
                 var overlay = new OverlayWindow(meter) { Width = o.Width ?? 560, Height = o.Height ?? 820 };
                 // --tab viewing: the selector while Akunita plays and Irin is viewed (eye + amber); --tab current: viewing the logged-in one
                 if (o.Tab is "viewing" or "current") overlay.SampleCharacters(["2001-Akunita", "2001-Arielka", "2001-Irin"], "2001-Akunita", o.Tab == "viewing" ? "2001-Irin" : "2001-Akunita");

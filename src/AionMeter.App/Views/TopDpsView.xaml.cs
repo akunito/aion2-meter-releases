@@ -253,14 +253,17 @@ public partial class TopDpsView : UserControl
     {
         if (sender is not FrameworkElement { DataContext: Row row }) return;
         var server = ServerOf(row);
-        if (server == 0) { row.ProfileText = T.TopProfileMissing; return; }
-        var cached = _meter.Armory.Cached(row.Name, server);
+        // A ranking row names its server; when the name is ambiguous across regions (no own server yet) the search matches it by name.
+        var serverName = row.Entry is null ? row.ServerName : null;
+        if (server == 0 && string.IsNullOrEmpty(serverName)) { row.ProfileText = string.Format(T.TopProfileMissing, row.Name, "?"); return; }
+        var where = server != 0 ? $"{_meter.Data.ServerName(server)} ({server})" : serverName!;
+        var cached = server != 0 ? _meter.Armory.Cached(row.Name, server) : null;
         if (cached is not null) row.ProfileText = ProfileFormatter.Text(cached, row.Entry, _meter.Data);
         row.ProfileText = cached is null ? T.TopProfileLoading : row.ProfileText;
         try
         {
-            var p = await _meter.Armory.LookupAsync(row.Name, server);
-            row.ProfileText = p is null ? T.TopProfileMissing : ProfileFormatter.Text(p, row.Entry, _meter.Data);
+            var p = await _meter.Armory.LookupAsync(row.Name, server, serverName: serverName);
+            row.ProfileText = p is null ? string.Format(T.TopProfileMissing, row.Name, where) : ProfileFormatter.Text(p, row.Entry, _meter.Data);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
@@ -269,13 +272,9 @@ public partial class TopDpsView : UserControl
         }
     }
 
-    private int ServerOf(Row row)
-    {
-        if (row.Entry is { } e) return e.ServerId != 0 ? e.ServerId : _meter.Tracker.SelfServerId;
-        foreach (var (id, name) in _meter.Data.Servers)
-            if (string.Equals(name, row.ServerName, StringComparison.OrdinalIgnoreCase)) return id;
-        return 0;
-    }
+    private int ServerOf(Row row) =>
+        row.Entry is { } e ? (e.ServerId != 0 ? e.ServerId : _meter.Tracker.SelfServerId)
+        : ArmoryClient.ServerIdFor(_meter.Data.Servers, row.ServerName, _meter.Tracker.SelfServerId);
 
     private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp(sender is FrameworkElement { Tag: string t } ? t : "meter");
     public event Action? CloseRequested;
