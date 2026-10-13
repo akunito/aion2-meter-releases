@@ -456,6 +456,14 @@
                 <Button x:Name="CloseWindowButton" Grid.Column="2" Style="{StaticResource ToolIcon}" Content="&#xE711;" Click="CloseWindow_Click" Visibility="Collapsed"
                         VerticalAlignment="Top" HorizontalAlignment="Right" Margin="6,0,0,0" ToolTip="{Binding T.CloseCopy}" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Effect="{StaticResource TextShadow}" x:Name="RightPanel">
+                    <!-- upstream 0.2.8: the game's time limit for this instance (or a boss's own); stays in view while the toolbar shows, like the clock -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0" Background="Transparent"
+                                ToolTip="{Binding LimitTip}" Visibility="{Binding HasLimit, Converter={StaticResource VisibleIf}}">
+                        <TextBlock Text="&#xE916;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{Binding LimitBrush}"
+                                   Margin="0,1,4,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding LimitText}" FontFamily="{StaticResource NumberFont}" FontWeight="SemiBold" FontSize="12.5"
+                                   Foreground="{Binding LimitBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
                     <StackPanel x:Name="LabelPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Ellipse Width="7" Height="7" Margin="0,0,7,0" Fill="{Binding HeaderBrush}">
                             <Ellipse.Style>

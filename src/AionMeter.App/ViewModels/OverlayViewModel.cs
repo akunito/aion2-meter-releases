@@ -228,6 +228,44 @@ public sealed class OverlayViewModel : ObservableObject
     public System.Collections.ObjectModel.ObservableCollection<EventPill> EventLabels { get; } = new();
     private string _timersLabel = UiText.Current.TimersButton;
     public string Clock { get => _clock; set => Set(ref _clock, value); }
+
+    private string _limitText = "";
+    private string _limitTip = "";
+    private Brush _limitBrush = LimitAmber;
+    private InstanceTimerEvent? _limitTimer;
+    private static readonly Brush LimitAmber = Frozen(Color.FromRgb(0xF0, 0xC0, 0x60));
+
+    /// <summary>"54:12": what is left of the instance's countdown (the game's time limit, upstream 0.2.8); empty when none runs.</summary>
+    public string LimitText
+    {
+        get => _limitText;
+        private set
+        {
+            if (Set(ref _limitText, value)) Raise(nameof(HasLimit));
+        }
+    }
+
+    public bool HasLimit => _limitText.Length > 0;
+    public string LimitTip { get => _limitTip; private set => Set(ref _limitTip, value); }
+    /// <summary>Amber; red for the last minute or the last tenth of the time.</summary>
+    public Brush LimitBrush { get => _limitBrush; private set => Set(ref _limitBrush, value); }
+
+    public void SetLimit(InstanceTimerEvent? timer, long nowMs)
+    {
+        if (timer is null)
+        {
+            LimitText = "";
+            return;
+        }
+        var left = timer.EndMs - nowMs;
+        LimitText = Format.ClockShort(left + 999); // 0:00 only when it is over
+        LimitBrush = left < 60_000 || left < (timer.EndMs - timer.StartMs) / 10 ? LiveRed : LimitAmber;
+        // 5 refreshes a second: the tooltip only changes with the timer (records compare by value).
+        if (timer == _limitTimer) return;
+        _limitTimer = timer;
+        LimitTip = string.Format(timer.Kind == InstanceTimerEvent.BossLimit ? T.BossLimitTip : T.TimeLimitTip,
+            DateTimeOffset.FromUnixTimeMilliseconds(timer.EndMs).ToLocalTime().ToString("HH:mm:ss"));
+    }
     public bool IsActive { get => _isActive; set => Set(ref _isActive, value); }
     public bool HasData { get => _hasData; set => Set(ref _hasData, value); }
     public bool HasBoss { get => _hasBoss; set => Set(ref _hasBoss, value); }

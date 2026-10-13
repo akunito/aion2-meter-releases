@@ -42,6 +42,9 @@ driver — see [Installation](#installation).
 - **Live overlay** — party DPS, damage and share for every player and the boss's HP, updated five times a second.
   Class colours and emblems, your own row highlighted. A compact top: one line with the boss and the fight's timer, a
   slim HP bar, the menu buttons only while the mouse is over it; rows can be made smaller (*Settings → Overlay*).
+- **Time limits from the game** — a boss with a time limit (Ferocious Horn Nuakum: 5 minutes) gets a countdown next to
+  the fight's clock, red for the last minute; otherwise the dungeon's own limit (an hour in Ferocious Horn Den) and the
+  time left to leave after the last boss.
 - **Shows up when you fight** — the overlay appears when a boss is fought nearby or you hit anything, and hides again
   60 s after the fight. Lock it in place, make it click-through, set the opacity. It never takes focus from the game.
 - **Full breakdown** — click a player for their fight: DPS timeline against the party, every skill with hits, damage,

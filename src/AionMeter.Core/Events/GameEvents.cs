@@ -117,6 +117,23 @@ public sealed record CastEvent(long TimeMs, uint ActorId, uint TargetId, int Ski
 /// </summary>
 public sealed record HitNoticeEvent(long TimeMs, uint ActorId, uint TargetId, int SkillCode) : GameEvent(TimeMs);
 
+/// <summary>
+/// A countdown of the instance the player is in (<c>00 61</c>), as the game shows it: <paramref name="Kind"/> 1 is the
+/// 30 s wait after entering, 2 the dungeon's own time limit (60 min in Ferocious Horn Den); start and end are the
+/// server's epoch ms. Sent on entry and again after every reload of the map (death, teleport) with the same times.
+/// </summary>
+public sealed record InstanceTimerEvent(long TimeMs, int MapId, int Kind, long StartMs, long EndMs) : GameEvent(TimeMs)
+{
+    /// <summary>Not the instance's own: a boss's time limit, from <see cref="BossTimeLimitEvent"/>.</summary>
+    public const int BossLimit = 0x100;
+}
+
+/// <summary>
+/// A boss with a time limit entered combat (<c>21 8D</c> with a deadline): the fight is lost at <paramref name="EndMs"/>
+/// (server epoch ms; Ferocious Horn Nuakum: 5 minutes).
+/// </summary>
+public sealed record BossTimeLimitEvent(long TimeMs, uint ActorId, long EndMs) : GameEvent(TimeMs);
+
 /// <summary>Server-side combat state toggle for an NPC (boss engaged / disengaged). KR only so far.</summary>
 public sealed record BattleStateEvent(long TimeMs, uint ActorId, bool InCombat) : GameEvent(TimeMs);
 

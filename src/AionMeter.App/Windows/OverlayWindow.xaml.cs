@@ -126,6 +126,9 @@ public partial class OverlayWindow : Window
             _vm.SetSegment(_segment is null ? "live" : "session", snap?.StartedAt.ToString("HH:mm"));
         }
         if (!_settings.ShowBossPanel) _vm.HasBoss = false;
+        // The instance's time limit (or the wait after entering), whatever fight is shown: it is about where you are now.
+        var wall = ClockOverride?.Invoke() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _vm.SetLimit(_meter.Tracker.NextTimer(wall), wall);
         if (Environment.TickCount64 - _timersLabelAt >= 1_000) UpdateTimersLabel();
 
         var status = _meter.DemoRunning ? new CaptureStatus(CaptureState.Capturing, "Demo fight running") : _meter.CaptureStatus;

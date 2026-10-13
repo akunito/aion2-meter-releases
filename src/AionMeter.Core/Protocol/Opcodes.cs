@@ -22,6 +22,7 @@ public static class Opcodes
     public const ushort Damage = 0x0438;
     public const ushort Dot = 0x0538;
     public const ushort RemainHp = 0x008D;
+    public const ushort InstanceTimer = 0x0061;  // map u32, kind u8, start u64 ms, end u64 ms
     public const ushort KillCredit = 0x048D;
     public const ushort BattleToggle = 0x218D;   // KR only, unverified on Global
     public const ushort HpMp = 0x1B92;
@@ -100,6 +101,7 @@ public static class Opcodes
         Dot => "Dot",
         RemainHp => "RemainHp",
         KillCredit => "KillCredit",
+        InstanceTimer => "InstanceTimer",
         BattleToggle => "BattleToggle",
         HpMp => "HpMp",
         PartyRoster => "PartyRoster",

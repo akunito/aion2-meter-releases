@@ -7,10 +7,10 @@ namespace AionMeter.Tests;
 
 public class ProtocolTests
 {
-    private static List<GameEvent> Parse(ushort opcode, string hex)
+    private static List<GameEvent> Parse(ushort opcode, string hex, long timeMs = 1_000)
     {
         var events = new List<GameEvent>();
-        var parser = new PacketParser(GameData.Empty, events.Add) { TimeMs = 1_000 };
+        var parser = new PacketParser(GameData.Empty, events.Add) { TimeMs = timeMs };
         parser.Handle(opcode, Wire.FromHex(hex));
         return events;
     }
@@ -158,6 +158,31 @@ public class ProtocolTests
     public void Another_entitys_hp_record_is_no_self_hint()
     {
         Assert.Empty(Parse(Opcodes.RemainHp, "f2c9030201008fcc12070000000").OfType<LocalPlayerHintEvent>()); // boss 58610: 02 01 header
+    }
+
+    // Ferocious Horn Den (map 600092), 2026-10-12: the 30 s wait after entering, then the dungeon's 60 min time limit.
+    [Theory]
+    [InlineData("1C28090001BEE0582DA1010000EE55592DA1010000", 1, 30_000L)]
+    [InlineData("1C280900022056592DA1010000A044902DA1010000", 2, 3_600_000L)]
+    public void Instance_timers_decode(string hex, int kind, long length)
+    {
+        var t = Assert.IsType<InstanceTimerEvent>(Assert.Single(Parse(Opcodes.InstanceTimer, hex)));
+        Assert.Equal(600092, t.MapId);
+        Assert.Equal(kind, t.Kind);
+        Assert.Equal(length, t.EndMs - t.StartMs);
+    }
+
+    // Ferocious Horn Nuakum (2026-10-12) entering combat with its 5 minute limit; an ordinary boss without one.
+    [Fact]
+    public void A_boss_entering_combat_may_bring_its_time_limit()
+    {
+        var events = Parse(Opcodes.BattleToggle, "F19702 01 01 EA66962DA1010000".Replace(" ", ""), 0x1A12D9666EAL - 300_000);
+        Assert.True(Assert.IsType<BattleStateEvent>(events[0]).InCombat);
+        var limit = Assert.IsType<BossTimeLimitEvent>(events[1]);
+        Assert.Equal(35825u, limit.ActorId);
+        Assert.Equal(0x1A12D9666EAL, limit.EndMs);
+
+        Assert.IsType<BattleStateEvent>(Assert.Single(Parse(Opcodes.BattleToggle, "FB3E0001")));
     }
 
     // A world boss fight (2026-10-10, boss 19505): an Elementalist's hit and a Ranger's third hit of one skill — who, on

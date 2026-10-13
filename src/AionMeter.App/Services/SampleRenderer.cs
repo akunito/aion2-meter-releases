@@ -31,6 +31,8 @@ public static class SampleRenderer
         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 20_500; // a fight that is still going
         var fight = new SampleFight(start, 20);
         fight.FeedUntil(meter.Tracker, start + 20_000);
+        // A dungeon's time limit, 12:48 of its hour gone: the countdown in the overlay's top line.
+        meter.Tracker.Process(new InstanceTimerEvent(start, 600092, 2, start - 768_000, start + 2_832_000));
         if (o.Window == "overlay-crowd") fight.FeedCrowd(meter.Tracker, start + 20_000, 124);
         if (o.Window == "history")
             foreach (var entry in meter.History.List().Take(20)) meter.PortraitOf(entry);
