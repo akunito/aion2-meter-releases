@@ -139,7 +139,8 @@ internal sealed class SettingsView : HostedView
         if (s.CaptureDevice is { Length: > 0 } forced && devIdx == 0) { _devices.Add((forced, forced)); devIdx = _devices.Count - 1; }
         var devLabels = new string[_devices.Count];
         for (var i = 0; i < _devices.Count; i++) devLabels[i] = _devices[i].Label;
-        ca.Append(UiKit.Field(T.NetworkAdapter, _device = UiKit.Combo(devLabels, devIdx, 260), 0));
+        // 190 + 250: with 260 the row was 450 px, 6 over a section's inside at 560, and widened the card to 542 visible (measured 2026-10-13)
+        ca.Append(UiKit.Field(T.NetworkAdapter, _device = UiKit.Combo(devLabels, devIdx, 250), 0));
         ca.Append(UiKit.Hint(T.AdapterHint, 0));
         ca.Append(_record = UiKit.Check(T.RecordPackets, s.RecordPackets, 6));
         ca.Append(UiKit.Hint(T.RecordHint));
@@ -254,12 +255,17 @@ internal sealed class SettingsView : HostedView
         }
         if (engine is not null) Info(engine); else Shell.WhenEngine(Info);
         da.Append(dataInfo);
+        // two lines: the three buttons on one are ~470 px in Spanish and widened the card to 555 visible instead of 540 (measured
+        // 2026-10-13 in a nested sway)
         var folders = UiKit.HBox();
         folders.MarginTop = UiKit.Px(10);
         folders.Append(UiKit.Ghost(T.OpenDataFolder, () => Open(MeterEngine.DataDirectory)));
         folders.Append(UiKit.Ghost(T.OpenAppFolder, () => Open(AppSettings.AppDataDir)));
-        folders.Append(UiKit.Ghost(T.Logs, () => Open(Log.Directory)));
         da.Append(folders);
+        var logs = UiKit.Ghost(T.Logs, () => Open(Log.Directory));
+        logs.MarginTop = UiKit.Px(6);
+        logs.Halign = Gtk.Align.Start;
+        da.Append(logs);
         stack.Append(UiKit.Section(da, T.SecData));
         stack.Append(UiKit.Hint(T.Disclaimer, 4));
 

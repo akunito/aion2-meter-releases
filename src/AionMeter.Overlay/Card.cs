@@ -41,7 +41,7 @@ internal sealed class Card
     private int[] _lineOf = [];
     private double _bossFraction = -1;
     private string _language = "";
-    private string _stateClass = "";
+    private string _stateClass = "", _stateText = "";
     private string _statusClass = "";
     private bool _connected, _hover, _clickThrough, _fightsWanted;
     private OverlayModel? _last;
@@ -78,7 +78,16 @@ internal sealed class Card
 
         // ------------------------------------------------ header: tabs · title (toolbar on hover) · limit, state, clock
         var header = Box(Gtk.Orientation.Horizontal, "header");
-        inner.Append(header);
+        // A layer surface takes its content's natural width, and the header's natural width is the sum of its children's: the fight or
+        // settings pill plus a long state label ("SAVED FIGHT   12.10 19:30", ES "COMBATE GUARDADO …") widened the card 560 → 642 px
+        // surface (622 visible, measured 2026-10-13 in a nested sway). The whole header sits in a clipping scroller (external policy:
+        // natural width = 0, the child still gets the full width and at least its minimum), so no header widget can ever widen the card;
+        // inside it the box still hands space to the state label up to its natural width before the expanding title gets any.
+        var headerClip = Gtk.ScrolledWindow.New();
+        headerClip.SetPolicy(Gtk.PolicyType.External, Gtk.PolicyType.Never);
+        headerClip.PropagateNaturalHeight = true;
+        headerClip.Child = header;
+        inner.Append(headerClip);
         var tabs = Box(Gtk.Orientation.Horizontal, "tabs");
         tabs.Valign = Gtk.Align.Center;
         // the pills' icons expand inside their pill; set explicitly so that does not propagate and stretch the strip when the title hides
@@ -144,6 +153,8 @@ internal sealed class Card
         _stateDot.Valign = Gtk.Align.Center;
         _stateBox.Append(_stateDot);
         _state = Label("state", 0);
+        // its minimum is "…": with no room the label ellipsizes (full text in the tooltip) instead of clipping the clock
+        _state.Ellipsize = Pango.EllipsizeMode.End;
         _stateBox.Append(_state);
         header.Append(_stateBox);
         _clock = Label("clock", 1);
@@ -561,7 +572,7 @@ internal sealed class Card
 
     private void SetState(string text, string cls, bool live)
     {
-        RowWidget.Set(_state, text);
+        if (!string.Equals(_stateText, text, StringComparison.Ordinal)) { _stateText = text; _state.SetText(text); _state.SetTooltipText(text); }
         if (_stateClass != cls)
         {
             if (_stateClass.Length > 0) { _state.RemoveCssClass(_stateClass); _stateDot.RemoveCssClass(_stateClass); }
