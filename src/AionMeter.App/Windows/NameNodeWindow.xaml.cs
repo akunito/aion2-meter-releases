@@ -52,7 +52,7 @@ public partial class NameNodeWindow : Window
     {
         var age = (int)(DateTimeOffset.UtcNow - _askedAt).TotalSeconds;
         if (!_autoClose) return;
-        TimerText.Text = $"gathered {age}s ago  ·  closes in {Math.Max(0, AutoCloseSeconds - age)}s";
+        TimerText.Text = string.Format(UiText.Current.NameNodeTimer, age, Math.Max(0, AutoCloseSeconds - age));
         if (age >= AutoCloseSeconds) Close();
     }
 

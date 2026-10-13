@@ -24,6 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- A2M-47: the interface wording has no WPF dependency, so the Spanish table is checked here on linux -->
+    <Compile Include="..\..\src\AionMeter.App\Services\UiText.cs" Link="Linked\UiText.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

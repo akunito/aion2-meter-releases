@@ -438,19 +438,19 @@
 
                 <StackPanel Grid.Column="1" x:Name="Toolbar" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Visibility="Collapsed">
                     <Button Style="{StaticResource Chip}" Content="{Binding ModeLabel}" Click="Mode_Click" Margin="0,0,5,0"
-                            ToolTip="Boss only / everything you hit" />
+                            ToolTip="{Binding T.TipMode}" />
                     <Button Style="{StaticResource Chip}" Content="{Binding LanguageCode}" Click="Language_Click" Margin="0,0,5,0"
                             ToolTip="{Binding T.SwitchLanguage}" />
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE8BD;" Click="Chat_Click" ToolTip="{Binding T.TipChat}" />
                     <Button Style="{StaticResource ToolIcon}" Content="&#xE121;" Click="Timers_Click" ToolTip="{Binding T.TipTimers}" />
                     <Button x:Name="RestartButton" Style="{StaticResource ToolIcon}" Content="&#xE72C;" Click="Restart_Click" />
-                    <ToggleButton x:Name="LockButton" Style="{StaticResource ToolToggle}" Click="Lock_Click" ToolTip="Lock position">
+                    <ToggleButton x:Name="LockButton" Style="{StaticResource ToolToggle}" Click="Lock_Click" ToolTip="{Binding T.TipLock}">
                         <TextBlock x:Name="LockGlyph" Text="&#xE785;" />
                     </ToggleButton>
-                    <Button Style="{StaticResource ToolIcon}" Content="&#xE713;" Click="Settings_Click" ToolTip="Settings" />
+                    <Button Style="{StaticResource ToolIcon}" Content="&#xE713;" Click="Settings_Click" ToolTip="{Binding T.SettingsTitle}" />
                     <Slider x:Name="OpacitySlider" Style="{StaticResource GoldSlider}" Width="52" Minimum="0.15" Maximum="1" Margin="5,0,3,0"
-                            ValueChanged="Opacity_Changed" VerticalAlignment="Center" ToolTip="Background opacity" />
-                    <Button Style="{StaticResource ToolIcon}" Content="&#xE711;" Click="Hide_Click" ToolTip="Hide (Ctrl+Shift+D)" />
+                            ValueChanged="Opacity_Changed" VerticalAlignment="Center" ToolTip="{Binding T.BackgroundOpacity}" />
+                    <Button Style="{StaticResource ToolIcon}" Content="&#xE711;" Click="Hide_Click" ToolTip="{Binding T.TipHide}" />
                 </StackPanel>
 
                 <Button x:Name="CloseWindowButton" Grid.Column="2" Style="{StaticResource ToolIcon}" Content="&#xE711;" Click="CloseWindow_Click" Visibility="Collapsed"
@@ -535,9 +535,9 @@
                     <TextBlock Text="#" Style="{StaticResource ColHeader}" Width="{DynamicResource RowRankSize}" TextAlignment="Center"
                                HorizontalAlignment="Left" ToolTip="{Binding T.TipPlace}" />
                     <TextBlock Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding T.ColPlayer}" Style="{StaticResource ColHeader}" />
-                    <TextBlock Grid.Column="3" Text="GS" Style="{StaticResource ColValueHeader}" ToolTip="{Binding T.TipGs}"
+                    <TextBlock Grid.Column="3" Text="{Binding T.ColGs}" Style="{StaticResource ColValueHeader}" ToolTip="{Binding T.TipGs}"
                                Visibility="{Binding HasGear, Converter={StaticResource VisibleIf}}" />
-                    <TextBlock Grid.Column="4" Text="CP" Style="{StaticResource ColValueHeader}" ToolTip="{Binding T.TipCp}"
+                    <TextBlock Grid.Column="4" Text="{Binding T.ColCp}" Style="{StaticResource ColValueHeader}" ToolTip="{Binding T.TipCp}"
                                Visibility="{Binding HasGear, Converter={StaticResource VisibleIf}}" />
                     <TextBlock Grid.Column="7" Text="{Binding T.ColDps}" Style="{StaticResource ColValueHeader}" ToolTip="{Binding T.TipDps}" />
                     <TextBlock Grid.Column="8" Text="{Binding T.ColDamage}" Style="{StaticResource ColValueHeader}" ToolTip="{Binding T.TipDamage}" />

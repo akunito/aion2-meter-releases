@@ -312,11 +312,11 @@ public partial class ItemsView : UserControl
         var daily = GameReset.NextDaily(now); var weekly = GameReset.NextWeekly(now);
         p.Tickets.TryGetValue(60_000_001, out var odyle); p.Tickets.TryGetValue(1, out var keys);
         var right = (odyle is not null ? TicketBook.Of(odyle.Key).Name(_lang) + " " + TicketBook.Value(odyle, TicketBook.Of(odyle.Key)) + " · " : "")
-                  + (keys is not null ? TicketBook.Of(keys.Key).Name(_lang) + " " + keys.Total + " · " : "") + "reset " + Span(daily - now);
+                  + (keys is not null ? TicketBook.Of(keys.Key).Name(_lang) + " " + keys.Total + " · " : "") + string.Format(T.ItemsResetIn, Span(daily - now));
         rows.Add(Head(key, T.ItemsToday, T.ItemsTodaySub, null, Mute, right, 0, shut, toggle: false));
         if (shut) return;
         rows.Add(Card(Hint(string.Format(T.ItemsTodayReset, daily.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture), Span(daily - now),
-            weekly.ToLocalTime().ToString("ddd dd HH:mm", CultureInfo.InvariantCulture)))));
+            weekly.ToLocalTime().ToString("ddd dd HH:mm", T.Culture)))));
         if (p.Tickets.Count == 0) { rows.Add(Card(Hint(T.ItemsTodayNone))); rows.Add(Card(new Border { Height = 6 }, bottom: true)); return; }
         foreach (var (t, info) in TicketBook.Today(p.Tickets)) rows.Add(Card(TicketRow(t, info, p.Chests)));
         // Daeva Pass / event pass levels: the 810 rows count pass EXP and their claimed step is the reward level (A2M-15)
@@ -747,7 +747,6 @@ public partial class ItemsView : UserControl
     // ------------------------------------------------------------------ footer + legend
 
     private static readonly int[] FootCurrencies = [InventoryStore.Kinah, InventoryStore.KinahBound, InventoryStore.AbyssPoints, InventoryStore.EnhanceStone];
-    private static readonly string[] FootCurrencyFallback = ["Kina", "Kina (Bound)", "Abyss Points", "Enhance Stone"];
     // Character · Kina · Kina (Bound) · AP · Enhance · Odyle · Shugo · Pass · Event · Seal · Value · Seen: readable at the overlay's 900–1100 px
     private static readonly double[] FootWidths = [1.5, 1.25, 1.15, 1, 0.9, 0.95, 0.65, 0.6, 0.6, 0.8, 0.9, 0.8];
     private const int FootCols = 12, ColBound = 2, ColEvent = 8;
@@ -777,7 +776,7 @@ public partial class ItemsView : UserControl
         }
         g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Add(0, T.ItemsFootChar, Mute, true, true);
-        string Cur(int i) => _meter.Names.Name(FootCurrencies[i], _lang) ?? FootCurrencyFallback[i];
+        string Cur(int i) => T.Code == "es" ? T.FootCurrencies[i] : _meter.Names.Name(FootCurrencies[i], _lang) ?? T.FootCurrencies[i];
         Add(1, Cur(0), Mute, true); Add(2, Cur(1), Mute, true);
         Add(3, T.ItemsFootAp, Mute, true, tip: Cur(2)); Add(4, T.ItemsFootEnhance, Mute, true, tip: Cur(3));
         Add(5, T.ItemsTkOdyle, Mute, true, tip: T.ItemsTkOdyleTip); Add(6, T.ItemsTkKeys, Mute, true, tip: T.ItemsTkKeysTip);
@@ -836,7 +835,7 @@ public partial class ItemsView : UserControl
         Legend.Children.Clear();
         foreach (var g in new[] { Grade.Common, Grade.Rare, Grade.Legendary, Grade.Unique, Grade.Epic, Grade.Special, Grade.Unknown })
             Legend.Children.Add(LegendItem(new Border { Width = 10, Height = 10, CornerRadius = new CornerRadius(2), BorderThickness = new Thickness(1.5), BorderBrush = ItemTile.LineOf(g), Margin = new Thickness(0, 0, 5, 0) },
-                g == Grade.Unknown ? T.ItemsLegendUnknown : ItemGrades.Name(g)));
+                g == Grade.Unknown ? T.ItemsLegendUnknown : GradeTag.Of(g, T.Code)?.Text ?? ItemGrades.Name(g)));
         Legend.Children.Add(LegendItem(new TextBlock { Text = "+10", Foreground = Num, FontWeight = FontWeights.Bold, FontSize = 11, Margin = new Thickness(0, 0, 5, 0) }, T.ItemsLegendEnchant));
         Legend.Children.Add(LegendItem(new TextBlock { Text = "●", Foreground = Blue, FontSize = 11, Margin = new Thickness(0, 0, 5, 0) }, T.ItemsLegendDot));
     }

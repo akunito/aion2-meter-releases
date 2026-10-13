@@ -1264,7 +1264,7 @@ public partial class BuildView : UserControl
         catch (System.Runtime.InteropServices.COMException) { StatusText.Text = T.BuildCopyFailed; }   // another app holds the clipboard
     }
 
-    private static string ClassName(string classId) => classId.Length > 0 ? char.ToUpperInvariant(classId[0]) + classId[1..] : classId;
+    private static string ClassName(string classId) => T.ClassNameOf(classId);
 
     // ------------------------------------------------------------------ suggestions
 

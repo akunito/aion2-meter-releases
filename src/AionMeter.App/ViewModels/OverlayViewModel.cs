@@ -211,7 +211,7 @@ public sealed class OverlayViewModel : ObservableObject
     /// <summary>Overlay wording in the chosen language (column headers, labels).</summary>
     public UiText T => UiText.Current;
 
-    /// <summary>"EN" / "RU" on the toolbar switch.</summary>
+    /// <summary>"EN" / "ES" on the toolbar switch.</summary>
     public string LanguageCode => UiText.Current.Code.ToUpperInvariant();
 
     public void LanguageChanged()
@@ -379,7 +379,7 @@ public sealed class OverlayViewModel : ObservableObject
             HasBoss = true;
             BossHpFraction = boss.HpFraction;
             // "counted from 82% HP" rides in the bar now that there is no detail line.
-            BossHpText = boss.Hp == 0 ? T.Defeated : Format.Grouped(boss.Hp) + " HP" + (partial is null ? "" : " · " + partial);
+            BossHpText = boss.Hp == 0 ? T.Defeated : Format.Grouped(boss.Hp) + " " + T.HpUnit + (partial is null ? "" : " · " + partial);
             BossPercent = boss.MaxHpKnown || boss.Hp == 0 ? Format.Percent(boss.HpFraction) : "?";
         }
         else

@@ -905,11 +905,16 @@ public sealed class MeterService : IDisposable
         _names.Save(Tracker.ExportCache());
     }
 
-    /// <summary>English / Russian for the interface and for skill / NPC names, applied without a restart.</summary>
+    /// <summary>English / Spanish for the interface and for skill / NPC names, applied without a restart.</summary>
     public void SetLanguage(string language)
     {
         language = UiText.Normalize(language);
         Settings.Language = language;
+        // A2M-47 "general language": switching the interface also moves the help pages, skill catalogue and item-name
+        // search to it; each keeps its own EN/ES selector for overriding afterwards.
+        Settings.HelpLanguage = language;
+        Settings.SkillLanguage = language;
+        Settings.PriceSearchLanguage = language;
         Data.ReloadNames(DataDirectory, language);
         UiText.Use(language);
         Settings.Save();

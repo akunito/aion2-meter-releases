@@ -309,7 +309,7 @@ public partial class OverlayWindow : Window
     }
 
     private void UpdateModeLabel() =>
-        _vm.ModeLabel = _settings.TargetMode == TargetMode.BossOnly ? "BOSS" : "ALL";
+        _vm.ModeLabel = _settings.TargetMode == TargetMode.BossOnly ? UiText.Current.ModeBoss : UiText.Current.ModeAll;
 
     private void EnsureOnScreen()
     {
@@ -654,10 +654,11 @@ public partial class OverlayWindow : Window
             var (start, end, running) = ev.Next(now, _meter.Settings.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null, _meter.Settings.EventPeriods.TryGetValue(ev.Key, out var pm) ? pm : null);
             var left = running ? end - now : start - now;
             var span = Core.Atlas.ScheduledEvent.Countdown(left);
-            var text = running ? $"{ev.Name} ● {span}" : $"{ev.Name} {span}";
+            var name = UiText.Current.EventName(ev.Key, ev.Name);
+            var text = running ? $"{name} ● {span}" : $"{name} {span}";
             if (i >= pills.Count || pills[i].Key != ev.Key)
             {
-                var pill = new EventPill(ev.Key, ev.Name, _meter.Settings.AlertFor(ev.Key), _meter.Settings.Save, SyncEventNow, ResetEventSync) { CanSync = ev.EveryMinutes > 0 };
+                var pill = new EventPill(ev.Key, name, _meter.Settings.AlertFor(ev.Key), _meter.Settings.Save, SyncEventNow, ResetEventSync) { CanSync = ev.EveryMinutes > 0 };
                 if (i >= pills.Count) pills.Add(pill); else pills[i] = pill;
             }
             if (pills[i].Text != text) pills[i].Text = text;

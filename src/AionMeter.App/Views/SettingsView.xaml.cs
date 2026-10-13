@@ -95,7 +95,7 @@ public partial class SettingsView : UserControl
         NoCaptureBox.Visibility = present ? Visibility.Collapsed : Visibility.Visible;
         NoCaptureInfo.Text = availability.SettingsText(T.CaptureFeatureLabels, T.NoCaptureHeadline, T.NoCaptureLost, T.NoCaptureKept);
 
-        LanguageBox.SelectedIndex = UiText.Normalize(s.Language) == "ru" ? 1 : 0;
+        LanguageBox.SelectedIndex = UiText.Normalize(s.Language) == "es" ? 1 : 0;
         Icons.IsChecked = s.DownloadIcons;
         AbyssLogs.IsChecked = s.AbyssLogsPercentile;
         CheckUpdates.IsChecked = s.CheckUpdates;

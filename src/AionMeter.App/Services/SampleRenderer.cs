@@ -75,7 +75,7 @@ public static class SampleRenderer
                 refresh = timers.View.ReloadNow;
                 break;
             case "build" or "build-es":
-                meter.Settings.SkillLanguage = o.Window == "build-es" ? "es" : "en";
+                meter.Settings.SkillLanguage = o.Window == "build-es" || UiText.Current.Code == "es" ? "es" : "en";
                 var icons = new IconCache(Core.GameDb.ItemIcons.Empty, o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
                 var build = new Views.BuildView(meter, icons);
                 if (o.Tab == "done") build.SetShowDone(false);
@@ -103,7 +103,7 @@ public static class SampleRenderer
                 break;
             case "items":
                 // the Items tab with the three real inventories of 2026-10-11 (data/gamedb/sample-items.json); icons from <icons>\<item id>.png
-                meter.Settings.PriceSearchLanguage = o.Tab == "es" ? "es" : "en";
+                meter.Settings.PriceSearchLanguage = o.Tab == "es" || UiText.Current.Code == "es" ? "es" : "en";
                 var itemIcons = new IconCache(Core.GameDb.ItemIcons.Load(Path.Combine(MeterService.DataDirectory, "gamedb", "item-icons.json")), o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
                 var itemsView = new Views.ItemsView(meter, itemIcons);
                 itemsView.ShowSample(SampleItems(meter.AchievementBook));
@@ -114,7 +114,7 @@ public static class SampleRenderer
                 break;
             case "build-daev":
                 // the Daevanion sub-tab with Irin's open nodes and questlog planner 8602; "daev:" icons come from <icons>\daev\<sprite stem>[_Disabled].png
-                meter.Settings.SkillLanguage = "en";
+                meter.Settings.SkillLanguage = UiText.Current.Code == "es" ? "es" : "en";
                 var daevIcons = new IconCache(Core.GameDb.ItemIcons.Empty, o.Icons ?? Path.Combine(Path.GetTempPath(), "aion2-render-icons")) { Enabled = false };
                 var daevView = new Views.BuildView(meter, daevIcons);
                 var (daevBuild, daevProfile) = SampleDaevanion(SampleBuild(), SampleProfile());

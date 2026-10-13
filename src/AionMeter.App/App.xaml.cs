@@ -55,7 +55,7 @@ public partial class App : Application
         if (ArgValue(e.Args, "--render-sample") is { } samplePath)
         {
             Log.Enabled = false;
-            // --render-sample <out.png | folder with --animate> [--lang ru] [--window …] [--width N] [--height N] [--tab …]
+            // --render-sample <out.png | folder with --animate> [--lang es] [--window …] [--width N] [--height N] [--tab …]
             // [--backdrop game|dark|none] [--scale 1.5] [--row-size 50..100] [--animate <seconds> [--fps 10]] [--icons <folder>]
             // [--abysslogs] (a sample Abyss Logs percentile line on the breakdown header and the overlay)
             // [--no-npcap] (A2M-27: the meter on a PC without Npcap, real LiveCapture with the probe saying missing)
@@ -435,7 +435,7 @@ public partial class App : Application
         return w;
     }
 
-    /// <summary>English ⇄ Russian, live: names reload, the overlay re-binds, other windows reopen in the new language.</summary>
+    /// <summary>English ⇄ Spanish, live: names reload, the overlay re-binds, other windows reopen in the new language.</summary>
     public void SetLanguage(string language)
     {
         _meter.SetLanguage(language);
@@ -448,7 +448,7 @@ public partial class App : Application
         foreach (var w in _extras) w.OnLanguageChanged();
     }
 
-    public void ToggleLanguage() => SetLanguage(UiText.Current.Code == "ru" ? "en" : "ru");
+    public void ToggleLanguage() => SetLanguage(UiText.Current.Code == "es" ? "en" : "es");
 
     public void ShowSavedInOverlay(Core.Storage.HistoryEntry entry)
     {
@@ -560,7 +560,7 @@ public partial class App : Application
             {
                 if (minutes == 10 ? !a.At10 : !a.At5) continue;
                 if (left > TimeSpan.FromMinutes(minutes) || left < TimeSpan.FromMinutes(minutes - 1) || !_eventAlerted.Add((ev.Key, start, minutes))) continue;
-                if (a.Notify) _tray?.ShowBalloon(ev.Name, string.Format(UiText.Current.EventStartsAt, ev.Name, start.ToString("HH:mm"), (int)Math.Ceiling(left.TotalMinutes)));
+                if (a.Notify) _tray?.ShowBalloon(UiText.Current.EventName(ev.Key, ev.Name), string.Format(UiText.Current.EventStartsAt, UiText.Current.EventName(ev.Key, ev.Name), start.ToString("HH:mm"), (int)Math.Ceiling(left.TotalMinutes)));
                 if (a.Sound) System.Media.SystemSounds.Asterisk.Play();
             }
         }
@@ -794,8 +794,8 @@ public partial class App : Application
         }
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Replay an AION 2 capture",
-            Filter = "Packet captures (*.pcap;*.pcapng)|*.pcap;*.pcapng|All files|*.*",
+            Title = UiText.Current.ReplayTitle,
+            Filter = UiText.Current.ReplayFilter,
             InitialDirectory = Path.Combine(AppSettings.AppDataDir, "captures"),
         };
         if (dialog.ShowDialog() == true) _meter.Replay(dialog.FileName);

@@ -57,7 +57,7 @@ driver — see [Installation](#installation).
   respawn counting down, per server, with a tray alert before a boss you watch returns.
 - **Share in chat** — the chat button on the overlay (or a right-click on a player) copies a one-line result for the game chat, with units, places and the boss result spelled out, or the ranking as a table for Discord.
 - **Gear score and combat power** — GS and CP columns right after the names in the overlay (set apart from the fight's numbers by a rule) for you and your party members, in the breakdown header and in the chat lines as `(GS 1859 / CP 82.1K)` (the party roster is the only place the game sends them; *Settings → Overlay* turns them off). The overlay's value columns are only as wide as their numbers, so names get the rest.
-- **English and Russian** — interface and skill / NPC names in either language, switchable at any time.
+- **English and Spanish** — interface and skill / NPC names in either language, switchable at any time (this private build replaced the Russian interface with Spanish; an old "ru" setting opens in English).
 - **Updates itself** — new versions download in the background and install themselves when you are not playing.
 - **Passive** — reads only your own game's network traffic; never touches game memory or sends anything to the game.
 
@@ -115,7 +115,7 @@ supported) · Npcap · about 200 MB of disk space.
 | column header in the breakdown | sort the skills by it (skill, hits, damage, DPS, avg, max, crit, share, accuracy columns); click again to reverse |
 | right-click a player, or 💬 on the toolbar | copy for chat: one player's result or the party ranking as one line for the game chat, or the ranking as a table for Discord; paste with <kbd>Ctrl</kbd>+<kbd>V</kbd> |
 | **BOSS / ALL** chip | count only the boss, or everything you hit |
-| **EN / RU** chip | interface and name language (English by default; also in Settings and the tray menu) |
+| **EN / ES** chip | interface and name language (English by default; also in Settings and the tray menu) |
 | *Fights* in the footer | pick a fight: live, this session's, or saved ones by day |
 | clock button / gold *Boss timers* pill | boss respawn timers |
 | mouse wheel over the fight title | scroll through fights (down = older, up = newer, top = live) |

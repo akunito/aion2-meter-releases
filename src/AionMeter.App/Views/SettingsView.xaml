@@ -65,12 +65,12 @@
                     <!-- Language -->
                     <Border Style="{StaticResource Section}">
                         <StackPanel>
-                            <TextBlock Text="LANGUAGE / ЯЗЫК" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Text="LANGUAGE / IDIOMA" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Language / Язык" Style="{StaticResource Label}" />
+                                <TextBlock Text="Language / Idioma" Style="{StaticResource Label}" />
                                 <ComboBox x:Name="LanguageBox" MinWidth="160">
                                     <ComboBoxItem Content="English" Tag="en" />
-                                    <ComboBoxItem Content="Русский" Tag="ru" />
+                                    <ComboBoxItem Content="Español" Tag="es" />
                                 </ComboBox>
                             </StackPanel>
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"

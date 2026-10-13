@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:AionMeter.App.Controls"
         xmlns:s="clr-namespace:AionMeter.App.Services"
-        Title="Fight history — AION2 DPS Meter" Width="900" Height="600" MinWidth="640" MinHeight="380"
+        Title="{Binding WinHistoryTitle, Source={x:Static s:UiText.Current}}" Width="900" Height="600" MinWidth="640" MinHeight="380"
         WindowStyle="None" WindowStartupLocation="CenterScreen" ResizeMode="CanResize" Background="{StaticResource Bg0}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
         FontFamily="{StaticResource UiFont}" Foreground="{StaticResource Text}">

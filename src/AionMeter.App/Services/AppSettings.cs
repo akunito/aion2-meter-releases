@@ -85,7 +85,7 @@ public sealed class AppSettings
     public int IdleTimeoutSec { get; set; } = 10;
     public int BossIdleTimeoutSec { get; set; } = 30;
 
-    /// <summary>Interface and skill / NPC name language: "en" (default) or "ru".</summary>
+    /// <summary>Interface and skill / NPC name language: "en" (default) or "es"; "ru" of older builds loads as "en" (A2M-47).</summary>
     public string Language { get; set; } = "en";
 
     /// <summary>A2M-40, Settings → Game: the shard (eu nae naw la as) the server dropdown lists; only decides when no server is known.</summary>
