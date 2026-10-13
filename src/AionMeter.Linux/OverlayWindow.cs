@@ -36,7 +36,7 @@ public sealed class OverlayWindow : Window
     private readonly TextBlock _fightsLabel;
     private string _tab = "meter", _beforeSettings = "meter";
     private readonly Border _frame, _frameBg;
-    private readonly TextBlock _title, _label, _clock, _limitText, _footer, _abyss, _bossHp, _bossPercent, _empty, _timersText, _bannerText, _modeChip;
+    private readonly TextBlock _title, _label, _clock, _limitText, _footer, _abyss, _announce, _bossHp, _bossPercent, _empty, _timersText, _bannerText, _modeChip;
     private readonly Path _limitIcon;
     private readonly Ellipse _labelDot, _statusDot;
     private readonly StackPanel _labelPanel, _limitPanel, _toolbar, _rows;
@@ -218,6 +218,9 @@ public sealed class OverlayWindow : Window
         statusLine.Children.Add(fights);
         footer.Children.Add(statusLine);
         footer.Children.Add(_abyss = new TextBlock { FontSize = 12, Foreground = Visuals.GoldBright, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(13, 0, 12, 4), Effect = Visuals.TextShadow(), IsVisible = false });
+        // A2M-48 phase 3c: the boss-respawn alert (WPF balloon) as a line for 60 s; no sound on Linux yet
+        footer.Children.Add(_announce = new TextBlock { FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Visuals.Amber, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(13, 0, 12, 4), Effect = Visuals.TextShadow(), IsVisible = false, Cursor = new Cursor(StandardCursorType.Hand) });
+        _announce.PointerPressed += (_, e) => { e.Handled = true; SelectTab("timers"); };
 
         _pills = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 0) };
         var timers = new Border
@@ -232,6 +235,8 @@ public sealed class OverlayWindow : Window
         timersRow.Children.Add(clockIcon);
         timersRow.Children.Add(_timersText = new TextBlock { FontFamily = Visuals.Number, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Visuals.Solid(0xFF1A140A), VerticalAlignment = VerticalAlignment.Center });
         timers.Child = timersRow;
+        timers.Cursor = new Cursor(StandardCursorType.Hand);
+        timers.PointerPressed += (_, e) => { if (!e.GetCurrentPoint(timers).Properties.IsLeftButtonPressed) return; e.Handled = true; SelectTab(_tab == "timers" ? "meter" : "timers"); };
         _pills.Children.Add(timers);
         footer.Children.Add(_pills);
         body.Children.Add(footer);
@@ -274,7 +279,7 @@ public sealed class OverlayWindow : Window
         client.Fights += ShowFightMenu;
         OnConnection(false);
         shell.SelectTabHandler = SelectTab;
-        shell.OpenFightHandler = OpenFight;
+        shell.FightHandler = ShowFight;
         shell.LanguageChanged += ApplyLanguage;
         KeyDown += (_, e) =>
         {
@@ -323,13 +328,14 @@ public sealed class OverlayWindow : Window
         return v;
     }
 
-    /// <summary>A2M-43: the fight's breakdown as this card's "fight" tab (a row click, the fight list).</summary>
-    private void OpenFight(string fightId, uint actor)
+    /// <summary>A2M-43: the fight's breakdown / player card as this card's "fight" tab (a row click, the fight list, Top DPS).</summary>
+    private FightView ShowFight(Action<FightView> setup)
     {
         var v = (FightView)View("fight");
-        v.SetFight(fightId, actor);
+        setup(v);
         if (_tab == "fight") v.Shown();
         else SelectTab("fight");
+        return v;
     }
 
     /// <summary>The tab in front moves into its own window (a copy, or the view itself for Settings); the card goes back.</summary>
@@ -470,6 +476,7 @@ public sealed class OverlayWindow : Window
         _statusDot.Fill = Visuals.Amber;
         _footer.Text = "Connecting to the daemon…";
         _abyss.IsVisible = false;
+        _announce.IsVisible = false;
         _banner.IsVisible = false;
         _timersText.Text = UiText.Current.TimersButton;
         for (var i = 0; i < _pillViews.Count; i++) _pillViews[i].Pill.IsVisible = false;
@@ -524,7 +531,7 @@ public sealed class OverlayWindow : Window
         while (_rowViews.Count < rows.Length)
         {
             var rv = new RowView();
-            rv.Clicked += actor => OpenFight(_last?.FightId ?? "live", actor);
+            rv.Clicked += actor => _shell.OpenFight(_last?.FightId ?? "live", actor);
             _rowViews.Add(rv);
             _rows.Children.Add(rv);
         }
@@ -542,6 +549,8 @@ public sealed class OverlayWindow : Window
         ToolTip.SetTip(_footer, m.Status);
         _abyss.IsVisible = m.AbyssLogs is not null;
         if (m.AbyssLogs is { } al) _abyss.Text = al;
+        _announce.IsVisible = m.Announcement is not null;
+        if (m.Announcement is { } an) _announce.Text = an;
         _banner.IsVisible = m.UpdateBanner is not null;
         if (m.UpdateBanner is { } ub) _bannerText.Text = ub;
 

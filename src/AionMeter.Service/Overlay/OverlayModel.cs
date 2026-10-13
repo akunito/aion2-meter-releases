@@ -44,11 +44,12 @@ public sealed record OverlayLimit(string Text, string Tip, bool Urgent, int Kind
 /// <param name="HeaderLabel">"LIVE FIGHT", "SAVED"… in caps; WPF letter-spaces it, <paramref name="HeaderWhen"/> follows ("05.10 19:04").</param>
 /// <param name="Status">Status-line text (also the dot's tooltip). <paramref name="FooterText"/> is the caption shown next to the dot.</param>
 /// <param name="TimersLabel">The gold boss-timer pill: "Gartua 12:34" or "Timers".</param>
+/// <param name="Announcement">A2M-48: the last boss-respawn alert for 60 s ("Gartua respawns 14:05"), a line in the Linux card (no sound yet); the daemon sets it.</param>
 public sealed record OverlayModel(
     OverlayFight Fight, OverlayView View, string HeaderLabel, string? HeaderWhen, string FightId,
     OverlayLimit? Limit, CaptureState CaptureState, string CaptureMessage, string Status, StatusTone StatusTone, string FooterText,
     string? AbyssLogs, string TimersLabel, OverlayPill[] Pills, string? UpdateBanner,
-    string ModeLabel, TargetMode Mode, string Language, string Version, string Character, long Ts);
+    string ModeLabel, TargetMode Mode, string Language, string Version, string Character, long Ts, string? Announcement = null);
 
 /// <summary>One pickable fight (newest first): a segment of this session, then saved fights not already in it.</summary>
 /// <param name="Id">"s:&lt;guid&gt;" or "h:&lt;file&gt;", for `show-fight`.</param>
@@ -70,4 +71,5 @@ public sealed record OverlayStatus(CaptureState State, string Message, string Ch
 [JsonSerializable(typeof(OverlayModel))]
 [JsonSerializable(typeof(OverlayFightItem[]))]
 [JsonSerializable(typeof(OverlayStatus))]
+[JsonSerializable(typeof(PositionModel))]
 public sealed partial class OverlayJson : JsonSerializerContext;

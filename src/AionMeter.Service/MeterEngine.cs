@@ -321,6 +321,20 @@ public class MeterEngine : IDisposable
         _objectNames.Save(_userNames);
         Log.Info($"Object {code} named \"{name}\" ({category})");
     }
+
+    /// <summary>A2M-48: atlas/objects.json was written by the other process (the Linux UI names nodes, the daemon asks): take its names.</summary>
+    public bool ReloadObjectNamesIfChanged()
+    {
+        if (Settings.Transient || !_objectNames.ChangedOnDisk()) return false;
+        var names = _objectNames.Load();
+        foreach (var (code, (name, category)) in names)
+        {
+            _userNames[code] = (name, category);
+            if (name.Length > 0) Data.Objects[code] = name;
+        }
+        Log.Info($"atlas/objects.json reloaded ({names.Count} names)");
+        return true;
+    }
     /// <summary>A2M-48 daemon: the closed fight with its saved file (null when not kept), on the thread that closed it.</summary>
     public event Action<FightRecord, string?>? FightClosed;
     /// <summary>The 15-minute telemetry/backup tick the App runs from a DispatcherTimer; the daemon calls it from its loop.</summary>

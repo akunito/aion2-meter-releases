@@ -30,6 +30,9 @@ public static class ViewRegistry
     {
         ["settings"] = s => new SettingsView(s),
         ["fight"] = s => new FightView(s),
+        ["atlas"] = s => new AtlasView(s),
+        ["timers"] = s => new BossTimersView(s),
+        ["top"] = s => new TopDpsView(s),
         // next view agents: ["build"] = s => new BuildView(s), ["items"] = …, ["timers"] = …, ["atlas"] = …, ["top"] = …, ["prices"] = …, ["craft"] = …
     };
 

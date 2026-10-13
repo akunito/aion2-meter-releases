@@ -166,11 +166,25 @@ public sealed class TopDpsStore
 
     // ------------------------------------------------------------------ persistence
 
+    private DateTime _stamp;
+
+    /// <summary>A2M-48 Linux UI: the daemon rewrote top-dps.json after a fight: take the file's ranking. False when unchanged.</summary>
+    public bool ReloadIfChanged()
+    {
+        if (_path is null) return false;
+        try { if (!File.Exists(_path) || File.GetLastWriteTimeUtc(_path) == _stamp) return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        lock (_gate) { _byClass.Clear(); Load(); }
+        Changed?.Invoke();
+        return true;
+    }
+
     private void Load()
     {
         if (_path is null || !File.Exists(_path)) return;
         try
         {
+            _stamp = File.GetLastWriteTimeUtc(_path);
             var all = JsonSerializer.Deserialize<List<TopEntry>>(File.ReadAllText(_path), Json);
             if (all is null) return;
             foreach (var e in all)
@@ -199,6 +213,7 @@ public sealed class TopDpsStore
             var tmp = _path + ".tmp";
             File.WriteAllText(tmp, text);
             File.Move(tmp, _path, overwrite: true);
+            _stamp = File.GetLastWriteTimeUtc(_path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { lock (_gate) _dirty = true; }
     }

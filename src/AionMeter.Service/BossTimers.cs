@@ -607,12 +607,29 @@ public sealed class BossTimers
         }
     }
 
+    private DateTime _stamp;
+
+    /// <summary>
+    /// A2M-48 Linux UI (readOnly): the daemon rewrote boss-timers.json (a list read, a kill, a `timer` command): take its timers and
+    /// field-boss-learned.json in place. False when the file is the one already loaded.
+    /// </summary>
+    public bool ReloadIfChanged()
+    {
+        if (!Persistent) return false;
+        try { if (!File.Exists(_path) || File.GetLastWriteTimeUtc(_path) == _stamp) return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        lock (_gate) { _timers.Clear(); Load(); }
+        Changed?.Invoke();
+        return true;
+    }
+
     private void Load()
     {
         try
         {
             if (File.Exists(_path))
             {
+                _stamp = File.GetLastWriteTimeUtc(_path);
                 var list = JsonSerializer.Deserialize<List<BossTimer>>(File.ReadAllText(_path), Json);
                 foreach (var t in list ?? []) _timers[(t.ServerId, t.NpcCode)] = t;
             }
@@ -653,6 +670,7 @@ public sealed class BossTimers
                 var tmp = _path + ".tmp";
                 File.WriteAllText(tmp, text);
                 File.Move(tmp, _path, overwrite: true);
+                _stamp = File.GetLastWriteTimeUtc(_path);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

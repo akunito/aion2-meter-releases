@@ -8,8 +8,9 @@ using System.Threading.Channels;
 namespace AionMeter.Service.Overlay;
 
 /// <summary>A command a client sent: `{"cmd":"reset"}`, `{"cmd":"show-fight","id":"…"}`, `{"cmd":"set-measure","mode":"boss|all"}`,
-/// `{"cmd":"fights","max":40}`, `{"cmd":"fight-detail","id":"live|s:…|h:…"}`, `{"cmd":"reload-settings"}`, `{"cmd":"ping"}`.</summary>
-public sealed record OverlayCommand(OverlayServer.Client From, string Cmd, string? Arg, int Max);
+/// `{"cmd":"fights","max":40}`, `{"cmd":"fight-detail","id":"live|s:…|h:…"}`, `{"cmd":"reload-settings"}`, `{"cmd":"ping"}`,
+/// `{"cmd":"timer","id":"killed|watch|unwatch|respawn|remove","server":N,"npc":N,"value":minutes}`.</summary>
+public sealed record OverlayCommand(OverlayServer.Client From, string Cmd, string? Arg, int Max, int Server = 0, int Npc = 0, int Value = 0);
 
 /// <summary>
 /// A2M-48 phase 3: the daemon's Unix domain socket for the (unprivileged) Linux UI. Newline-delimited JSON both ways; any number of clients.
@@ -163,7 +164,7 @@ public sealed class OverlayServer : IDisposable
         {
             if (line.IsEmpty) return;
             string? cmd = null, arg = null;
-            var max = 0;
+            int max = 0, server = 0, npc = 0, value = 0;
             try
             {
                 var r = new Utf8JsonReader(line);
@@ -173,6 +174,9 @@ public sealed class OverlayServer : IDisposable
                     if (r.ValueTextEquals("cmd"u8)) { r.Read(); cmd = r.GetString(); }
                     else if (r.ValueTextEquals("id"u8) || r.ValueTextEquals("mode"u8)) { r.Read(); arg = r.GetString(); }
                     else if (r.ValueTextEquals("max"u8)) { r.Read(); max = r.TokenType == JsonTokenType.Number ? r.GetInt32() : 0; }
+                    else if (r.ValueTextEquals("server"u8)) { r.Read(); server = r.TokenType == JsonTokenType.Number ? r.GetInt32() : 0; }
+                    else if (r.ValueTextEquals("npc"u8)) { r.Read(); npc = r.TokenType == JsonTokenType.Number ? r.GetInt32() : 0; }
+                    else if (r.ValueTextEquals("value"u8)) { r.Read(); value = r.TokenType == JsonTokenType.Number ? r.GetInt32() : 0; }
                     else { r.Read(); r.Skip(); }
                 }
             }
@@ -183,7 +187,7 @@ public sealed class OverlayServer : IDisposable
                 Send(Encoding.UTF8.GetBytes("{\"type\":\"error\",\"message\":\"expected {\\\"cmd\\\":…}\"}\n"));
                 return;
             }
-            _server.Commands.Enqueue(new OverlayCommand(this, cmd, arg, max));
+            _server.Commands.Enqueue(new OverlayCommand(this, cmd, arg, max, server, npc, value));
         }
 
         private int _closed;

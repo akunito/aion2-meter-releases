@@ -1,4 +1,6 @@
 using Avalonia.Threading;
+using AionMeter.Core.Armory;
+using AionMeter.Linux.Views;
 using AionMeter.Service;
 using AionMeter.Service.Overlay;
 
@@ -45,12 +47,19 @@ public sealed class AppShell : IDisposable
 
     /// <summary>The card host: selects a tab ("meter" = DPS rows), opens the breakdown, shows help. Set by the overlay window.</summary>
     public Action<string>? SelectTabHandler { get; set; }
-    public Action<string, uint>? OpenFightHandler { get; set; }
+    /// <summary>Sets up the card's "fight" view (the callback runs before it is shown) and brings it to front; returns it.</summary>
+    public Func<Action<FightView>, FightView?>? FightHandler { get; set; }
 
     public void SelectTab(string key) => SelectTabHandler?.Invoke(key);
 
-    /// <summary>The fight breakdown tab for an overlay fight id ("live", "s:&lt;guid&gt;", "h:&lt;file&gt;") on <paramref name="actor"/> (0 = you, else the top).</summary>
-    public void OpenFight(string fightId, uint actor = 0) => OpenFightHandler?.Invoke(fightId, actor);
+    /// <summary>The fight breakdown tab for an overlay fight id ("live", "s:&lt;guid&gt;", "h:&lt;file&gt;") on <paramref name="actor"/> (0 = you, else the top),
+    /// opened on <paramref name="tab"/> ("dps", "profile", …) when given.</summary>
+    public FightView? OpenFight(string fightId, uint actor = 0, string? tab = null) => FightHandler?.Invoke(v => v.SetFight(fightId, actor, tab));
+
+    /// <summary>A2M-44 player card without a fight (Top DPS ranking rows): header, CP / item level / rank / seen tiles and the Profile / Skills /
+    /// Daevanion tabs the breakdown renders; <paramref name="status"/> shows while there is no profile yet ("Loading…", "not found"). Update it
+    /// with <see cref="FightView.UpdateCard"/> on the returned view.</summary>
+    public FightView? OpenCard(PlayerCard card, string? status) => FightHandler?.Invoke(v => v.SetCard(card, status));
 
     private HelpWindow? _help;
 

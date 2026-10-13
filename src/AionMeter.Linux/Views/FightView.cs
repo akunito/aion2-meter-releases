@@ -108,9 +108,20 @@ public sealed class FightView : HostedView
     public string FightId => _id;
     public uint Actor => _actor;
 
-    /// <summary>Shows a fight ("live", "s:&lt;guid&gt;", "h:&lt;file&gt;") on <paramref name="actor"/> (0: you, else the top of the party).</summary>
-    public void SetFight(string id, uint actor)
+    /// <summary>Shows a fight ("live", "s:&lt;guid&gt;", "h:&lt;file&gt;") on <paramref name="actor"/> (0: you, else the top of the party),
+    /// on <paramref name="tab"/> when given ("profile" for a Top DPS row: falls back to DPS when the player has no known profile).</summary>
+    public void SetFight(string id, uint actor, string? tab = null)
     {
+        if (_cardOnly)
+        {
+            _side.IsVisible = !_narrow;
+            _layoutRoot.ColumnDefinitions[0].Width = new GridLength(_narrow ? 0 : SideWidth);
+            _partyChip.IsVisible = _narrow;
+            _fightsChip.IsVisible = _narrow;
+        }
+        _cardOnly = false;
+        _cardStatus = null;
+        if (tab is not null) _tab = tab;
         _id = _asked = id.Length == 0 ? "live" : id;
         _actor = actor;
         _record = null;
@@ -122,9 +133,84 @@ public sealed class FightView : HostedView
         Load();
     }
 
+    // ------------------------------------------------------------ player card without a fight (A2M-44, Top DPS ranking rows)
+
+    private bool _cardOnly;
+    private string? _cardStatus;
+
+    /// <summary>The player card alone: header, CP / item level / rank / seen tiles, Profile / Skills / Daevanion when the profile has them.</summary>
+    public void SetCard(PlayerCard card, string? status)
+    {
+        _cardOnly = true;
+        _record = null;
+        _live = false;
+        _id = _asked = "";
+        _profiles.Clear();
+        _pages.Clear();
+        _tab = "profile";
+        UpdateCard(card, status);
+    }
+
+    /// <summary>The armory answered (or failed): the card with its profile, or the status line (null = none).</summary>
+    public void UpdateCard(PlayerCard card, string? status)
+    {
+        if (!_cardOnly) return;
+        if (!ReferenceEquals(card.Profile, _profile)) _pages.Clear();
+        _card = card;
+        _profile = card.Profile;
+        _cardStatus = status;
+        var tabs = CardLayout.Tabs(false, _profile);
+        if (!(_tab is "profile" && tabs.Contains(CardTab.Profile) || _tab is "skills" && tabs.Contains(CardTab.Skills) || _tab is "daevanion" && tabs.Contains(CardTab.Daevanion)))
+            _tab = tabs.Count > 0 ? tabs[0].ToString().ToLowerInvariant() : "profile";
+        RenderCard();
+    }
+
+    public PlayerCard? Card => _cardOnly ? _card : null;
+
+    /// <summary>The armory cached a newer profile for someone in this fight (Top DPS "Load profile"): look the profiles up again.</summary>
+    public void RefreshProfile()
+    {
+        if (_cardOnly || _record is null) return;
+        _profiles.Clear();
+        Render();
+    }
+
+    private void RenderCard()
+    {
+        if (_card is not { } c) return;
+        _side.IsVisible = false;
+        _layoutRoot.ColumnDefinitions[0].Width = new GridLength(0);
+        _partyChip.IsVisible = false;
+        _fightsChip.IsVisible = false;
+        Title = c.Name;
+        _glyph.Class = c.Class;
+        _meta.Text = CardLayout.Meta(T.ClassName(c.Class), c) + (c.Title is { Length: > 0 } title ? $" · “{title}”" : "");
+        _tiles.Children.Clear();
+        foreach (var (tile, value) in CardLayout.Tiles(c, DateTimeOffset.UtcNow))
+            _tiles.Children.Add(UiKit.StatTile(tile switch { CardTile.CombatPower => T.TileCp, CardTile.ItemLevel => T.TileItemLevel, CardTile.Rank => T.TileRank, _ => T.TileSeen },
+                tile == CardTile.Seen && value != "now" ? string.Format(T.TileSeenAgo, value) : value, null, tile == CardTile.CombatPower ? Visuals.GoldBright : null));
+        _tabStrip.Children.Clear();
+        var tabs = CardLayout.Tabs(false, _profile);
+        if (tabs.Contains(CardTab.Profile)) AddTab("profile", T.TabProfile, RenderCard);
+        if (tabs.Contains(CardTab.Skills)) AddTab("skills", T.TabSkills, RenderCard);
+        if (tabs.Contains(CardTab.Daevanion)) AddTab("daevanion", T.TabDaevanion, RenderCard);
+        Control? page = _profile is not { } p ? null : _tab switch
+        {
+            "skills" when tabs.Contains(CardTab.Skills) => _pages.Skills(p),
+            "daevanion" when tabs.Contains(CardTab.Daevanion) => _pages.Daevanion(p, Bounds.Width),
+            _ when tabs.Contains(CardTab.Profile) => _pages.Profile(c, p, Bounds.Width),
+            _ => null,
+        };
+        _page.Content = page;
+        _page.IsVisible = page is not null;
+        _status.Text = _cardStatus ?? (page is null ? string.Format(T.TopProfileMissing, c.Name, c.Server ?? "?") : "");
+        _status.IsVisible = page is null;
+    }
+
     public override IHostedView PopOut()
     {
         var copy = new FightView(Shell);
+        if (_cardOnly && _card is { } card) { copy.SetCard(card, _cardStatus); copy._tab = _tab; return copy; }
         copy.SetFight(_id, _actor);
         copy._tab = _tab;
         return copy;
@@ -133,6 +219,7 @@ public sealed class FightView : HostedView
     public override void Shown()
     {
         _shown = true;
+        if (_cardOnly) { RenderCard(); return; }
         if (_record is null || _live) Load();
         _timer.Start();
     }
@@ -146,7 +233,8 @@ public sealed class FightView : HostedView
     public override void LanguageChanged()
     {
         base.LanguageChanged();
-        if (_record is not null) Render();
+        if (_cardOnly) RenderCard();
+        else if (_record is not null) Render();
     }
 
     private void Load()
@@ -180,7 +268,7 @@ public sealed class FightView : HostedView
 
     private void OnDetail(FightDetailReply r)
     {
-        if (r.Asked != _asked) return;
+        if (_cardOnly || r.Asked != _asked) return;
         _waiting = false;
         if (_id == "live") _id = r.Id;   // stay on that fight when the next pull starts (WPF keeps the segment it opened)
         Show(r.Record, r.Live);
@@ -237,6 +325,7 @@ public sealed class FightView : HostedView
 
     private void OnIcons()
     {
+        if (_cardOnly && _shown) { _pages.RetryIcons(); return; }
         if (!_shown || _record is null) return;
         if (_tab is "profile" or "skills" or "daevanion") _pages.RetryIcons();
         else Render();
@@ -255,7 +344,8 @@ public sealed class FightView : HostedView
         _layoutRoot.ColumnDefinitions[0].Width = new GridLength(narrow ? 0 : SideWidth);
         _partyChip.IsVisible = narrow;
         _fightsChip.IsVisible = narrow;
-        if (_record is not null) Render();
+        if (_cardOnly) RenderCard();
+        else if (_record is not null) Render();
     }
 
     // ------------------------------------------------------------ render
@@ -337,7 +427,11 @@ public sealed class FightView : HostedView
         if (tabs.Contains(CardTab.Skills)) Add("skills", T.TabSkills);
         if (tabs.Contains(CardTab.Daevanion)) Add("daevanion", T.TabDaevanion);
 
-        void Add(string key, string text)
+        void Add(string key, string text) => AddTab(key, text, Render);
+    }
+
+    private void AddTab(string key, string text, Action render)
+    {
         {
             var on = _tab == key;
             var label = new TextBlock { Text = text, FontSize = 12.5, FontWeight = on ? FontWeight.SemiBold : FontWeight.Normal, Foreground = on ? Visuals.GoldBright : Visuals.TextDim };
@@ -348,7 +442,7 @@ public sealed class FightView : HostedView
             };
             b.PointerEntered += (_, _) => { if (_tab != key) label.Foreground = Visuals.Text; };
             b.PointerExited += (_, _) => { if (_tab != key) label.Foreground = Visuals.TextDim; };
-            b.PointerPressed += (_, e) => { e.Handled = true; if (_tab == key) return; _tab = key; Render(); };
+            b.PointerPressed += (_, e) => { e.Handled = true; if (_tab == key) return; _tab = key; render(); };
             _tabStrip.Children.Add(b);
         }
     }

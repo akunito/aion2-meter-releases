@@ -47,6 +47,9 @@ public sealed class NodeSpot
     public long NextSpawnMs => !Alive && ExhaustedAtMs > 0 && RespawnMinutes > 0 ? ExhaustedAtMs + RespawnMinutes * 60_000L : 0;
 }
 
+/// <summary>A spot in view in the daemon (A2M-48 `position` message): object code, world position (cm), units taken.</summary>
+public readonly record struct LiveSpot(int Code, float X, float Y, int Taken);
+
 /// <summary>
 /// The atlas: every gathering spot seen, per map, fed by <see cref="ObjectSeenEvent"/>, <see cref="GatherEvent"/>,
 /// <see cref="ObjectGoneEvent"/>, <see cref="ZoneChangedEvent"/> and the local player's <see cref="PositionEvent"/>.
@@ -106,6 +109,9 @@ public sealed class NodeStore
     /// <summary>Diagnostics: position events received, and those that were the local player's.</summary>
     public long PositionsSeen { get; private set; }
     public long SelfPositions { get; private set; }
+    /// <summary>Newest event time seen (position, gather, object): the stream's clock. A replay runs on the recording's clock, so ages
+    /// measured against UtcNow would all be hours old (A2M-48 `position` message).</summary>
+    public long LastEventMs { get; private set; }
 
     public static (int Code, int Gx, int Gy) KeyOf(int code, float x, float y) => (code, (int)MathF.Round(x / 100f), (int)MathF.Round(y / 100f));
 
@@ -113,6 +119,7 @@ public sealed class NodeStore
     {
         lock (_gate)
         {
+            if (e.TimeMs > LastEventMs && e is PositionEvent or GatherEvent or ObjectSeenEvent or ObjectGoneEvent) LastEventMs = e.TimeMs;
             switch (e)
             {
                 case ZoneChangedEvent z:
@@ -335,6 +342,92 @@ public sealed class NodeStore
 
     public int Count(int mapId) { lock (_gate) return _maps.TryGetValue(mapId, out var m) ? m.Count : 0; }
 
+    /// <summary>A2M-48: the spots of the current map in view right now (map, code, position, units taken), appended to <paramref name="into"/>.</summary>
+    public int LiveSpots(List<LiveSpot> into)
+    {
+        lock (_gate)
+        {
+            foreach (var s in _live.Values) if (s.IsNode) into.Add(new LiveSpot(s.Code, s.X, s.Y, s.Taken));
+            return MapId;
+        }
+    }
+
+    // viewer side (the Linux UI): which spots the last MergeLive marked in view, and the file stamps it loaded
+    private readonly HashSet<(int Code, int Gx, int Gy)> _merged = new();
+    private readonly Dictionary<int, DateTime> _stamps = new();
+
+    /// <summary>
+    /// A2M-48 viewer: the daemon's in-view spots (`position` message) onto this snapshot — those spots alive and in view with their units,
+    /// a spot new to this process added, and the ones the previous call had in view that are gone from the list marked out of view.
+    /// Exhaustion and respawn learning stay the daemon's: they arrive with its next save of the map file (<see cref="ReloadIfChanged"/>).
+    /// </summary>
+    public void MergeLive(int mapId, IReadOnlyList<LiveSpot> live, long nowMs)
+    {
+        lock (_gate)
+        {
+            if (mapId > 0 && mapId != MapId) { MapId = mapId; _live.Clear(); Load(mapId); _merged.Clear(); }
+            if (!_maps.TryGetValue(MapId, out var map)) return;
+            var seen = new HashSet<(int, int, int)>();
+            for (var i = 0; i < live.Count; i++)
+            {
+                var l = live[i];
+                var key = KeyOf(l.Code, l.X, l.Y);
+                if (!map.TryGetValue(key, out var spot))
+                {
+                    map[key] = spot = new NodeSpot { Code = l.Code, X = l.X, Y = l.Y, FirstSeenMs = nowMs };
+                    DropSeedsNear(map, l.X, l.Y);
+                }
+                spot.Alive = true; spot.InView = true; spot.Taken = l.Taken; spot.ExhaustedAtMs = 0; spot.LastSeenMs = nowMs;
+                seen.Add(key);
+            }
+            foreach (var key in _merged)
+                if (!seen.Contains(key) && map.TryGetValue(key, out var s)) s.InView = false;
+            _merged.Clear();
+            _merged.UnionWith(seen);
+        }
+    }
+
+    /// <summary>
+    /// A2M-48 viewer: the daemon rewrote atlas/&lt;map&gt;.json (every 30 s when something changed): take its spots, keep the seeded ones
+    /// no real spot covers and the in-view marks of the last <see cref="MergeLive"/>. False when the file is the one already loaded.
+    /// </summary>
+    public bool ReloadIfChanged(int mapId)
+    {
+        var path = PathOf(mapId);
+        DateTime stamp;
+        try { if (!File.Exists(path)) return false; stamp = File.GetLastWriteTimeUtc(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+        lock (_gate) if (_stamps.TryGetValue(mapId, out var known) && known == stamp) return false;
+        List<NodeSpot>? spots;
+        try { spots = JsonSerializer.Deserialize<List<NodeSpot>>(File.ReadAllText(path), Json); }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return false; }
+        lock (_gate)
+        {
+            _stamps[mapId] = stamp;
+            if (spots is null) return false;
+            var map = _maps.TryGetValue(mapId, out var m) ? m : _maps[mapId] = new();
+            var seeds = new List<KeyValuePair<(int, int, int), NodeSpot>>();
+            foreach (var kv in map) if (kv.Value.Seeded) seeds.Add(kv);
+            var inView = mapId == MapId ? new HashSet<(int, int, int)>(_merged) : null;
+            map.Clear();
+            foreach (var s in spots)
+            {
+                var key = KeyOf(s.Code, s.X, s.Y);
+                s.Alive = s.Alive && s.ExhaustedAtMs == 0;
+                if (inView is not null && inView.Contains(key)) { s.InView = true; s.Alive = true; }
+                map[key] = s;
+            }
+            foreach (var (key, seed) in seeds)
+            {
+                var covered = false;
+                foreach (var s in spots)
+                    if (Math.Abs(s.X - seed.X) < 300 && Math.Abs(s.Y - seed.Y) < 300 && (s.X - seed.X) * (s.X - seed.X) + (s.Y - seed.Y) * (s.Y - seed.Y) < 300f * 300f) { covered = true; break; }
+                if (!covered) map[key] = seed;
+            }
+            return true;
+        }
+    }
+
     private string PathOf(int mapId) => Path.Combine(directory, mapId + ".json");
 
     private void Load(int mapId)
@@ -345,6 +438,7 @@ public sealed class NodeStore
         {
             var path = PathOf(mapId);
             if (!File.Exists(path)) return;
+            _stamps[mapId] = File.GetLastWriteTimeUtc(path);
             var spots = JsonSerializer.Deserialize<List<NodeSpot>>(File.ReadAllText(path), Json);
             if (spots is null) return;
             foreach (var s in spots) { s.Alive = s.Alive && s.ExhaustedAtMs == 0; map[KeyOf(s.Code, s.X, s.Y)] = s; }

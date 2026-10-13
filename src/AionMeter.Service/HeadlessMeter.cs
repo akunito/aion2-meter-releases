@@ -49,6 +49,11 @@ public sealed class HeadlessMeter : IDisposable
     private readonly OverlayServer? _server;
     private readonly OverlaySelection _sel = new();
     private readonly OverlayBuilder _builder = new();
+    private readonly PositionBuilder _position = new();
+    private PositionModel? _lastPosition;
+    private long _lastPositionAt;
+    private string? _announcement;
+    private long _announcementAt;
 
     public MeterEngine Engine { get; }
     public AppSettings Settings { get; }
@@ -80,6 +85,8 @@ public sealed class HeadlessMeter : IDisposable
         Engine = new MeterEngine(Settings, factory, availability);
         Engine.FightClosed += OnFightClosed;
         Engine.CharacterChanged += () => Event("character", w => w.WriteString("key", Engine.BoundKey), $"character {Engine.BoundKey}");
+        // A2M-48: the WPF NameNodeWindow prompt, for the Linux UI (the atlas asks for the kind; the name lands in atlas/objects.json, read back by mtime)
+        Engine.NodeNameWanted += code => Event("node-name-wanted", w => w.WriteNumber("code", code), $"atlas: unnamed node {code} gathered", "node-name-wanted");
         Log.Info($"Daemon started. Data: {Engine.Data.Skills.Count} skills, {Engine.Data.Npcs.Count} npcs; state in {AppSettings.AppDataDir}");
         if (options.Socket is { Length: > 0 } sock)
         {
@@ -145,6 +152,7 @@ public sealed class HeadlessMeter : IDisposable
     {
         if (Engine.ReloadSettingsIfChanged()) { _forceOverlay = true; Human($"settings reloaded (language {Settings.Language}, measure {Settings.TargetMode})"); }
         if (Engine.Prices.ReloadIfChanged()) Human($"price watch list reloaded ({Engine.Prices.Count} items)");
+        if (Engine.ReloadObjectNamesIfChanged()) Human("atlas node names reloaded");
     }
 
     private void Heartbeat(CaptureStatus st)
@@ -174,8 +182,15 @@ public sealed class HeadlessMeter : IDisposable
         {
             var next = timer.NextSpawn!.Value;
             var name = Engine.Data.NpcName(timer.NpcCode);
-            Event("boss-alert", w => { w.WriteNumber("npc", timer.NpcCode); w.WriteString("name", name); w.WriteString("spawn", next); },
-                $"boss {name} respawns {next.ToLocalTime():HH:mm}");
+            var minutes = (int)Math.Ceiling((next - DateTimeOffset.Now).TotalMinutes);
+            var t = UiText.Current;
+            // the App's balloon text; the Linux card shows it as a line for 60 s (overlay `announcement`)
+            var text = minutes > 0 ? string.Format(t.AlertSoon, name, minutes, next.ToLocalTime().ToString("HH:mm")) : string.Format(t.AlertNow, name, next.ToLocalTime().ToString("HH:mm"));
+            _announcement = text;
+            _announcementAt = Environment.TickCount64;
+            _forceOverlay = true;
+            Event("boss-alert", w => { w.WriteNumber("npc", timer.NpcCode); w.WriteString("name", name); w.WriteString("spawn", next); w.WriteString("text", text); },
+                $"boss {name} respawns {next.ToLocalTime():HH:mm}", "boss-alert");
         }
         foreach (var p in Engine.TakePriceHits())
             Event("price-hit", w => { w.WriteNumber("item", p.Item); w.WriteString("name", p.Name); w.WriteNumber("price", p.LastPrice ?? 0); w.WriteNumber("max", p.MaxPrice); w.WriteBoolean("sell", p.Sell); },
@@ -330,6 +345,14 @@ public sealed class HeadlessMeter : IDisposable
                     c.From.Send(SocketLine("settings-reloaded", w => { w.WriteStartObject(); w.WriteString("language", Settings.Language); w.WriteBoolean("reloaded", reloaded); w.WriteEndObject(); }));
                     force = true;
                     break;
+                case "timer":
+                    // A2M-48: the Linux UI's Boss Timers buttons; the daemon owns boss-timers.json (the UI's copy is read-only and follows the file)
+                    if (!TimerCommand(c)) { c.From.Send(Error("timer: id is killed|watch|unwatch|respawn|remove, npc > 0")); break; }
+                    srv.Broadcast(SocketLine("timers-changed", w => { w.WriteStartObject(); w.WriteNumber("server", c.Server); w.WriteNumber("npc", c.Npc); w.WriteEndObject(); }));
+                    break;
+                case "position":
+                    _lastPosition = null;   // sent below, whatever changed
+                    break;
                 case "fights":
                     var list = OverlayBuilder.FightList(Engine, c.Max > 0 ? Math.Min(c.Max, 500) : 40).ToArray();
                     c.From.Send(SocketLine("fights", w => JsonSerializer.Serialize(w, list, OverlayJson.Default.OverlayFightItemArray)));
@@ -340,10 +363,49 @@ public sealed class HeadlessMeter : IDisposable
             }
         }
         if (srv.ClientCount == 0) return;
-        if (srv.TakeNewClient()) { srv.Broadcast(StatusLine(st)); force = true; }
+        if (srv.TakeNewClient()) { srv.Broadcast(StatusLine(st)); force = true; _lastPosition = null; }
+        Position(srv, ticks);
         if (!force && ticks % 5 != 0 && Engine.Tracker.Segments() is not [{ IsActive: true }, ..]) return;
         var model = _builder.Build(Engine, _sel, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        if (_announcement is not null)
+        {
+            if (Environment.TickCount64 - _announcementAt < 60_000) model = model with { Announcement = _announcement };
+            else _announcement = null;
+        }
         srv.Broadcast(SocketLine("overlay", w => JsonSerializer.Serialize(w, model, OverlayJson.Default.OverlayModel)));
+    }
+
+    /// <summary>
+    /// A2M-48 `position`: every third tick (600 ms, ≤ 2 Hz) when the drawn point, the heading or the spots in view changed, and every 5 s
+    /// regardless (a UI that just opened the atlas catches up). A replay measures ages on its own clock (the newest event), live on UtcNow.
+    /// </summary>
+    private void Position(OverlayServer srv, int ticks)
+    {
+        if (ticks % 3 != 0 && _lastPosition is not null) return;
+        var now = Environment.TickCount64;
+        var clock = _o.Replay is not null && Engine.Atlas.LastEventMs > 0 ? Engine.Atlas.LastEventMs : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var p = _position.Build(Engine.Atlas, clock);
+        if (PositionBuilder.Same(_lastPosition, p) && now - _lastPositionAt < 5_000) return;
+        _lastPosition = p;
+        _lastPositionAt = now;
+        srv.Broadcast(SocketLine("position", w => JsonSerializer.Serialize(w, p, OverlayJson.Default.PositionModel)));
+    }
+
+    private bool TimerCommand(OverlayCommand c)
+    {
+        if (c.Npc == 0) return false;
+        var t = Engine.Timers;
+        switch (c.Arg)
+        {
+            case "killed": t.MarkKilled(c.Server, c.Npc); break;
+            case "watch": t.SetWatch(c.Server, c.Npc, true); break;
+            case "unwatch": t.SetWatch(c.Server, c.Npc, false); break;
+            case "respawn": t.SetRespawn(c.Server, c.Npc, c.Value); break;
+            case "remove": t.Remove(c.Server, c.Npc); break;
+            default: return false;
+        }
+        Log.Info($"UI: timer {c.Arg} server {c.Server} npc {c.Npc}{(c.Arg == "respawn" ? $" {c.Value} min" : "")}");
+        return true;
     }
 
     private byte[] Error(string message) => SocketLine("error", w => { w.WriteStartObject(); w.WriteString("message", message); w.WriteEndObject(); });

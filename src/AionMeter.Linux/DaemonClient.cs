@@ -36,6 +36,15 @@ public sealed class DaemonClient : IDisposable
     /// <summary>`settings-reloaded`: the daemon took settings.json (language it now uses).</summary>
     public event Action<string>? SettingsReloaded;
     public event Action<string>? Error;
+    /// <summary>`position` (≤ 2 Hz): the atlas point, heading and the spots in view (A2M-48 phase 3c). The newest one is kept in <see cref="LastPosition"/>.</summary>
+    public event Action<PositionModel>? Position;
+    public PositionModel? LastPosition { get; private set; }
+    /// <summary>`timers-changed`: a `timer` command rewrote boss-timers.json (reload it now instead of on the next mtime check).</summary>
+    public event Action? TimersChanged;
+    /// <summary>`boss-alert`: the alert text (also in the overlay `announcement` for 60 s).</summary>
+    public event Action<string>? BossAlert;
+    /// <summary>`node-name-wanted`: the player started gathering an object code nobody has named (the atlas asks).</summary>
+    public event Action<int>? NodeNameWanted;
 
     public void Start() => _ = Task.Run(Loop);
 
@@ -134,6 +143,21 @@ public sealed class DaemonClient : IDisposable
                             : root.TryGetProperty("message", out var m2) ? m2.GetString() ?? "" : "";
                     Dispatcher.UIThread.Post(() => Error?.Invoke(msg));
                     break;
+                case "position":
+                    if (data.Deserialize(OverlayJson.Default.PositionModel) is { } pos)
+                        Dispatcher.UIThread.Post(() => { LastPosition = pos; Position?.Invoke(pos); });
+                    break;
+                case "timers-changed":
+                    Dispatcher.UIThread.Post(() => TimersChanged?.Invoke());
+                    break;
+                case "boss-alert":
+                    var alert = data.TryGetProperty("text", out var at) ? at.GetString() ?? "" : "";
+                    Dispatcher.UIThread.Post(() => BossAlert?.Invoke(alert));
+                    break;
+                case "node-name-wanted":
+                    var code = data.TryGetProperty("code", out var cd) ? cd.GetInt32() : 0;
+                    if (code != 0) Dispatcher.UIThread.Post(() => NodeNameWanted?.Invoke(code));
+                    break;
                 case "fight-closed":
                     var title = data.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
                     Dispatcher.UIThread.Post(() => FightClosed?.Invoke(title));
@@ -152,6 +176,10 @@ public sealed class DaemonClient : IDisposable
     public void Send(string cmd, string key, string value) => Write($"{{\"cmd\":\"{cmd}\",\"{key}\":\"{JsonEncodedText.Encode(value)}\"}}\n");
 
     public void Send(string cmd, string key, int value) => Write($"{{\"cmd\":\"{cmd}\",\"{key}\":{value}}}\n");
+
+    /// <summary>`timer` command: killed / watch / unwatch / respawn (<paramref name="value"/> minutes) / remove on one server's boss.</summary>
+    public void Timer(string action, int server, int npc, int value = 0) =>
+        Write($"{{\"cmd\":\"timer\",\"id\":\"{action}\",\"server\":{server},\"npc\":{npc},\"value\":{value}}}\n");
 
     private void Write(string json)
     {

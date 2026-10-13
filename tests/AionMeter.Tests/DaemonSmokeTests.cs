@@ -178,6 +178,29 @@ public class DaemonSmokeTests
             for (var i = 0; i < 60 && m.Engine.Prices.Count == 0; i++) await Task.Delay(100, cts.Token);
             Assert.Equal(1, m.Engine.Prices.Count);
 
+            // A2M-48 phase 3c `position`: the atlas point on the replay's own clock (the login capture is in Verteron, map 1010)
+            await writer.WriteLineAsync("{\"cmd\":\"position\"}");
+            var pos = (await Next("position")).GetProperty("data");
+            Assert.Equal(1010, pos.GetProperty("map").GetInt32());
+            Assert.True(pos.GetProperty("x").GetSingle() != 0 || pos.GetProperty("y").GetSingle() != 0, "no position drawn after the login replay");
+            Assert.True(pos.GetProperty("ageS").GetInt64() >= 0);
+            Assert.Equal(JsonValueKind.Array, pos.GetProperty("live").ValueKind);
+            var model = pos.Deserialize(AionMeter.Service.Overlay.OverlayJson.Default.PositionModel)!;
+            Assert.Equal(1010, model.Map);
+
+            // `timer`: the UI's Boss Timers buttons; the daemon writes boss-timers.json and tells every client
+            await writer.WriteLineAsync("{\"cmd\":\"timer\",\"id\":\"killed\",\"server\":1303,\"npc\":2400001}");
+            var tc = (await Next("timers-changed")).GetProperty("data");
+            Assert.Equal(2400001, tc.GetProperty("npc").GetInt32());
+            await writer.WriteLineAsync("{\"cmd\":\"timer\",\"id\":\"respawn\",\"server\":1303,\"npc\":2400001,\"value\":75}");
+            await Next("timers-changed");
+            var viewerTimers = new BossTimers(Path.Combine(root, "boss-timers.json"), m.Engine.Data, RepoData(), readOnly: true);
+            var killed = Assert.Single(viewerTimers.ForServer(1303), t => t.NpcCode == 2400001);
+            Assert.Equal(75, killed.RespawnMinutes);
+            Assert.NotNull(killed.LastKill);
+            await writer.WriteLineAsync("{\"cmd\":\"timer\",\"id\":\"bogus\",\"npc\":1}");
+            await Next("error");
+
             await writer.WriteLineAsync("{\"cmd\":\"nope\"}");
             await Next("error");
 
