@@ -126,13 +126,15 @@
                     <Border Style="{StaticResource Section}">
                         <StackPanel>
                             <TextBlock Text="{Binding SecMeter, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
-                            <StackPanel Orientation="Horizontal">
+                            <Grid>
+                                <!-- the combo takes what the card leaves after the label, up to 260 px: at the 470 px overlay it shrinks instead of being cut -->
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" MaxWidth="260" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding Measure, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
-                                <ComboBox x:Name="Mode">
+                                <ComboBox x:Name="Mode" Grid.Column="1">
                                     <ComboBoxItem Content="{Binding MeasureBoss, Source={x:Static s:UiText.Current}}" />
                                     <ComboBoxItem Content="{Binding MeasureAll, Source={x:Static s:UiText.Current}}" />
                                 </ComboBox>
-                            </StackPanel>
+                            </Grid>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="{Binding IdleEnd, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
                                 <TextBox x:Name="Idle" Width="60" />
@@ -150,14 +152,15 @@
                             <TextBlock Text="{Binding SecHistory, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <CheckBox x:Name="SaveHistory" Style="{StaticResource DarkCheck}"
                                       Content="{Binding SaveAuto, Source={x:Static s:UiText.Current}}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" MaxWidth="260" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding WhichFights, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
-                                <ComboBox x:Name="HistoryModeBox" MinWidth="250">
+                                <ComboBox x:Name="HistoryModeBox" Grid.Column="1">
                                     <ComboBoxItem Content="{Binding HistBosses, Source={x:Static s:UiText.Current}}" />
                                     <ComboBoxItem Content="{Binding HistBossesLong, Source={x:Static s:UiText.Current}}" />
                                     <ComboBoxItem Content="{Binding HistAll, Source={x:Static s:UiText.Current}}" />
                                 </ComboBox>
-                            </StackPanel>
+                            </Grid>
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="{Binding LongerThan, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
                                 <TextBox x:Name="HistoryMin" Width="60" />
@@ -216,14 +219,16 @@
                         <StackPanel>
                             <TextBlock Text="{Binding SecGame, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <!-- A2M-40: the server everything server-dependent follows -->
-                            <StackPanel Orientation="Horizontal">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" MaxWidth="260" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding GameRegion, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
-                                <ComboBox x:Name="RegionBox" MinWidth="200" SelectionChanged="Region_Changed" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <ComboBox x:Name="RegionBox" Grid.Column="1" SelectionChanged="Region_Changed" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" MaxWidth="260" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding GameServer, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
-                                <ComboBox x:Name="ServerBox" MinWidth="200" MaxDropDownHeight="360" />
-                            </StackPanel>
+                                <ComboBox x:Name="ServerBox" Grid.Column="1" MaxDropDownHeight="360" />
+                            </Grid>
                             <TextBlock x:Name="ServerNowText" Style="{StaticResource Hint}" Margin="190,4,0,0" Foreground="{StaticResource TextDim}" />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,10" Text="{Binding GameServerHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="StartWithGameBox" Style="{StaticResource DarkCheck}"

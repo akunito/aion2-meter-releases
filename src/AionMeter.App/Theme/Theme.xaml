@@ -399,7 +399,8 @@
             <Setter Property="Foreground" Value="{StaticResource Text}" />
             <Setter Property="Background" Value="{StaticResource Bg2}" />
             <Setter Property="BorderBrush" Value="{StaticResource GoldDim}" />
-            <Setter Property="Padding" Value="8,4" />
+            <!-- right padding keeps the text clear of the arrow (it sits 9 px from the edge, 8 px wide): the arrow was drawn over the text -->
+            <Setter Property="Padding" Value="8,4,26,4" />
             <Setter Property="Height" Value="28" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -419,7 +420,12 @@
                             </ToggleButton>
                             <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                               Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Left" IsHitTestVisible="False"
-                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                                              TextElement.Foreground="{TemplateBinding Foreground}">
+                                <!-- a combo narrowed by its row (Settings at 470 px) ends its text in "…" instead of being cut with the arrow -->
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis" /></Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
                             <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade">
                                 <Border Background="{StaticResource Bg1}" BorderBrush="{StaticResource GoldDim}" BorderThickness="1" CornerRadius="3"
                                         MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="0,2,0,0">
