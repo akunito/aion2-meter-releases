@@ -32,6 +32,7 @@ public partial class SettingsWindow : Window
         AutoShow.IsChecked = s.AutoShow;
         AutoHideSeconds.Text = s.AutoHideSeconds.ToString();
         ShowOnStart.IsChecked = s.ShowOnStart;
+        AllDesktops.IsChecked = s.AllDesktops;
         foreach (var n in new[] { 5, 8, 10, 12, 15, 20 }) MaxRows.Items.Add(n);
         MaxRows.SelectedItem = MaxRows.Items.Cast<int>().OrderBy(n => Math.Abs(n - s.MaxRows)).First();
         OpacityValue.Value = s.BackgroundOpacity;
@@ -97,6 +98,7 @@ public partial class SettingsWindow : Window
         s.AutoShow = AutoShow.IsChecked == true;
         if (int.TryParse(AutoHideSeconds.Text, out var autoHide)) s.AutoHideSeconds = Math.Clamp(autoHide, 0, 3600);
         s.ShowOnStart = ShowOnStart.IsChecked == true;
+        s.AllDesktops = AllDesktops.IsChecked == true;
         s.MaxRows = MaxRows.SelectedItem is int rows ? rows : 10;
         s.BackgroundOpacity = Math.Round(OpacityValue.Value, 2);
         s.RowSize = (int)Math.Round(RowSizeValue.Value);

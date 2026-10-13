@@ -40,6 +40,8 @@ public sealed class AppSettings
     public int AutoHideSeconds { get; set; } = 60;
     /// <summary>Bring the overlay up when the meter starts and when it finds the game, so a player sees it is running.</summary>
     public bool ShowOnStart { get; set; } = true;
+    /// <summary>A2M-42: overlay, pop-out cards and every other meter window on all virtual desktops; off = the one they open on.</summary>
+    public bool AllDesktops { get; set; } = true;
 
     // Boss respawn timers
     /// <summary>Alert this many minutes before a tracked boss respawns; 0 = off.</summary>

@@ -121,6 +121,7 @@ public partial class App : Application
         Log.Info($"Started. Data: {_meter.Data.Skills.Count} skills, {_meter.Data.Npcs.Count} npcs.");
         _meter.StartCapture();
 
+        WindowPinning.Configure(settings.AllDesktops);
         _overlay = new OverlayWindow(_meter);
         if (settings.OverlayVisible || e.Args.Contains("--show")) _overlay.Show(); // --show: this run only, not saved
         else
@@ -130,6 +131,7 @@ public partial class App : Application
             if (settings.ShowOnStart) ShowByItself();
         }
 
+        WindowPinning.Anchor(new WindowInteropHelper(_overlay).Handle);
         _hotkeys = new HotkeyManager(new WindowInteropHelper(_overlay).Handle);
         RegisterHotkeys();
 
@@ -231,6 +233,14 @@ public partial class App : Application
         UpdateAutoVisibility();
         if (_overlay.IsVisible) _overlay.Refresh();
         for (var i = _extras.Count - 1; i >= 0; i--) if (_extras[i].IsVisible) _extras[i].Refresh();
+        // A2M-42: a borderless game that makes itself topmost covers our topmost windows when it is clicked; the
+        // secondary windows are owned by the overlay and move with it.
+        var game = WindowPinning.TopmostGameInFront();
+        if (game != 0)
+        {
+            if (_overlay.IsVisible) WindowPinning.KeepAbove(_overlay.Handle, game);
+            for (var i = 0; i < _extras.Count; i++) if (_extras[i].IsVisible) WindowPinning.KeepAbove(_extras[i].Handle, game);
+        }
         if (++_ticks % 5 == 0)
         {
             _tray?.Update(_overlay.IsVisible, _meter.Settings.ClickThrough, _meter.DemoRunning ? "demo" : _meter.CaptureStatus.Message);
@@ -371,6 +381,7 @@ public partial class App : Application
         var w = new BreakdownWindow(view, actorId, _meter.Data, _meter.Icons, _meter.Portraits, _meter.AbyssLogsNoteFor);
         _breakdowns[key] = w;
         w.Closed += (_, _) => _breakdowns.Remove(key);
+        WindowPinning.KeepAboveGame(w);
         w.Show();
     }
 
@@ -405,6 +416,7 @@ public partial class App : Application
         }
         _history = new HistoryWindow(_meter);
         _history.Closed += (_, _) => _history = null;
+        WindowPinning.KeepAboveGame(_history);
         _history.Show();
     }
 
@@ -424,6 +436,7 @@ public partial class App : Application
         }
         _timersWindow = new BossTimersWindow(_meter);
         _timersWindow.Closed += (_, _) => _timersWindow = null;
+        WindowPinning.KeepAboveGame(_timersWindow);
         _timersWindow.Show();
     }
 
@@ -452,6 +465,7 @@ public partial class App : Application
         _nameWindow = w;
         w.Closed += (_, _) => { if (_nameWindow == w) _nameWindow = null; };
         if (owner.IsVisible) { w.Owner = owner; w.WindowStartupLocation = WindowStartupLocation.CenterOwner; }
+        WindowPinning.KeepAboveGame(w);
         w.Show();
         w.Activate();
     }
@@ -528,6 +542,7 @@ public partial class App : Application
         var w = new BugReportWindow(_meter.Settings, prefill);
         w.Closed += (_, _) => { if (_reportWindow == w) _reportWindow = null; };
         _reportWindow = w;
+        WindowPinning.KeepAboveGame(w);
         w.Show();
     }
 
@@ -539,6 +554,7 @@ public partial class App : Application
         {
             _helpWindow = new HelpWindow(_meter.Settings);
             _helpWindow.Closed += (_, _) => _helpWindow = null;
+            WindowPinning.KeepAboveGame(_helpWindow);
         }
         _helpWindow.ShowTab(tab);
     }
@@ -552,6 +568,7 @@ public partial class App : Application
         }
         _settingsWindow = new SettingsWindow(_meter);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        WindowPinning.KeepAboveGame(_settingsWindow);
         _settingsWindow.Show();
     }
 
@@ -651,6 +668,7 @@ public partial class App : Application
             if (_updateWindow == w) _updateWindow = null;
         };
         _updateWindow = w;
+        WindowPinning.KeepAboveGame(w);
         w.Show();
     }
 
@@ -688,6 +706,7 @@ public partial class App : Application
     public void OnSettingsChanged()
     {
         RegisterHotkeys();
+        WindowPinning.Apply(_meter.Settings.AllDesktops);
         _overlay.ApplyAppearance();
         _overlay.Refresh();
     }

@@ -80,8 +80,9 @@ public partial class OverlayWindow : Window
         SourceInitialized += (_, _) =>
         {
             _hwnd = new WindowInteropHelper(this).Handle;
-            // Clicking the overlay must never pull keyboard focus away from the game window.
-            NativeMethods.SetExStyle(_hwnd, NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TOOLWINDOW);
+            // Clicking the overlay must never pull keyboard focus away from the game window. The tool bit puts it on every
+            // virtual desktop (A2M-42, Settings → Overlay → Show on all virtual desktops).
+            NativeMethods.SetExStyle(_hwnd, WindowPinning.OverlayExStyle);
             ApplyClickThrough();
             FitToMonitor();
         };

@@ -93,6 +93,9 @@
                             </StackPanel>
                             <CheckBox x:Name="ShowOnStart" Style="{StaticResource DarkCheck}" Margin="0,6,0,0"
                                       Content="{Binding ShowOnStart, Source={x:Static s:UiText.Current}}" />
+                            <CheckBox x:Name="AllDesktops" Style="{StaticResource DarkCheck}" Margin="0,6,0,0"
+                                      Content="{Binding AllDesktops, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding AllDesktopsHint, Source={x:Static s:UiText.Current}}" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="{Binding RowsShown, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
                                 <ComboBox x:Name="MaxRows" MinWidth="80" />

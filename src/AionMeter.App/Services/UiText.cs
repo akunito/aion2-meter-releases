@@ -141,6 +141,9 @@ public sealed class UiText
         "When a boss is fought nearby or you hit any monster. Hide it during a fight and it waits for the next one.";
     public string AutoHide { get; init; } = "Hide again after combat (s, 0 = never)";
     public string ShowOnStart { get; init; } = "Show the overlay when the meter or the game starts";
+    public string AllDesktops { get; init; } = "Show on all virtual desktops";
+    public string AllDesktopsHint { get; init; } =
+        "Off: the overlay and the meter's windows stay on the desktop they open on. They stay over the game in borderless windowed mode; exclusive fullscreen covers them.";
 
     // ---------------------------------------------------------------- overlay: columns
     public string ColPlayer { get; init; } = "PLAYER";
@@ -959,6 +962,8 @@ public sealed class UiText
         AutoShowHint = "Когда рядом бьют босса или вы ударили любого моба. Если скрыть его во время боя — появится в следующем.",
         AutoHide = "Скрывать после боя через (с, 0 — нет)",
         ShowOnStart = "Показывать оверлей при запуске метра и игры",
+        AllDesktops = "Показывать на всех виртуальных рабочих столах",
+        AllDesktopsHint = "Выкл.: оверлей и окна метра остаются на том столе, где открылись. Поверх игры они видны в оконном режиме без рамки; полноэкранный эксклюзивный режим их закрывает.",
 
         TipSkillDamage = "Урон",
         TipSkillHits = "Удары",
