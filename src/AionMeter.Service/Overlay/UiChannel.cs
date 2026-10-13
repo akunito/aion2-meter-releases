@@ -74,14 +74,36 @@ public static class UiScale
             System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     /// <summary>Sets only "UiScale" in ui.json (the Avalonia UI owns the rest of the file), aside + rename.</summary>
-    public static void Write(string uiJson, double scale)
+    public static void Write(string uiJson, double scale) => UiJson.Write(uiJson, "UiScale", Clamp(scale));
+}
+
+/// <summary>
+/// A2M-50: single keys of ui.json for the layer-shell card, which shares the file with the Avalonia UI (UiSettings owns the rest): read one
+/// key, patch one key (JsonNode, aside + rename) so neither process drops what the other wrote.
+/// </summary>
+public static class UiJson
+{
+    /// <summary>A string key ("LastTab"); null when missing, not a string or the file is unreadable.</summary>
+    public static string? ReadString(string uiJson, string key)
+    {
+        try
+        {
+            if (!File.Exists(uiJson)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllBytes(uiJson));
+            return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+        }
+        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>Sets <paramref name="key"/> only (a broken file is replaced by an object holding just this key), aside + rename.</summary>
+    public static void Write(string uiJson, string key, JsonNode? value)
     {
         try
         {
             JsonObject root;
             try { root = File.Exists(uiJson) ? JsonNode.Parse(File.ReadAllBytes(uiJson)) as JsonObject ?? new JsonObject() : new JsonObject(); }
             catch (JsonException) { root = new JsonObject(); }
-            root["UiScale"] = Clamp(scale);
+            root[key] = value;
             Directory.CreateDirectory(Path.GetDirectoryName(uiJson)!);
             var tmp = uiJson + ".tmp-ov";
             File.WriteAllText(tmp, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));

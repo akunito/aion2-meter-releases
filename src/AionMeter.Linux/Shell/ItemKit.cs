@@ -130,15 +130,11 @@ public static class ItemKit
 {
     private static readonly IBrush?[] ChipBacks = new IBrush?[8];
 
-    /// <summary>"12,847" → "13k", 1,234,567 → "1.2M" (mock kfmt: thousands from 10,000, one decimal below 10 M).</summary>
-    public static string Short(long n) => n >= 1_000_000 ? (n / 1e6).ToString(n >= 10_000_000 ? "0" : "0.#", CultureInfo.InvariantCulture) + "M"
-        : n >= 10_000 ? Math.Round(n / 1e3).ToString(CultureInfo.InvariantCulture) + "k" : n.ToString("N0", CultureInfo.InvariantCulture);
+    public static string Short(long n) => ItemFormat.Short(n);
 
-    /// <summary>Craft's compact kinah: 1.25M, 850.5k, 120.</summary>
-    public static string Kinah(long v) => v >= 1_000_000 ? (v / 1_000_000.0).ToString("0.##", CultureInfo.InvariantCulture) + "M"
-        : v >= 1_000 ? (v / 1_000.0).ToString("0.#", CultureInfo.InvariantCulture) + "k" : v.ToString(CultureInfo.InvariantCulture);
+    public static string Kinah(long v) => ItemFormat.Kinah(v);
 
-    public static string N(long v) => v.ToString("N0", CultureInfo.InvariantCulture);
+    public static string N(long v) => ItemFormat.N(v);
 
     /// <summary>The grade chip after an item name ("Artisan's Refining Stone [legendary]"); null for an unknown grade.</summary>
     public static Border? GradeChip(Grade g, string lang, double size = 10.5)
@@ -161,20 +157,7 @@ public static class ItemKit
         if (GradeChip(g, lang, size) is { } chip) inlines.Add(new InlineUIContainer { Child = chip, BaselineAlignment = BaselineAlignment.Center });
     }
 
-    /// <summary>"1200000", "1,200,000", "1.2m", "850k" → Kinah (WPF PriceWatchView.TryParsePrice).</summary>
-    public static bool TryParsePrice(string? text, out long value)
-    {
-        value = 0;
-        if (string.IsNullOrWhiteSpace(text)) return false;
-        var t = text.Trim().ToLowerInvariant().Replace(",", "").Replace(" ", "").Replace("_", "");
-        double mul = 1;
-        if (t.EndsWith('k')) { mul = 1_000; t = t[..^1]; }
-        else if (t.EndsWith('m')) { mul = 1_000_000; t = t[..^1]; }
-        else if (t.EndsWith('b')) { mul = 1_000_000_000; t = t[..^1]; }
-        if (!double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) || d <= 0) return false;
-        value = (long)Math.Round(d * mul);
-        return true;
-    }
+    public static bool TryParsePrice(string? text, out long value) => ItemFormat.TryParsePrice(text, out value);
 
     /// <summary>Search box with a hint text and a clear ✕ (WPF SearchField / Field + ClearSearch): Esc clears too.</summary>
     public static (Grid Host, TextBox Box) SearchBox(string hint, double width, Action changed)
