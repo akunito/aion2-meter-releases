@@ -166,8 +166,13 @@ public partial class AtlasView : UserControl
             }
         }
         if (cells is not null)
-            foreach (var ((kind, _, _), c) in cells)
+        {
+            // biggest clusters first: when labels collide, the larger count keeps its label
+            var order = new List<KeyValuePair<(string, int, int), (double Px, double Py, int N, int Alive)>>(cells);
+            order.Sort((a, b) => b.Value.N.CompareTo(a.Value.N));
+            foreach (var ((kind, _, _), c) in order)
                 Mark(c.Px / c.N, c.Py / c.N, 5, c.Alive > 0 ? Live : Gone, Icon(kind), c.N > 1 ? "×" + c.N : "", c.Alive > 0 ? Live : Gone, dim: c.Alive == 0, always: true);
+        }
 
         // The player: the last reported position (casts, gathers, state records) when fresh, else the centroid of
         // what is in view (hollow dot), else the last report however old.
@@ -513,7 +518,10 @@ public partial class AtlasView : UserControl
     // elements are kept half a viewport beyond each edge: panning is a translate, the layers are rebuilt only once the drift passes that
     private double CullX => Math.Max(200, Viewport.ActualWidth / 2);
     private double CullY => Math.Max(200, Viewport.ActualHeight / 2);
-    private bool LabelRoom(double x, double y) => _labelPts.TryPlace(x, y);
+    // label box estimated, not measured (Segoe UI 11 px averages ~6.5 px a character, plus the 3+3 px padding): no TextBlock is
+    // built for a label that is refused. always = shown at any zoom (cluster counts), spacing still applies.
+    private bool LabelRoom(double x, double y, double left, string label, bool always) =>
+        (always || _scale * _f >= 0.12) && _labelPts.TryPlace(x, y, left, y - 7, label.Length * 6.5 + 6, 15);
 
     private void Mark(double px, double py, double r, Brush fill, ImageSource? icon, string label, Brush textBrush, bool dim = false, bool always = false)
     {
@@ -525,7 +533,7 @@ public partial class AtlasView : UserControl
         var image = new Image { Source = icon, Width = size, Height = size, Opacity = dim ? 0.45 : 1 };
         Canvas.SetLeft(image, x - size / 2); Canvas.SetTop(image, y - size / 2);
         Overlay.Children.Add(image);
-        if (label.Length == 0 || (!always && (_scale * _f < 0.12 || !LabelRoom(x, y)))) return;
+        if (label.Length == 0 || !LabelRoom(x, y, x + size / 2 + 1, label, always)) return;
         var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
         Canvas.SetLeft(text, x + size / 2 + 1); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);
@@ -546,7 +554,7 @@ public partial class AtlasView : UserControl
             Canvas.SetLeft(mark, x - 4.5); Canvas.SetTop(mark, y - 5.5);
             Overlay.Children.Add(mark);
         }
-        if (label.Length == 0 || (!always && (_scale * _f < 0.12 || !LabelRoom(x, y)))) return; // labels only once zoomed in enough to read the map
+        if (label.Length == 0 || !LabelRoom(x, y, x + r + 2, label, always)) return; // labels only once zoomed in enough to read the map
         var text = new TextBlock { Text = label, FontSize = 11, Foreground = textBrush, Background = Ink, Padding = new Thickness(3, 0, 3, 0) };
         Canvas.SetLeft(text, x + r + 2); Canvas.SetTop(text, y - 7);
         Overlay.Children.Add(text);

@@ -57,4 +57,20 @@ public class LabelSpacingTests
             }
         Assert.Equal(35, kept.Count);          // greedy in column order (same count from a brute-force check of the loop)
     }
+
+    [Fact]
+    public void Overlapping_text_boxes_are_refused_even_with_anchors_far_apart()
+    {
+        // two icons 20 px apart on a row, labels "13:59" (~38 px) to the right of each: the boxes overlap
+        var s = new LabelSpacing();
+        Assert.True(s.TryPlace(100, 100, 112, 93, 38, 15));
+        Assert.False(s.TryPlace(120, 100, 132, 93, 38, 15));
+        // the same pair one row (16 px) lower clears both the anchor rule and the box
+        Assert.True(s.TryPlace(120, 116, 132, 109, 38, 15));
+        // a wide box far to the left that reaches into the first one
+        Assert.False(s.TryPlace(30, 100, 42, 93, 80, 15));
+        // touching edges are not an overlap
+        Assert.True(s.TryPlace(200, 100, 150, 93, 40, 15));
+        Assert.Equal(3, s.Count);
+    }
 }
