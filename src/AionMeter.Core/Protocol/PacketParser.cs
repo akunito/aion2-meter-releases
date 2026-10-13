@@ -442,14 +442,16 @@ public sealed class PacketParser
     /// Measured 2026-10-08: the login list gave 188 stacks, the 20 equipped ones matching the official character page exactly.
     /// The enchant of a piece of gear sits 12–13 bytes after the slot byte (both offsets seen; the first non-zero one wins).
     /// <c>1b 56</c> header (A2M-32, every capture of 2026-10-09/10): count u8, op u8 (01 bag/warehouse, 00 cosmetic, 02 removal), whole u8.
-    /// whole = 1 only on a window's full re-send (warehouse 26 01 01); a deposit of 12 stacks is 18 01 00 with 24 records: 12 warehouse
-    /// slots filled + 12 bag slots with count 0 (emptied). Count-0 records are taken from <c>1b 56</c> only and with a stricter shape
+    /// A window's full re-send is op 01 + byte 3 = 1 (warehouse 26 01 01); a deposit of 12 stacks is 18 01 00 with 24 records: 12 warehouse
+    /// slots filled + 12 bag slots with count 0 (emptied). Byte 3 alone is NOT "whole": a crafted item arrives as 01 00 01 (op 00, one
+    /// record with the crafter's name in its tail) — measured 2026-10-13, 12 Orichalcum Longsword crafts in 2 minutes, and every one wiped
+    /// Akunita's bag to that single stack (Kina lives in bag slots 0–6, so it vanished with it). Count-0 records are taken from <c>1b 56</c> only and with a stricter shape
     /// (uid, container and a non-zero item low half): the zero runs in gear tails otherwise match as uid 0 / container 0 junk.
     /// </summary>
     private void ParseInventory(ReadOnlySpan<byte> b, bool full)
     {
         var stacks = new List<Inventory.ItemStack>();
-        var whole = !full && b.Length >= 3 && b[2] == 1;
+        var whole = !full && b.Length >= 3 && b[1] == 1 && b[2] == 1;
         var o = 0;
         while (o + 22 <= b.Length)
         {

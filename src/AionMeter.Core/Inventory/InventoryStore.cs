@@ -178,7 +178,10 @@ public sealed class InventoryStore
                 // Before A2M-32 any update of ≥ 8 stacks did this, and a 12-stack deposit (24 records) or a burst of potion uses wiped
                 // the bag: Akunita's file was left with 8 stacks in slots 1, 9–15 on 2026-10-11.
                 _wholeReplaced.Clear();
-                foreach (var s in inv.Stacks) if (Plausible(s)) Replace(s.Container, t, _wholeReplaced);
+                // The bag always carries the currencies (slots 0–6): a "whole" bag without a Kina stack is a mis-flagged update, never a window re-send.
+                var bagAnchored = false;
+                foreach (var s in inv.Stacks) if (s.Container == Containers.Bag && IsCurrency(s.Item)) { bagAnchored = true; break; }
+                foreach (var s in inv.Stacks) if (Plausible(s) && (s.Container != Containers.Bag || bagAnchored)) Replace(s.Container, t, _wholeReplaced);
             }
             foreach (var s in inv.Stacks)
             {

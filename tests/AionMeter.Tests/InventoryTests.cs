@@ -37,6 +37,27 @@ public class InventoryTests
         Assert.Equal(38, inv.Stacks.Count(s => s.Container == Containers.CharacterWarehouse));
     }
 
+    /// <summary>Real packet of 2026-10-13 10:40:19: one crafted Orichalcum Longsword, header 01 00 01. Byte 3 is not the whole-list flag: this must patch slot 39, not wipe the bag.</summary>
+    [Fact]
+    public void A_crafted_item_patches_its_slot_and_never_wipes_the_bag()
+    {
+        var store = new InventoryStore(null);
+        store.OnEvent(Parse(Opcodes.Inventory, Fixture("full-1156.hex"))[0]);
+        var kina = store.CountOf(InventoryStore.Kinah);
+        var bag = store.Items(Containers.Bag).Count;
+        var crafted = Assert.IsType<InventoryEvent>(Assert.Single(Parse(Opcodes.InventoryUpdate, Fixture("crafted-1b56.hex"))));
+        Assert.False(crafted.Whole);
+        var st = Assert.Single(crafted.Stacks);
+        Assert.Equal((110260023, 1, (byte)1, (byte)39), (st.Item, st.Count, st.Container, st.Slot));
+        store.OnEvent(crafted);
+        Assert.InRange(store.Items(Containers.Bag).Count, bag, bag + 1);
+        Assert.Equal(kina, store.CountOf(InventoryStore.Kinah));
+        // and even a packet that does carry the window flag may not wipe the bag unless it brings the currencies
+        store.OnEvent(new InventoryEvent(2_000, false, crafted.Stacks, Whole: true));
+        Assert.InRange(store.Items(Containers.Bag).Count, bag, bag + 1);
+        Assert.Equal(kina, store.CountOf(InventoryStore.Kinah));
+    }
+
     [Fact]
     public void Store_replaces_a_container_on_refresh_and_patches_one_slot_on_a_gather()
     {
