@@ -10,14 +10,14 @@ string? Opt(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1
 if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
 {
     Console.WriteLine("""
-        AionMeter.Overlay [--socket PATH] [--monitor NAME] [--anchor top-right|top-left|bottom-right|bottom-left] [--scale F] [--data-dir DIR] [--tab KEY] [--help-page KEY] [--window report|restore]
+        AionMeter.Overlay [--socket PATH] [--monitor NAME] [--anchor top-right|top-left|bottom-right|bottom-left] [--scale F] [--data-dir DIR] [--tab KEY] [--help-page KEY] [--window report|restore|import]
           --socket    the daemon's UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock)
           --monitor   output connector (DP-1); saved in overlay.json, default: the compositor's choice
           --anchor    the corner the card hangs from (resets the margins to that corner's default)
           --scale     card size factor on top of the output scale (0.5 – 3) for this run; otherwise the shared "UI scale" of ui.json
                       (tools window Settings → Overlay, Ctrl+wheel there; here: the wheel over the resize corner)
           --data-dir  the meter's data dir: overlay.json, ui.json, and what the viewer engine reads (default $XDG_DATA_HOME/AionMeter)
-          --tab KEY   open a tab at start (settings, or a ported strip tab); --help-page KEY a help page; --window report|restore a dialog
+          --tab KEY   open a tab at start (settings, or a ported strip tab); --help-page KEY a help page; --window report|restore|import a dialog
         Signals (pid in $XDG_RUNTIME_DIR/aionmeter-overlay.pid): SIGUSR1 toggles click-through, SIGUSR2 hides/shows the card.
         The tab pills switch the card in place (A2M-50); tabs not ported to GTK yet are dimmed: the tools window (aionmeter-ui, Hyper+Shift+M) has them.
         Needs libgtk-4, libgtk4-layer-shell and a wlroots compositor (Sway); no Xwayland.
