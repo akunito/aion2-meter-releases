@@ -483,7 +483,7 @@ public sealed class UiText
     public string ItemsNothing { get; init; } = "Nothing seen here yet.";
     public string ItemsToday { get; init; } = "Today";
     public string ItemsTodaySub { get; init; } = "raids, Conquest dungeons and content tickets";
-    public string ItemsTodayReset { get; init; } = "Daily reset {0} (in {1}) · weekly {2} (Wednesday, assumed)";
+    public string ItemsTodayReset { get; init; } = "Daily reset {0} (in {1}) · weekly {2}";
     public string ItemsTodayNone { get; init; } = "No ticket list yet: it arrives when the character logs in with the meter running.";
     public string ItemsTodayChest { get; init; } = "chest {0}/{1}";
     public string ItemsTodayClaimable { get; init; } = "claimable";

@@ -148,6 +148,59 @@ public class EventScheduleTests
     }
 }
 
+public class WeeklyResetTests
+{
+    private static string EventsJson()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var i = 0; i < 8 && dir is not null; i++, dir = dir.Parent)
+        {
+            var p = Path.Combine(dir.FullName, "data", "atlas", "events.json");
+            if (File.Exists(p)) return p;
+        }
+        Assert.Fail("data/atlas/events.json not found: run build/build.sh (it copies atlas/events.json)");
+        return "";
+    }
+
+    [Fact]
+    public void Weekly_reset_is_Wednesday_07_00_UTC_across_the_European_clock_change()
+    {
+        var events = ScheduledEvent.Load(EventsJson());
+        var weekly = events.Single(e => e.Key == "weekly");
+        var cest = TimeSpan.FromHours(2);
+        // Tuesday 2026-10-13 11:00 CEST → Wednesday 09:00 CEST = 16:00 KST
+        var (start, end, running) = weekly.Next(new DateTimeOffset(2026, 10, 13, 11, 0, 0, cest));
+        Assert.False(running);
+        Assert.Equal(new DateTimeOffset(2026, 10, 14, 7, 0, 0, TimeSpan.Zero), start);
+        Assert.Equal(start.AddMinutes(1), end);
+        Assert.Equal("22h00", ScheduledEvent.Countdown(start - new DateTimeOffset(2026, 10, 13, 11, 0, 0, cest)));
+        Assert.Equal("1d 22h", ScheduledEvent.Countdown(weekly.NextStart(new DateTimeOffset(2026, 10, 12, 11, 0, 0, cest)) - new DateTimeOffset(2026, 10, 12, 11, 0, 0, cest)));
+        // one minute after it fired: next Wednesday, not tomorrow's daily reset
+        Assert.Equal(new DateTimeOffset(2026, 10, 21, 7, 0, 0, TimeSpan.Zero), weekly.NextStart(new DateTimeOffset(2026, 10, 14, 9, 0, 30, cest)));
+        // Seoul has no DST: after 2026-10-25 the same moment is 08:00 CET
+        Assert.Equal(new DateTimeOffset(2026, 10, 28, 8, 0, 0, TimeSpan.FromHours(1)), weekly.NextStart(new DateTimeOffset(2026, 10, 26, 12, 0, 0, TimeSpan.FromHours(1))));
+    }
+
+    [Fact]
+    public void Today_card_reads_the_same_events_as_the_pills()
+    {
+        var events = ScheduledEvent.Load(EventsJson());
+        AionMeter.Core.Character.GameReset.Use(events);
+        var now = new DateTimeOffset(2026, 10, 11, 14, 0, 0, TimeSpan.FromHours(2));   // Sunday 21:00 KST
+        Assert.Equal(events.Single(e => e.Key == "weekly").NextStart(now), AionMeter.Core.Character.GameReset.NextWeekly(now));
+        Assert.Equal(new DateTimeOffset(2026, 10, 14, 16, 0, 0, TimeSpan.FromHours(9)), AionMeter.Core.Character.GameReset.NextWeekly(now));
+        Assert.Equal(new DateTimeOffset(2026, 10, 12, 16, 0, 0, TimeSpan.FromHours(9)), AionMeter.Core.Character.GameReset.NextDaily(now));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 39, "39m")]
+    [InlineData(0, 5, 3, "5h03")]
+    [InlineData(1, 22, 0, "1d 22h")]
+    [InlineData(6, 23, 59, "6d 23h")]
+    public void Countdown_switches_to_days_from_24_hours(int d, int h, int m, string text) =>
+        Assert.Equal(text, ScheduledEvent.Countdown(new TimeSpan(d, h, m, 0)));
+}
+
 public class NodeZonesTests
 {
     private static NodeSpot Spot(float x, float y) => new() { Code = 1500012, X = x, Y = y, Alive = true };

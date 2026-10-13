@@ -626,7 +626,7 @@ public partial class OverlayWindow : Window
         {
             var (start, end, running) = ev.Next(now, _meter.Settings.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null, _meter.Settings.EventPeriods.TryGetValue(ev.Key, out var pm) ? pm : null);
             var left = running ? end - now : start - now;
-            var span = left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}" : $"{Math.Max(0, (int)Math.Ceiling(left.TotalMinutes))}m";
+            var span = Core.Atlas.ScheduledEvent.Countdown(left);
             var text = running ? $"{ev.Name} ● {span}" : $"{ev.Name} {span}";
             if (i >= pills.Count || pills[i].Key != ev.Key)
             {

@@ -38,6 +38,19 @@ public sealed record ScheduledEvent(string Key, string Name, TimeZoneInfo Zone, 
         return (now, now, false);
     }
 
+    /// <summary>The next start strictly after <paramref name="now"/> (a running occurrence is skipped): the Items "Today" card's reset times.</summary>
+    public DateTimeOffset NextStart(DateTimeOffset now)
+    {
+        var (start, end, _) = Next(now);
+        return start > now ? start : Next(end).Start;
+    }
+
+    /// <summary>Footer pill countdown: "1d 22h" from a day up (the weekly reset), "5h03" from an hour, else "39m".</summary>
+    public static string Countdown(TimeSpan left) =>
+        left.TotalDays >= 1 ? $"{(int)left.TotalDays}d {left.Hours}h"
+        : left.TotalHours >= 1 ? $"{(int)left.TotalHours}h{left.Minutes:00}"
+        : $"{Math.Max(0, (int)Math.Ceiling(left.TotalMinutes))}m";
+
     public static List<ScheduledEvent> Load(string path)
     {
         var list = new List<ScheduledEvent>();

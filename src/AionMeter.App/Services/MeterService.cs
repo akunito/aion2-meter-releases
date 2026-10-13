@@ -251,8 +251,8 @@ public sealed class MeterService : IDisposable
     /// <summary>Item names/grades/icons by id (aion2hub.me, cached for good).</summary>
     public ItemCatalog Items { get; } = new(Path.Combine(AppSettings.AppDataDir, "gamedb", "items.json"));
     public MapCalibration? Calibration(int mapId) => MapCalibration.Load(Path.Combine(DataDirectory, "atlas"), mapId);
-    /// <summary>Recurring server events (Shugo, Rift, siege, reset) from data/atlas/events.json.</summary>
-    public IReadOnlyList<ScheduledEvent> Events { get; } = ScheduledEvent.Load(Path.Combine(DataDirectory, "atlas", "events.json"));
+    /// <summary>Recurring server events (Shugo, Rift, siege, daily and weekly reset) from data/atlas/events.json; the resets also feed the Items Today card.</summary>
+    public IReadOnlyList<ScheduledEvent> Events { get; } = GameReset.Use(ScheduledEvent.Load(Path.Combine(DataDirectory, "atlas", "events.json")));
     private readonly ObjectNames _objectNames;
     private readonly Dictionary<int, (string Name, string Category)> _userNames;
     private readonly Dictionary<int, long> _askedCodes = new(); // code → when the prompt was last shown (asked again after 20 s)

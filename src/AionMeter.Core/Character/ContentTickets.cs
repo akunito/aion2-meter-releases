@@ -151,14 +151,31 @@ public static class TicketBook
     }
 }
 
-/// <summary>Reset boundaries for the Global EU servers: daily 16:00 Seoul (atlas/events.json "reset"); weekly assumed Wednesday at the same hour.</summary>
+/// <summary>
+/// Reset boundaries for the Global EU servers from atlas/events.json ("reset" daily, "weekly" = Wednesday 16:00 KST), handed over by
+/// <see cref="Use"/> so the Today card and the footer pills read one schedule. The constants are the fallback without the file.
+/// </summary>
 public static class GameReset
 {
     private static readonly TimeSpan Kst = TimeSpan.FromHours(9);
     public const int Hour = 16;
+    private static Atlas.ScheduledEvent? _daily, _weekly;
+
+    /// <summary>Picks "reset" and "weekly" out of the loaded events; returns the list unchanged.</summary>
+    public static IReadOnlyList<Atlas.ScheduledEvent> Use(IReadOnlyList<Atlas.ScheduledEvent> events)
+    {
+        for (var i = 0; i < events.Count; i++)
+        {
+            var e = events[i];
+            if (e.Key == "reset") _daily = e;
+            else if (e.Key == "weekly") _weekly = e;
+        }
+        return events;
+    }
 
     public static DateTimeOffset NextDaily(DateTimeOffset now)
     {
+        if (_daily is { } d) return d.NextStart(now);
         var k = now.ToOffset(Kst);
         var at = new DateTimeOffset(k.Year, k.Month, k.Day, Hour, 0, 0, Kst);
         return at > k ? at : at.AddDays(1);
@@ -166,6 +183,7 @@ public static class GameReset
 
     public static DateTimeOffset NextWeekly(DateTimeOffset now)
     {
+        if (_weekly is { } w) return w.NextStart(now);
         var at = NextDaily(now);
         while (at.ToOffset(Kst).DayOfWeek != DayOfWeek.Wednesday) at = at.AddDays(1);
         return at;
