@@ -1018,8 +1018,17 @@ public sealed class MeterService : IDisposable
     private int _atlasFaults;
     private int _inventoryFaults;
 
+    /// <summary>The last character window the player opened on someone else (<c>50 36</c>, A2M-35). No UI yet.</summary>
+    public Core.Events.InspectEvent? LastInspect { get; private set; }
+
     private void InventoryOnEvent(Core.Events.GameEvent e)
     {
+        if (e is Core.Events.InspectEvent inspect)
+        {
+            LastInspect = inspect;
+            Log.Info($"Inspect: {inspect.Name} {inspect.Class} lvl {inspect.Level} CP {inspect.CombatPower}, {inspect.Items.Count} items (GS {inspect.GearScore}, legion {inspect.Legion})");
+            return;
+        }
         if (e is Core.Events.PetListEvent or Core.Events.TitleListEvent or Core.Events.AchievementListEvent or Core.Events.SkillListEvent
             or Core.Events.EquippedSkillsEvent or Core.Events.SkillBarEvent or Core.Events.DaevanionBoardsEvent or Core.Events.AttributesEvent
             or Core.Events.AchievementUpdateEvent or Core.Events.AchievementClaimEvent or Core.Events.ContentTicketsEvent

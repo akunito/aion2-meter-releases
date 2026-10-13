@@ -69,6 +69,9 @@ public static class Opcodes
     public const ushort EquippedSkills = 0x0039;  // count u8, {skill u32, slot count u8 (3, stigma 5), {slot u8, spec id u32} × slots}
     public const ushort SkillBar = 0x8CE2;        // 189-byte key block, count u8 (36), {03 page slot main u32 04 u32×4 | 02 page slot 04 u32×4} × count, 131-byte tail
     public const ushort Attributes = 0x4936;      // 00 00, count varint, {stat u16, value i32} × count, 8 bytes; after every 33 36
+    // A2M-35 (docs/27): another player's character window, sent when the local player opens it. Name, class, level, gear score, legion,
+    // one record per worn item (slot byte on the wire), appearance, Daevanion/titles/pets, combat power near the end.
+    public const ushort Inspect = 0x5036;
 
     public static string Name(ushort op) => op switch
     {
@@ -96,6 +99,7 @@ public static class Opcodes
         EquippedSkills => "SkillSpecs",
         SkillBar => "SkillBar",
         Attributes => "Attributes",
+        Inspect => "Inspect",
         InventoryUpdate => "InventoryUpd",
         Damage => "Damage",
         Dot => "Dot",

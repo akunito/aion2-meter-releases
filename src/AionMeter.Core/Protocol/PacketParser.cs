@@ -113,6 +113,10 @@ public sealed class PacketParser
                 ParseAttributes(body);
                 ScanDefault(body);
                 break;
+            case Opcodes.Inspect:
+                ParseInspect(body);
+                ScanDefault(body); // went through the default scans before: replay identity results stay what they were
+                break;
             case Opcodes.HitNotice:
                 ParseHitNotice(body);
                 break;
@@ -506,6 +510,102 @@ public sealed class PacketParser
             titles.Add(id);
         }
         if (titles.Count > 0) Emit(new TitleListEvent(TimeMs, titles));
+    }
+
+    // ------------------------------------------------------------------ inspect window (50 36)
+
+    /// <summary>
+    /// A2M-35, two windows of 2026-10-11 (Ifigenia, Aetalia; docs/27):
+    /// <c>u16 0, 07, name (u8 len + utf8), class u32, 01, 02, level u32, u32 0, gear score u32, server u16 ×2, 39, u32 (title-range id or 0),
+    /// legion id u32, u16 0, server u16, legion name (u8 len + utf8)</c>, then one record per worn item:
+    /// <c>item u32, 9 × 00, [flag byte], enchant u8, 13 × 00, u32 (grows with the item's tier), [up to two flag bytes], slot u8, stone count u8,
+    /// stones 7 bytes each, owner block 10 bytes (bound character id u32, 00 00, server u16, bound u8, 03)</c> and a variable tail (godstone,
+    /// rolled stats, skill bonuses). The flag bytes are bit-packed bools (0x9c, 0xce, 0x8e …): they appear only where a new bool byte is
+    /// reserved, so a record is placed by its zero runs and the owner block's 03, never by a fixed length. Arcana (slots 41–45) carry no stones.
+    /// The packet ends with the combat power u64 followed by <c>n u8, n × (u32 key, u32 value)</c>.
+    /// </summary>
+    private void ParseInspect(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 64 || b[2] != 0x07) return;
+        int nameLength = b[3];
+        if (nameLength is < 1 or > 36 || 4 + nameLength + 36 > b.Length || !Wire.TryName(b.Slice(4, nameLength), out var name)) return;
+        var a = 4 + nameLength;
+        var cls = GameData.ClassFromWire(Wire.U32(b, a));
+        var level = Wire.U32(b, a + 6);
+        var gearScore = Wire.U32(b, a + 14);
+        int server = Wire.U16(b, a + 18);
+        if (cls == GameClass.Unknown || level is < 1 or > 99 || gearScore > 50_000 || server is < 1000 or >= 3000) return;
+
+        var legionId = (int)Wire.U32(b, a + 27);
+        int legionLength = b[a + 35];
+        var o = a + 36 + legionLength;
+        if (o > b.Length) return;
+        var legion = legionLength > 0 && Wire.TryName(b.Slice(a + 36, legionLength), out var l) ? l : "";
+
+        var items = new List<InspectedItem>(25);
+        ulong seen = 0; // slot bits 0..63
+        while (o + 40 <= b.Length && items.Count < 40)
+        {
+            if (!TryInspectItem(b, o, out var item, out var next) || (seen & 1UL << item.Slot) != 0) { o++; continue; }
+            seen |= 1UL << item.Slot;
+            items.Add(item);
+            o = next;
+        }
+
+        Emit(new InspectEvent(TimeMs, name, server, cls, (int)level, (int)gearScore, InspectCombatPower(b), legionId, legion, items));
+    }
+
+    private static bool TryInspectItem(ReadOnlySpan<byte> b, int o, out InspectedItem item, out int next)
+    {
+        item = null!;
+        next = 0;
+        var id = Wire.U32(b, o);
+        if (id is < 100_000_000 or > 999_999_999 || b.Slice(o + 4, 9).IndexOfAnyExcept((byte)0) >= 0) return false;
+        // a reserved bool byte before the enchant moves everything behind it by one
+        var shift = -1;
+        for (var s = 0; s <= 1 && shift < 0; s++)
+            if (b[o + 27 + s] != 0 && b[o + 28 + s] == 0 && b[o + 29 + s] == 0 && b[o + 30 + s] == 0 && b.Slice(o + 14 + s, 13).IndexOfAnyExcept((byte)0) < 0)
+                shift = s;
+        if (shift < 0) return false;
+        int enchant = b[o + 13 + shift];
+        if (enchant > 30) return false;
+        var at = o + 31 + shift;
+        for (var f = 0; f <= 2; f++)
+        {
+            var s = at + f;
+            if (s + 2 > b.Length) return false;
+            int slot = b[s], stones = b[s + 1];
+            if (slot is < 1 or > 63 || stones > 6) continue;
+            var end = s + 2 + stones * 7;
+            if (end + 10 > b.Length || b[end + 9] != 3) continue;
+            item = new InspectedItem(slot, (int)id, enchant);
+            next = end + 10;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Combat power: the u64 before the closing <c>n u8, n × (key u32 1..16 ascending, value u32)</c> list (n 1..16). 0 when it does not read.</summary>
+    internal static long InspectCombatPower(ReadOnlySpan<byte> b)
+    {
+        for (var n = 1; n <= 16; n++)
+        {
+            var p = b.Length - 1 - 8 * n;
+            if (p < 8) return 0;
+            if (b[p] != n) continue;
+            uint last = 0;
+            var ok = true;
+            for (var i = 0; i < n && ok; i++)
+            {
+                var key = Wire.U32(b, p + 1 + i * 8);
+                ok = key > last && key <= 16 && Wire.U32(b, p + 5 + i * 8) < 100_000;
+                last = key;
+            }
+            if (!ok) continue;
+            var cp = BinaryPrimitives.ReadUInt64LittleEndian(b[(p - 8)..]);
+            return cp is >= MinCombatPower and <= MaxCombatPower ? (long)cp : 0;
+        }
+        return 0;
     }
 
     // A2M-15 (docs/27). The old reader started after a "u16" and stopped at the first id outside 100–199 million: the u16 was the count

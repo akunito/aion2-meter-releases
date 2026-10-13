@@ -151,6 +151,16 @@ public sealed record ObjectGoneEvent(long TimeMs, uint ActorId, bool Exhausted) 
 /// re-sends every slot of its containers (window opened, header flag); otherwise it only lists changed slots, Count 0 = slot emptied.</summary>
 public sealed record InventoryEvent(long TimeMs, bool Full, IReadOnlyList<Inventory.ItemStack> Stacks, bool Whole = false) : GameEvent(TimeMs);
 
+/// <summary>One worn item of an inspected player: the wire slot (1 main hand … 24 rune, 41–45 arcana; docs/27), item id and enchant level.</summary>
+public sealed record InspectedItem(int Slot, int Item, int Enchant);
+
+/// <summary>
+/// Another player's character window (<c>50 36</c>), sent when the local player opens it. <paramref name="GearScore"/> is the item level
+/// the window shows; <paramref name="CombatPower"/> is 0 when the tail does not read. No entity id travels in it: match by name + server.
+/// </summary>
+public sealed record InspectEvent(long TimeMs, string Name, int ServerId, GameClass Class, int Level, int GearScore, long CombatPower,
+    int LegionId, string Legion, IReadOnlyList<InspectedItem> Items) : GameEvent(TimeMs);
+
 public sealed record PetListEvent(long TimeMs, int EquippedPet, IReadOnlyList<Character.PetOwned> Pets) : GameEvent(TimeMs);
 public sealed record TitleListEvent(long TimeMs, IReadOnlyList<int> Titles) : GameEvent(TimeMs);
 /// <summary>Every achievement row (<c>83 56</c>, login) and the window's tab reward tracks (<c>_group_reward_states</c>).</summary>
