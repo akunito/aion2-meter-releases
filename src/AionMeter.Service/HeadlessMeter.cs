@@ -243,6 +243,7 @@ public sealed class HeadlessMeter : IDisposable
         if (_json is null) return;
         lock (_outGate)
         {
+            if (_disposed) return;
             _buf.ResetWrittenCount();
             _w.Reset(_buf);
             _w.WriteStartObject();
@@ -263,6 +264,7 @@ public sealed class HeadlessMeter : IDisposable
     {
         lock (_outGate)
         {
+            if (_disposed) return [];   // Client.Send / Broadcast skip an empty line
             _buf.ResetWrittenCount();
             _w.Reset(_buf);
             _w.WriteStartObject();
@@ -434,9 +436,13 @@ public sealed class HeadlessMeter : IDisposable
 
     private byte[] Error(string message) => SocketLine("error", w => { w.WriteStartObject(); w.WriteString("message", message); w.WriteEndObject(); });
 
+    private bool _disposed;
+
     public void Dispose()
     {
         Log.Mirror = null;
-        _w.Dispose();
+        // the last fight's save runs on the thread pool (MeterEngine.OnEncounterFinished) and may call Event after RunAsync returned:
+        // disposing the writer outside the gate crashed the test host with ObjectDisposedException (measured 2026-10-13 under load)
+        lock (_outGate) { _disposed = true; _w.Dispose(); }
     }
 }

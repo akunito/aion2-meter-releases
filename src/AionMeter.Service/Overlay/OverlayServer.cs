@@ -116,7 +116,7 @@ public sealed class OverlayServer : IDisposable
             _socket = socket;
         }
 
-        public void Send(byte[] line) => _out.Writer.TryWrite(line);
+        public void Send(byte[] line) { if (line.Length > 0) _out.Writer.TryWrite(line); }
 
         internal void Start(CancellationToken ct)
         {
