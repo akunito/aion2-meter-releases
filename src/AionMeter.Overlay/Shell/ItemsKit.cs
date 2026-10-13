@@ -185,7 +185,8 @@ internal static class CraftSearchRequest
     private static string? _pending;
     public static event Action<string>? Requested;
 
-    public static void Request(string text) { _pending = text; Requested?.Invoke(text); }
+    // A2M-50 merge: the Craft view keeps its own pending search (CraftView.RequestSearch, Shown applies it); both ports met here.
+    public static void Request(string text) { _pending = text; Requested?.Invoke(text); CraftView.RequestSearch(text); }
 
     /// <summary>The pending text once (null when none).</summary>
     public static string? Take() { var t = _pending; _pending = null; return t; }
