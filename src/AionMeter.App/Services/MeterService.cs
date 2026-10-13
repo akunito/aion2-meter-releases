@@ -24,10 +24,13 @@ public sealed class MeterService : IDisposable
     private IEventSource? _replay;
     private DemoFightSource? _demo;
 
-    public MeterService(AppSettings settings, Func<GameData, IEventSource>? captureFactory)
+    /// <param name="availability">Whether Npcap is on this PC (A2M-27); null = probe this PC. Nothing in construction depends on it:
+    /// without Npcap every non-capture feature works and the capture source reports <see cref="CaptureAvailability.NoCaptureStatus"/>.</param>
+    public MeterService(AppSettings settings, Func<GameData, IEventSource>? captureFactory, CaptureAvailability? availability = null)
     {
         Settings = settings;
         CaptureFactory = captureFactory;
+        Availability = availability ?? CaptureAvailability.OfThisPc();
         Data = GameData.Load(DataDirectory, UiText.Normalize(settings.Language));
         Icons = new SkillIcons(DataDirectory, settings.DownloadIcons);
         Portraits = new BossPortraits(DataDirectory, settings.DownloadIcons);
@@ -290,6 +293,10 @@ public sealed class MeterService : IDisposable
         Log.Info($"Object {code} named \"{name}\" ({category})");
     }
     public Func<GameData, IEventSource>? CaptureFactory { get; }
+    public CaptureAvailability Availability { get; }
+
+    /// <summary>The capture-health line (Settings, boss log): adapter counters, "no adapter open" or "Npcap not installed".</summary>
+    public string CaptureHealthText() => Availability.HealthText(CaptureHealth());
 
     /// <summary>Adapter counters of the live capture, null without an open adapter (replay, demo, no Npcap).</summary>
     public CaptureHealth? CaptureHealth() { lock (_captureGate) return (_capture as LiveCapture)?.Health(); }
@@ -315,7 +322,7 @@ public sealed class MeterService : IDisposable
         _replaying = true;
         if (_capture is not null) _capture.EventDecoded -= Tracker.Process;
 
-        var replay = new PcapReplaySource(Data, path, realtime: false);
+        var replay = new PcapReplaySource(Data, path, realtime: false, () => Availability.Present);
         replay.EventDecoded += Tracker.Process;
         replay.StatusChanged += s =>
         {
@@ -1084,6 +1091,7 @@ public sealed class MeterService : IDisposable
             capture = $"; capture since the last boss: {now.Received - before.Received:N0} packets, {now.Dropped - before.Dropped:N0} dropped, " +
                       $"{now.Gaps - before.Gaps:N0} stream gaps";
         }
+        else if (!Availability.Present) capture = "; capture: " + CaptureAvailability.NpcapNotInstalled;
         _lastHealth = health;
         Log.Info($"Boss fight {s.Title} ({s.Reason}, {Format.Clock(s.CombatMs)}): {s.Fighting} attacking, {s.PlayerCount} listed, " +
                  $"{s.DamageSenders} with hits{own}, " +

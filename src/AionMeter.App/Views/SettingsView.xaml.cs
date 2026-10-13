@@ -80,18 +80,20 @@ public partial class SettingsView : UserControl
         HkTimers.Text = s.HotkeyTimers;
         HkAtlas.Text = s.HotkeyAtlas;
 
+        // A2M-27: without Npcap the adapter list is never asked for (SharpPcap would throw) and the section says what that costs
+        var availability = _meter.Availability;
+        var present = availability.Present;
         _devices.Add((null, T.AdapterAuto));
-        try
-        {
-            foreach (var (name, description) in LiveCapture.ListDevices()) _devices.Add((name, description));
-        }
-        catch (Exception ex) when (ex is DllNotFoundException or TypeInitializationException)
-        {
-            _devices.Add((null, T.NpcapMissing));
-        }
+        if (present) foreach (var (name, description) in LiveCapture.ListDevices(() => availability.Present)) _devices.Add((name, description));
+        else _devices.Add((null, T.AdapterNoNpcap));
         foreach (var d in _devices) Device.Items.Add(d.Label);
         var idx = _devices.FindIndex(d => d.Name == s.CaptureDevice);
-        Device.SelectedIndex = Math.Max(0, idx);
+        Device.SelectedIndex = present ? Math.Max(0, idx) : 1;
+        Device.IsEnabled = present;
+        Record.IsEnabled = present;
+        RecordNpcapHint.Visibility = present ? Visibility.Collapsed : Visibility.Visible;
+        NoCaptureBox.Visibility = present ? Visibility.Collapsed : Visibility.Visible;
+        NoCaptureInfo.Text = availability.SettingsText(T.CaptureFeatureLabels, T.NoCaptureHeadline, T.NoCaptureLost, T.NoCaptureKept);
 
         LanguageBox.SelectedIndex = UiText.Normalize(s.Language) == "ru" ? 1 : 0;
         Icons.IsChecked = s.DownloadIcons;
@@ -114,7 +116,7 @@ public partial class SettingsView : UserControl
         StartWithGameBox.IsChecked = s.StartWithGame;
         CloseWithGameBox.IsChecked = s.CloseWithGame;
 
-        CaptureState.Text = T.StatusPrefix + _meter.CaptureStatus.Message;
+        CaptureState.Text = T.StatusPrefix + T.CaptureStatusText(_meter.CaptureStatus.Message) + "\n" + T.CaptureHealthPrefix + _meter.CaptureHealthText();
         var data = _meter.Data;
         DataInfo.Text = string.Format(T.DataInfo, data.Skills.Count, data.Npcs.Count, data.Npcs.Values.Count(n => n.IsBoss),
             data.DotSkills.Count, data.Maps.Count);
@@ -144,7 +146,8 @@ public partial class SettingsView : UserControl
         s.HistoryMode = (HistoryMode)Math.Max(0, HistoryModeBox.SelectedIndex);
         if (int.TryParse(HistoryMin.Text, out var minSec)) s.HistoryMinSeconds = Math.Clamp(minSec, 5, 600);
 
-        var device = _devices[Math.Max(0, Device.SelectedIndex)].Name;
+        // the list is disabled without Npcap (its "no adapters" row is no choice): a forced adapter stays saved for when it is back
+        var device = Device.IsEnabled ? _devices[Math.Max(0, Device.SelectedIndex)].Name : s.CaptureDevice;
         if (device != s.CaptureDevice || (Record.IsChecked == true) != s.RecordPackets) captureChanged = true;
         s.CaptureDevice = device;
         s.RecordPackets = Record.IsChecked == true;
@@ -268,6 +271,8 @@ public partial class SettingsView : UserControl
     }
 
     private void Help_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowHelp("settings");
+
+    private void NpcapHelp_Click(object sender, RoutedEventArgs e) => AppHost.Current.ShowNpcapHelp();
 
     /// <summary>Asks GitHub right away; a newer version also opens the update window.</summary>
     private async void CheckNow_Click(object sender, RoutedEventArgs e)

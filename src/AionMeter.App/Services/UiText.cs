@@ -337,8 +337,24 @@ public sealed class UiText
     public string NpcapMissing { get; init; } = "Npcap not installed";
     public string NpcapNeeded { get; init; } =
         "AION2 DPS Meter reads the game's own network traffic through Npcap, a free capture driver — and it is not installed yet.\n\n" +
-        "Install it from npcap.com with the default options (ExitLag and other ping boosters work with them too), then start the meter again.\n\n" +
+        "Without it the DPS meter, the timers from the in-game list, the live inventory and character state and your position on the Atlas stay off. " +
+        "Atlas, Prices, Craft, Top DPS, the Build planner, Items from the last saved files, the shared Boss Timers and your saved fights keep working.\n\n" +
+        "Install it from npcap.com with the default options (ExitLag and other ping boosters work with them too); the meter picks it up within a few seconds, no restart needed. " +
+        "Settings → Capture brings this message back.\n\n" +
         "Open the download page now?";
+    // A2M-27: the "no capture" state (Npcap missing); the feature split is Core's CaptureAvailability
+    public string NoCapture { get; init; } = Core.Capture.CaptureAvailability.NoCaptureStatus;
+    public string NoCaptureHeadline { get; init; } = "Npcap is not installed, so the meter cannot read the game's traffic.";
+    public string NoCaptureLost { get; init; } = "Off until it is installed:";
+    public string NoCaptureKept { get; init; } = "Still working:";
+    public IReadOnlyDictionary<Core.Capture.CaptureFeature, string> CaptureFeatureLabels { get; init; } = Core.Capture.CaptureAvailability.EnglishLabels;
+    public string AdapterNoNpcap { get; init; } = "No adapters — Npcap is not installed";
+    public string RecordNeedsNpcap { get; init; } = "Recording needs Npcap.";
+    public string NpcapHelpButton { get; init; } = "Install Npcap…";
+    public string CaptureHealthPrefix { get; init; } = "Capture: ";
+    /// <summary>A capture status for the user: the Npcap-missing one in the interface language, the rest as the capture says it.</summary>
+    public string CaptureStatusText(string message) => message == Core.Capture.LiveCapture.NpcapMissingMessage ? NoCapture : message;
+    public string ReplayNeedsNpcap { get; init; } = "Replaying a .pcap needs Npcap too: SharpPcap reads the file through it. Install Npcap from npcap.com and try again.";
     public string SecHotkeys { get; init; } = "HOTKEYS";
     public string HkToggle { get; init; } = "Show / hide overlay";
     public string HkReset { get; init; } = "Restart meter";
@@ -1255,8 +1271,37 @@ public sealed class UiText
         NpcapMissing = "Npcap не установлен",
         NpcapNeeded =
             "AION2 DPS Meter читает сетевой трафик игры через Npcap — бесплатный драйвер захвата, а он ещё не установлен.\n\n" +
-            "Установите его с npcap.com с настройками по умолчанию (с ними работают и ExitLag, и другие ускорители пинга), затем запустите метр снова.\n\n" +
+            "Без него не работают DPS-метр, таймеры из внутриигрового списка, живой инвентарь и состояние персонажа и ваша позиция на атласе. " +
+            "Атлас, цены, крафт, топ DPS, планировщик билдов, предметы из последних сохранённых файлов, общие таймеры боссов и сохранённые бои работают.\n\n" +
+            "Установите его с npcap.com с настройками по умолчанию (с ними работают и ExitLag, и другие ускорители пинга); метр подхватит его через несколько секунд, перезапуск не нужен. " +
+            "Это сообщение можно открыть снова в Настройки → Захват.\n\n" +
             "Открыть страницу загрузки?",
+        NoCapture = "Нет захвата (нет Npcap)",
+        NoCaptureHeadline = "Npcap не установлен, поэтому метр не может читать трафик игры.",
+        NoCaptureLost = "Не работает до установки:",
+        NoCaptureKept = "Работает:",
+        CaptureFeatureLabels = new Dictionary<Core.Capture.CaptureFeature, string>
+        {
+            [Core.Capture.CaptureFeature.Dps] = "DPS-метр и разбор боёв",
+            [Core.Capture.CaptureFeature.GameTimers] = "таймеры из внутриигрового списка событий",
+            [Core.Capture.CaptureFeature.LiveState] = "живой инвентарь и состояние персонажа",
+            [Core.Capture.CaptureFeature.AtlasPosition] = "ваша позиция на атласе",
+            [Core.Capture.CaptureFeature.PacketRecording] = "запись пакетов (.pcap)",
+            [Core.Capture.CaptureFeature.Atlas] = "атлас (карты, узлы, события)",
+            [Core.Capture.CaptureFeature.Prices] = "цены",
+            [Core.Capture.CaptureFeature.Craft] = "крафт",
+            [Core.Capture.CaptureFeature.TopDps] = "рейтинги топ DPS",
+            [Core.Capture.CaptureFeature.BuildPlanner] = "планировщик билдов и Даэванион",
+            [Core.Capture.CaptureFeature.ItemsFromFiles] = "предметы из последних сохранённых файлов",
+            [Core.Capture.CaptureFeature.SharedBossTimers] = "таймеры боссов из общей ленты",
+            [Core.Capture.CaptureFeature.AbyssLogs] = "строки Abyss Logs сохранённых боёв",
+            [Core.Capture.CaptureFeature.FightHistory] = "история боёв",
+        },
+        AdapterNoNpcap = "Нет адаптеров — Npcap не установлен",
+        RecordNeedsNpcap = "Для записи нужен Npcap.",
+        NpcapHelpButton = "Установить Npcap…",
+        CaptureHealthPrefix = "Захват: ",
+        ReplayNeedsNpcap = "Для воспроизведения .pcap тоже нужен Npcap: SharpPcap читает файл через него. Установите Npcap с npcap.com и попробуйте снова.",
         SecHotkeys = "ГОРЯЧИЕ КЛАВИШИ",
         HkToggle = "Показать / скрыть оверлей",
         HkReset = "Перезапустить метр",

@@ -21,18 +21,23 @@ public static class SampleRenderer
     /// <param name="Backdrop">Behind the translucent overlay: game (a stand-in colour), dark (a navy gradient) or none (transparent).</param>
     /// <param name="RowSize">Overlay row size in percent (Settings → Overlay → Row size).</param>
     /// <param name="AbyssLogs">Inject a sample Abyss Logs percentile line (A2M-38) for the sample fight: breakdown header, overlay status line.</param>
+    /// <param name="NoNpcap">A2M-27: a PC without Npcap — the real LiveCapture with the library reported missing, no sample fight fed
+    /// (overlay: the "No capture" footer; settings: the Capture section's lost / still-working list).</param>
     /// <param name="Icons">build / build-es: icon folder laid out as the icon cache (skill\&lt;stem&gt;.png); items: &lt;item id&gt;.png in the same folder; nothing is downloaded.</param>
     public sealed record Options(string Window = "overlay", int? Width = null, int? Height = null, string? Tab = null,
-        string Backdrop = "game", double Scale = 1.5, int RowSize = 100, string? Icons = null, bool AbyssLogs = false);
+        string Backdrop = "game", double Scale = 1.5, int RowSize = 100, string? Icons = null, bool AbyssLogs = false, bool NoNpcap = false);
 
     public static void Render(string path, string language, Options o)
     {
-        using var meter = CreateMeter(language, o.RowSize);
+        using var meter = CreateMeter(language, o.RowSize, o.NoNpcap);
         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 20_500; // a fight that is still going
         var fight = new SampleFight(start, 20);
-        fight.FeedUntil(meter.Tracker, start + 20_000);
-        // A dungeon's time limit, 12:48 of its hour gone: the countdown in the overlay's top line.
-        meter.Tracker.Process(new InstanceTimerEvent(start, 600092, 2, start - 768_000, start + 2_832_000));
+        if (!o.NoNpcap)
+        {
+            fight.FeedUntil(meter.Tracker, start + 20_000);
+            // A dungeon's time limit, 12:48 of its hour gone: the countdown in the overlay's top line.
+            meter.Tracker.Process(new InstanceTimerEvent(start, 600092, 2, start - 768_000, start + 2_832_000));
+        }
         if (o.Window == "overlay-crowd") fight.FeedCrowd(meter.Tracker, start + 20_000, 124);
         if (o.Window == "history")
             foreach (var entry in meter.History.List().Take(20)) meter.PortraitOf(entry);
@@ -244,15 +249,27 @@ public static class SampleRenderer
         }
     }
 
-    private static MeterService CreateMeter(string language, int rowSize = 100)
+    private static MeterService CreateMeter(string language, int rowSize = 100, bool noNpcap = false)
     {
         var settings = new AppSettings
         {
             Transient = true, SaveHistory = false, MaxRows = 10, LayoutVersion = 99, Language = language, RowSize = rowSize,
         };
         UiText.Use(settings.Language);
-        var meter = new MeterService(settings, _ => new QuietSource());
-        meter.StartCapture(); // the footer reads "Capturing", as it does in the game
+        MeterService meter;
+        if (noNpcap)
+        {
+            // the app's own wiring with the probe answering "missing": MeterService + LiveCapture must come up without touching SharpPcap
+            var none = new Core.Capture.CaptureAvailability(static () => false);
+            meter = new MeterService(settings, data => new Core.Capture.LiveCapture(data, new Core.Capture.LiveCaptureOptions { LibraryPresent = () => none.Present }), none);
+            meter.StartCapture();
+            for (var i = 0; i < 40 && meter.CaptureStatus.Message != Core.Capture.LiveCapture.NpcapMissingMessage; i++) Thread.Sleep(50);
+        }
+        else
+        {
+            meter = new MeterService(settings, _ => new QuietSource());
+            meter.StartCapture(); // the footer reads "Capturing", as it does in the game
+        }
         meter.Portraits.Get(SampleBossCode); // first run only; then it comes from the cache
         return meter;
     }

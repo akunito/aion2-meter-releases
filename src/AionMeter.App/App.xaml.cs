@@ -58,6 +58,7 @@ public partial class App : Application
             // --render-sample <out.png | folder with --animate> [--lang ru] [--window …] [--width N] [--height N] [--tab …]
             // [--backdrop game|dark|none] [--scale 1.5] [--row-size 50..100] [--animate <seconds> [--fps 10]] [--icons <folder>]
             // [--abysslogs] (a sample Abyss Logs percentile line on the breakdown header and the overlay)
+            // [--no-npcap] (A2M-27: the meter on a PC without Npcap, real LiveCapture with the probe saying missing)
             var options = new SampleRenderer.Options(
                 ArgValue(e.Args, "--window") ?? "overlay",
                 int.TryParse(ArgValue(e.Args, "--width"), out var width) ? width : null,
@@ -68,7 +69,8 @@ public partial class App : Application
                     System.Globalization.CultureInfo.InvariantCulture, out var scale) ? scale : 1.5,
                 int.TryParse(ArgValue(e.Args, "--row-size"), out var rowSize) ? rowSize : 100,
                 ArgValue(e.Args, "--icons"),
-                e.Args.Contains("--abysslogs"));
+                e.Args.Contains("--abysslogs"),
+                e.Args.Contains("--no-npcap"));
             var language = ArgValue(e.Args, "--lang") ?? "en";
             if (double.TryParse(ArgValue(e.Args, "--animate"), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var seconds))
@@ -110,13 +112,16 @@ public partial class App : Application
         settings.Save(); // persist any migration done while loading
         UiText.Use(settings.Language);
         Core.Net.CloudflareHttp.SolverUrl = settings.CloudflareSolverUrl; // scrapers fall back to the solver when set
+        // A2M-27: one probe for the whole app; while it says no, nothing calls SharpPcap (capture, adapter list, replay)
+        var availability = CaptureAvailability.OfThisPc();
         Func<Core.Game.GameData, IEventSource> factory = data => new LiveCapture(data, new LiveCaptureOptions
         {
             DeviceName = settings.CaptureDevice,
             RecordDirectory = settings.RecordPackets ? Path.Combine(AppSettings.AppDataDir, "captures") : null,
+            LibraryPresent = () => availability.Present,
         });
 
-        _meter = new MeterService(settings, factory);
+        _meter = new MeterService(settings, factory, availability);
         // The naming prompt opens over the atlas (or the overlay): on the monitor the player keeps the meter, not on the game's.
         _meter.NodeNameWanted += code => Dispatcher.BeginInvoke(() => ShowNameNode(code, fromGather: true));
         Log.Info($"Started. Data: {_meter.Data.Skills.Count} skills, {_meter.Data.Npcs.Count} npcs.");
@@ -158,9 +163,12 @@ public partial class App : Application
             }));
         SessionEnding += (_, end) => Log.Info($"Windows {end.ReasonSessionEnding}: closing");
 
-        // A new player's first start: without Npcap nothing can be measured — say so and offer the download.
-        if (!LiveCapture.IsNpcapInstalled())
+        // A new player's first start: without Npcap nothing can be measured — say so (once; Settings → Capture re-opens it) and offer the download.
+        if (!availability.Present && !settings.NpcapHelpShown)
+        {
+            settings.NpcapHelpShown = true; settings.Save();
             Dispatcher.BeginInvoke(ShowNpcapHelp, DispatcherPriority.ApplicationIdle);
+        }
 
         // Another start of the app asks this one to show the overlay (the event was created right after the single-instance mutex).
         _showWait = ThreadPool.RegisterWaitForSingleObject(_showRequest,
@@ -207,7 +215,8 @@ public partial class App : Application
         }
     }
 
-    private static void ShowNpcapHelp()
+    /// <summary>The "install Npcap" message with the download link (first start without it, Settings → Capture button).</summary>
+    public void ShowNpcapHelp()
     {
         var answer = MessageBox.Show(UiText.Current.NpcapNeeded, AppInfo.Name, MessageBoxButton.YesNo, MessageBoxImage.Information);
         if (answer != MessageBoxResult.Yes) return;
@@ -243,7 +252,7 @@ public partial class App : Application
         }
         if (++_ticks % 5 == 0)
         {
-            _tray?.Update(_overlay.IsVisible, _meter.Settings.ClickThrough, _meter.DemoRunning ? "demo" : _meter.CaptureStatus.Message);
+            _tray?.Update(_overlay.IsVisible, _meter.Settings.ClickThrough, _meter.DemoRunning ? "demo" : UiText.Current.CaptureStatusText(_meter.CaptureStatus.Message));
             CheckBossAlerts();
             CheckEventAlerts();
             CheckPriceAlerts();
@@ -778,6 +787,11 @@ public partial class App : Application
 
     private void PickReplay()
     {
+        if (!_meter.Availability.Present)
+        {
+            MessageBox.Show(UiText.Current.ReplayNeedsNpcap, AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "Replay an AION 2 capture",

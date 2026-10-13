@@ -15,9 +15,14 @@ public sealed class PcapReplaySource : IEventSource
     private Task? _task;
     private CaptureStatus _status;
 
-    public PcapReplaySource(GameData data, string path, bool realtime)
+    private readonly Func<bool> _libraryPresent;
+
+    /// <param name="libraryPresent">SharpPcap reads files through wpcap.dll too: without Npcap the replay reports <see cref="NeedsNpcapMessage"/>
+    /// and never calls it. Null = <see cref="CaptureAvailability.DefaultProbe"/>.</param>
+    public PcapReplaySource(GameData data, string path, bool realtime, Func<bool>? libraryPresent = null)
     {
         _path = path;
+        _libraryPresent = libraryPresent ?? CaptureAvailability.DefaultProbe;
         _realtime = realtime;
         _pipeline = new PacketPipeline(data, e => EventDecoded?.Invoke(e));
         _status = new CaptureStatus(CaptureState.Stopped, "Replay ready");
@@ -39,7 +44,28 @@ public sealed class PcapReplaySource : IEventSource
     /// <summary>Synchronous replay (CLI / tests). Returns the number of packets read.</summary>
     public long RunToEnd() => Run(CancellationToken.None);
 
+    public const string NeedsNpcapMessage = "Replay needs Npcap (it reads .pcap files through it)";
+
     private long Run(CancellationToken ct)
+    {
+        // Stopped, not Error: the meter leaves replay mode on Stopped, and a source that never stops would keep it there.
+        if (!_libraryPresent())
+        {
+            SetStatus(CaptureState.Stopped, NeedsNpcapMessage);
+            return 0;
+        }
+        try
+        {
+            return Read(ct);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or TypeInitializationException or PcapException or IOException)
+        {
+            SetStatus(CaptureState.Stopped, "Replay failed: " + ex.Message);
+            return 0;
+        }
+    }
+
+    private long Read(CancellationToken ct)
     {
         long count = 0;
         SetStatus(CaptureState.Capturing, $"Replaying {Path.GetFileName(_path)}");

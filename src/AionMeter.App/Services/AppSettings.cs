@@ -132,6 +132,8 @@ public sealed class AppSettings
     /// <summary>Allocates: call it per send or per report, not per frame.</summary>
     public Core.Diagnostics.SharePolicy CurrentSharePolicy() => new(ShareUsage, ShareBuilds, ShareBackup, ReportSummary, ReportTopDps, ReportInventory);
     public bool TelemetryNoticeShown { get; set; } = false;
+    /// <summary>A2M-27: the "install Npcap" message is offered on the first start without it, once; Settings → Capture re-opens it.</summary>
+    public bool NpcapHelpShown { get; set; } = false;
     public DateTimeOffset? TelemetryLastSent { get; set; }
     /// <summary>Random id so installs can be told apart in the telemetry; nothing else is derived from it.</summary>
     public string InstallId { get; set; } = "";
