@@ -11,6 +11,7 @@ if (Flag("--help") || Flag("-h"))
     Console.WriteLine("""
         aionmeter-daemon [--data-dir DIR] [--device NAME] [--once SECONDS] [--json-events] [--offline] [--verbose]
                          [--replay FILE.pcap [--realtime] [--hold]] [--game-data DIR] [--status-every SECONDS] [--socket PATH | --no-socket]
+                         [--forward IP:PORT [--forward-wait SECONDS]] [--source tcp://HOST:PORT]
           --data-dir      state folder (default $XDG_DATA_HOME/AionMeter, ~/.local/share/AionMeter)
           --device        libpcap device (default: settings.json CaptureDevice, else the adapter carrying the game)
           --once N        stop after N seconds (default: until SIGTERM / Ctrl+C)
@@ -20,6 +21,11 @@ if (Flag("--help") || Flag("-h"))
           --replay FILE   feed a recording through the engine as if live (stores and state files written), stop at its end
           --realtime      replay at the recorded pace;  --hold  keep running (and serving the UI) after the replay ends
           --socket PATH   UI socket (default $XDG_RUNTIME_DIR/aionmeter.sock, else /tmp/aionmeter-<uid>.sock); --no-socket for none
+          --forward IP:PORT  also stream the captured game packets (pcap) to meters connecting to IP:PORT — e.g. the Windows meter in a VM
+                          or under Wine (Settings → Capture → Receive from another meter). Plaintext game traffic, no authentication: give
+                          a LAN/VM address, never a public one. Default settings.json ForwardListen, else off. With --replay the replay
+                          waits for the first client, up to --forward-wait seconds (default 60).
+          --source tcp://HOST:PORT  read another meter's forwarded stream instead of capturing (default settings.json CaptureSource)
         """);
     return 0;
 }
@@ -39,6 +45,9 @@ var options = new HeadlessOptions
     Socket = Flag("--no-socket") ? null : Opt("--socket") ?? AionMeter.Service.Overlay.OverlayServer.DefaultPath(),
     Hold = Flag("--hold"),
     RealtimeReplay = Flag("--realtime"),
+    Forward = Opt("--forward"),
+    ForwardWaitSeconds = int.TryParse(Opt("--forward-wait"), out var fwait) ? fwait : 60,
+    Source = Opt("--source"),
 };
 
 using var cts = new CancellationTokenSource();

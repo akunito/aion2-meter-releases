@@ -92,7 +92,10 @@ public partial class SettingsView : UserControl
         Device.IsEnabled = present;
         Record.IsEnabled = present;
         RecordNpcapHint.Visibility = present ? Visibility.Collapsed : Visibility.Visible;
-        NoCaptureBox.Visibility = present ? Visibility.Collapsed : Visibility.Visible;
+        NoCaptureBox.Visibility = availability.Live ? Visibility.Collapsed : Visibility.Visible;
+        var forwarded = CaptureEndpoint.StreamEndpoint(s.CaptureSource);
+        ReceiveForward.IsChecked = forwarded is not null;
+        ForwardAddress.Text = forwarded ?? "";
         NoCaptureInfo.Text = availability.SettingsText(T.CaptureFeatureLabels, T.NoCaptureHeadline, T.NoCaptureLost, T.NoCaptureKept);
 
         LanguageBox.SelectedIndex = UiText.Normalize(s.Language) == "es" ? 1 : 0;
@@ -128,6 +131,18 @@ public partial class SettingsView : UserControl
     {
         var s = _meter.Settings;
         var captureChanged = false;
+        string? source = null;
+        if (ReceiveForward.IsChecked == true)
+        {
+            if (!CaptureEndpoint.TryParse(ForwardAddress.Text, out var host, out var port))
+            {
+                MessageBox.Show(T.ReceiveForwardInvalid, AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            source = CaptureEndpoint.Scheme + CaptureEndpoint.Format(host, port);
+        }
+        if (source != s.CaptureSource) captureChanged = true;
+        s.CaptureSource = source;
 
         s.BarsRelativeToTop = BarsRelative.IsChecked == true;
         s.ShowBossPanel = ShowBoss.IsChecked == true;

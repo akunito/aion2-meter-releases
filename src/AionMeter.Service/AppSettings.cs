@@ -164,6 +164,12 @@ public sealed class AppSettings
     public int HistoryMinSeconds { get; set; } = 20;
     public bool RecordPackets { get; set; }
     public string? CaptureDevice { get; set; }
+    /// <summary>A2M-27: null = this PC's adapters (Npcap / libpcap); "tcp://host:port" = the packets another meter forwards (a Windows meter in a
+    /// VM or under Wine reading the Linux daemon's --forward). Needs no Npcap.</summary>
+    public string? CaptureSource { get; set; }
+    /// <summary>A2M-27, daemon: "ip:port" to listen on and forward the captured game packets to (pcap stream, plaintext, no auth); null = off.
+    /// --forward overrides it; read at start.</summary>
+    public string? ForwardListen { get; set; }
 
     // Hotkeys (modifier+key, parsed by HotkeyManager)
     public string HotkeyToggleOverlay { get; set; } = "Ctrl+Shift+D";

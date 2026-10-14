@@ -31,6 +31,12 @@ public sealed class HeadlessOptions
     public bool Hold { get; init; }
     /// <summary>With <see cref="Replay"/>: feed the packets at their recorded pace instead of as fast as possible.</summary>
     public bool RealtimeReplay { get; init; }
+    /// <summary>A2M-27: "ip:port" to forward the captured packets on (pcap stream for a Windows meter); null = settings.ForwardListen, else off.</summary>
+    public string? Forward { get; init; }
+    /// <summary>A2M-27: "tcp://host:port" = read another meter's forwarded stream instead of capturing; null = settings.CaptureSource.</summary>
+    public string? Source { get; init; }
+    /// <summary>With <see cref="Replay"/> and a forward: how long the replay waits for the first client before it starts anyway.</summary>
+    public int ForwardWaitSeconds { get; init; } = 60;
 }
 
 /// <summary>
@@ -55,7 +61,10 @@ public sealed class HeadlessMeter : IDisposable
     private string? _announcement;
     private long _announcementAt;
 
+    private readonly PcapForwarder? _forwarder;
+
     public MeterEngine Engine { get; }
+    public PcapForwarder? Forwarder => _forwarder;
     public AppSettings Settings { get; }
 
     public HeadlessMeter(HeadlessOptions options, TextWriter human, TextWriter? json)
@@ -74,14 +83,26 @@ public sealed class HeadlessMeter : IDisposable
         UiText.Use(Settings.Language);
         Core.Net.CloudflareHttp.SolverUrl = Settings.CloudflareSolverUrl;
         var availability = CaptureAvailability.OfThisPc();
+        // A2M-27: opt-in only (flag or settings), on the one address given; a bad value leaves it off rather than guessing an address
+        if ((options.Forward ?? Settings.ForwardListen) is { Length: > 0 } forward)
+        {
+            if (CaptureEndpoint.TryParseBind(forward, out var bind)) _forwarder = new PcapForwarder(bind, note: l => { Log.Info(l); Human(l); });
+            else Human($"forward {forward}: not an ip:port (e.g. 192.168.122.1:47013), forwarding off");
+        }
         Func<GameData, IEventSource> factory = options.Replay is { } pcap
-            ? data => new PcapReplaySource(data, pcap, realtime: options.RealtimeReplay, () => availability.Present)
-            : data => new LiveCapture(data, new LiveCaptureOptions
+            ? data => new PcapReplaySource(data, pcap, realtime: options.RealtimeReplay, () => availability.Present) { Forward = _forwarder }
+            : data =>
             {
-                DeviceName = options.Device ?? Settings.CaptureDevice,
-                RecordDirectory = Settings.RecordPackets ? Path.Combine(AppSettings.AppDataDir, "captures") : null,
-                LibraryPresent = () => availability.Present,
-            });
+                var stream = PcapStreamSource.From(data, options.Source ?? Settings.CaptureSource);
+                availability.ForwardedFrom = stream?.Endpoint;
+                return stream ?? (IEventSource)new LiveCapture(data, new LiveCaptureOptions
+                {
+                    DeviceName = options.Device ?? Settings.CaptureDevice,
+                    RecordDirectory = Settings.RecordPackets ? Path.Combine(AppSettings.AppDataDir, "captures") : null,
+                    LibraryPresent = () => availability.Present,
+                    Forward = _forwarder,
+                });
+            };
         Engine = new MeterEngine(Settings, factory, availability);
         Engine.FightClosed += OnFightClosed;
         Engine.CharacterChanged += () => Event("character", w => w.WriteString("key", Engine.BoundKey), $"character {Engine.BoundKey}");
@@ -99,6 +120,14 @@ public sealed class HeadlessMeter : IDisposable
     /// <summary>Ticks every 200 ms (the App's DispatcherTimer) until cancelled, the --once time is up or a replay ended; then disposes the engine (closing and saving the running fight).</summary>
     public async Task<int> RunAsync(CancellationToken ct)
     {
+        // a forwarded replay runs as fast as it parses: without this it would be over before the Windows meter connected
+        if (_o.Replay is not null && _forwarder is not null)
+        {
+            Human($"replay waits up to {_o.ForwardWaitSeconds} s for a forward client");
+            var until = Environment.TickCount64 + _o.ForwardWaitSeconds * 1000L;
+            while (_forwarder.ClientCount == 0 && Environment.TickCount64 < until && !ct.IsCancellationRequested)
+                try { await Task.Delay(50, ct).ConfigureAwait(false); } catch (TaskCanceledException) { }
+        }
         Engine.StartCapture();
         var start = Environment.TickCount64;
         long lastStatus = 0, nextTelemetry = start + 5 * 60_000;   // the App: first after 5 min, then every 15
@@ -138,6 +167,7 @@ public sealed class HeadlessMeter : IDisposable
             Engine.FlushState();
             Heartbeat(Engine.CaptureStatus);
             Engine.Dispose();
+            _forwarder?.Dispose();   // after the capture: what is still queued goes out first
 
             Event("stopped", null, "stopped");
             _server?.Dispose();
@@ -165,6 +195,7 @@ public sealed class HeadlessMeter : IDisposable
             w.WriteNumber("packets", st.Packets);
             w.WriteNumber("events", st.Events);
             if (h is { } hh) { w.WriteNumber("received", hh.Received); w.WriteNumber("dropped", hh.Dropped); w.WriteNumber("gaps", hh.Gaps); }
+            if (_forwarder is { } fw) { w.WriteNumber("forwardClients", fw.ClientCount); w.WriteNumber("forwarded", fw.Forwarded); w.WriteNumber("forwardDropped", fw.DroppedSlow); }
             w.WriteString("character", Engine.BoundKey);
             w.WriteNumber("server", Engine.Tracker.SelfServerId);
             w.WriteNumber("map", a.MapId);
@@ -172,7 +203,7 @@ public sealed class HeadlessMeter : IDisposable
             w.WriteNumber("y", a.SelfY);
             w.WriteNumber("stacks", Engine.Inventory.All().Count);
         }, string.Create(CultureInfo.InvariantCulture,
-            $"{st.State} · events {st.Events} · {(Engine.BoundKey.Length > 0 ? Engine.BoundKey : "no character yet")} · map {a.MapId} ({a.SelfX:0},{a.SelfY:0}) · {Engine.Inventory.All().Count} stacks{(h is { } x ? $" · pcap {x.Received} rx {x.Dropped} drop {x.Gaps} gaps" : "")}"));
+            $"{st.State} · events {st.Events} · {(Engine.BoundKey.Length > 0 ? Engine.BoundKey : "no character yet")} · map {a.MapId} ({a.SelfX:0},{a.SelfY:0}) · {Engine.Inventory.All().Count} stacks{(h is { } x ? $" · pcap {x.Received} rx {x.Dropped} drop {x.Gaps} gaps" : "")}{(_forwarder is { } f ? $" · forward {f.ClientCount} clients {f.Forwarded} pkts {f.DroppedSlow} dropped" : "")}"));
     }
 
     /// <summary>What the App turns into toasts and chimes: due boss respawns and price hits, as lines/events here.</summary>
@@ -444,5 +475,6 @@ public sealed class HeadlessMeter : IDisposable
         // the last fight's save runs on the thread pool (MeterEngine.OnEncounterFinished) and may call Event after RunAsync returned:
         // disposing the writer outside the gate crashed the test host with ObjectDisposedException (measured 2026-10-13 under load)
         lock (_outGate) { _disposed = true; _w.Dispose(); }
+        _forwarder?.Dispose();
     }
 }

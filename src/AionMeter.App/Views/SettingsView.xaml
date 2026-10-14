@@ -185,6 +185,13 @@
                                 <ComboBox x:Name="Device" MinWidth="260" />
                             </WrapPanel>
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,6" Text="{Binding AdapterHint, Source={x:Static s:UiText.Current}}" />
+                            <!-- A2M-27: the packets of another meter (the Linux daemon's forward option) instead of this PC's adapters -->
+                            <WrapPanel>
+                                <CheckBox x:Name="ReceiveForward" Style="{StaticResource DarkCheck}" VerticalAlignment="Center"
+                                          Content="{Binding ReceiveForward, Source={x:Static s:UiText.Current}}" />
+                                <TextBox x:Name="ForwardAddress" Width="200" Margin="8,0,0,0" />
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,6" Text="{Binding ReceiveForwardHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="Record" Style="{StaticResource DarkCheck}"
                                       Content="{Binding RecordPackets, Source={x:Static s:UiText.Current}}" />
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding RecordHint, Source={x:Static s:UiText.Current}}" />

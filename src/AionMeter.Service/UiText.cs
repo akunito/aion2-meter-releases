@@ -375,6 +375,10 @@ public sealed class UiText
     public IReadOnlyDictionary<Core.Capture.CaptureFeature, string> CaptureFeatureLabels { get; init; } = Core.Capture.CaptureAvailability.EnglishLabels;
     public string AdapterNoNpcap { get; init; } = "No adapters — Npcap is not installed";
     public string RecordNeedsNpcap { get; init; } = "Recording needs Npcap.";
+    // A2M-27: Settings → Capture, the Linux daemon's --forward stream as the capture source
+    public string ReceiveForward { get; init; } = "Receive from another meter at host:port";
+    public string ReceiveForwardHint { get; init; } = "For a meter in a VM or under Wine: the game runs on another PC whose meter forwards its packets (aionmeter-daemon --forward). No Npcap needed here. Plaintext game traffic: only on your own network.";
+    public string ReceiveForwardInvalid { get; init; } = "Write the other meter's address as host:port, e.g. 192.168.122.1:47013.";
     public string NpcapHelpButton { get; init; } = "Install Npcap…";
     public string CaptureHealthPrefix { get; init; } = "Capture: ";
     /// <summary>A capture status for the user: the Npcap-missing one in the interface language, the rest as the capture says it.</summary>
@@ -1386,6 +1390,9 @@ public sealed class UiText
         },
         AdapterNoNpcap = "No hay adaptadores: Npcap no está instalado",
         RecordNeedsNpcap = "Grabar necesita Npcap.",
+        ReceiveForward = "Recibir de otro meter en host:puerto",
+        ReceiveForwardHint = "Para un meter en una VM o bajo Wine: el juego corre en otro PC cuyo meter reenvía sus paquetes (aionmeter-daemon --forward). Aquí no hace falta Npcap. Es tráfico del juego sin cifrar: solo en tu propia red.",
+        ReceiveForwardInvalid = "Escribe la dirección del otro meter como host:puerto, p. ej. 192.168.122.1:47013.",
         NpcapHelpButton = "Instalar Npcap…",
         CaptureHealthPrefix = "Captura: ",
         ReplayNeedsNpcap = "Reproducir un .pcap también necesita Npcap: SharpPcap lee el archivo a través de él. Instala Npcap desde npcap.com y vuelve a probar.",
