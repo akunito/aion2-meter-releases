@@ -342,6 +342,47 @@ public sealed class NodeStore
 
     public int Count(int mapId) { lock (_gate) return _maps.TryGetValue(mapId, out var m) ? m.Count : 0; }
 
+    /// <summary>A2M-45: the maps each of <paramref name="codes"/> was seen on — loaded maps from memory, the others from their files (a first
+    /// share's backlog spans maps not visited in this run). Reads files: call it off the UI thread.</summary>
+    public Dictionary<int, int[]> CodeMaps(IReadOnlyCollection<int> codes)
+    {
+        var found = new Dictionary<int, SortedSet<int>>();
+        var want = new HashSet<int>(codes);
+        var loaded = new HashSet<int>();
+        void Add(int code, int map)
+        {
+            if (!want.Contains(code)) return;
+            if (!found.TryGetValue(code, out var set)) found[code] = set = new SortedSet<int>();
+            set.Add(map);
+        }
+        lock (_gate)
+            foreach (var (map, spots) in _maps)
+            {
+                loaded.Add(map);
+                foreach (var s in spots.Values) if (!s.Seeded) Add(s.Code, map);
+            }
+        try
+        {
+            if (Directory.Exists(directory))
+                foreach (var f in Directory.EnumerateFiles(directory, "*.json"))
+                {
+                    if (!int.TryParse(Path.GetFileNameWithoutExtension(f), out var map) || map <= 0 || loaded.Contains(map)) continue;
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(File.ReadAllText(f));
+                        if (doc.RootElement.ValueKind != JsonValueKind.Array) continue;
+                        foreach (var e in doc.RootElement.EnumerateArray())
+                            if (e.TryGetProperty("Code", out var c) && c.TryGetInt32(out var code)) Add(code, map);
+                    }
+                    catch (JsonException) { }
+                }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        var result = new Dictionary<int, int[]>(found.Count);
+        foreach (var (code, set) in found) result[code] = [.. set];
+        return result;
+    }
+
     /// <summary>A2M-48: the spots of the current map in view right now (map, code, position, units taken), appended to <paramref name="into"/>.</summary>
     public int LiveSpots(List<LiveSpot> into)
     {

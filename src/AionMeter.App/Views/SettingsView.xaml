@@ -297,6 +297,9 @@
                                       Content="{Binding ShareBackup, Source={x:Static s:UiText.Current}}" />
                             <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareBackupHint, Source={x:Static s:UiText.Current}}" />
                             <TextBlock x:Name="ShareBackupWarn" Style="{StaticResource Hint}" Foreground="{StaticResource Red}" Visibility="Collapsed" />
+                            <CheckBox x:Name="ShareAtlasBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
+                                      Content="{Binding ShareAtlasNames, Source={x:Static s:UiText.Current}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareAtlasNamesHint, Source={x:Static s:UiText.Current}}" />
                             <TextBlock Text="{Binding ShareReports, Source={x:Static s:UiText.Current}}" Margin="0,8,0,0" />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,2" Text="{Binding ShareReportsHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="ReportSummaryBox" Style="{StaticResource DarkCheck}" Margin="24,2,0,0"

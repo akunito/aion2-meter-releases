@@ -113,5 +113,22 @@ public partial class NameNodeWindow : Window
         }
     }
 
+    private void Other_Click(object sender, RoutedEventArgs e) => SaveOther();
+
+    private void OtherBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        SaveOther();
+    }
+
+    private void SaveOther()
+    {
+        var name = OtherBox.Text.Trim();
+        if (name.Length == 0) { OtherBox.Focus(); return; }
+        _meter.NameObject(_code, name, Core.Atlas.AtlasShare.OtherCategory);
+        Close();
+    }
+
     private void Skip_Click(object sender, RoutedEventArgs e) => Close();
 }

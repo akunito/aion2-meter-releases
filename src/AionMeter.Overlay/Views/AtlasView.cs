@@ -26,6 +26,7 @@ internal sealed partial class AtlasView : HostedView
     private readonly Gtk.Scale _zoom;
     private readonly Gtk.Label _zone, _hint, _nameQuestion, _nameTimer;
     private readonly Gtk.Entry _nameOther;
+    private readonly Gtk.Button _nameAsNode, _nameAsOther;
     private readonly UiTimer _clock = new(TimeSpan.FromMilliseconds(500)), _nameClock = new(TimeSpan.FromSeconds(1));
     private readonly double _u;   // the card's UI scale: the map is laid out in unscaled px
 
@@ -125,16 +126,20 @@ internal sealed partial class AtlasView : HostedView
         catScroll.MaxContentHeight = UiKit.Px(230);
         catScroll.Child = _nameCatalog;
         np.Append(catScroll);
-        var other = UiKit.HBox();
-        other.MarginTop = UiKit.Px(6);
-        _nameOther = UiKit.Input("", 180);
-        _nameOther.PlaceholderText = "Other…";
+        // free text: a node kind missing from the catalogue, or "Other" = not a gathering node (A2M-45: the prompt fires on doors and levers too)
+        _nameOther = UiKit.Input("", double.NaN);
+        _nameOther.MarginTop = UiKit.Px(6);
+        _nameOther.PlaceholderText = T.NameNodeFreeHint;
         _nameOther.OnActivate += (_, _) => NameNode(_nameOther.GetText(), "");
-        other.Append(_nameOther);
-        var ok = UiKit.Chip("OK", () => NameNode(_nameOther.GetText(), ""));
-        ok.MarginStart = UiKit.Px(8);
-        other.Append(ok);
-        np.Append(other);
+        np.Append(_nameOther);
+        var free = UiKit.HBox(8);
+        free.MarginTop = UiKit.Px(6);
+        free.Append(UiKit.Spacer());
+        _nameAsNode = UiKit.Chip(T.NameNodeSaveNode, () => NameNode(_nameOther.GetText(), ""), T.NameNodeSaveNodeTip);
+        free.Append(_nameAsNode);
+        _nameAsOther = UiKit.Chip(T.NameNodeOther, NameOther, T.NameNodeOtherTip);
+        free.Append(_nameAsOther);
+        np.Append(free);
         var inner = UiKit.VBox();
         inner.AddCssClass("k-dinner");
         inner.Append(np);
@@ -201,6 +206,11 @@ internal sealed partial class AtlasView : HostedView
         base.LanguageChanged();
         Title = T.AtlasTitle;
         _hint.SetText(T.AtlasHint);
+        _nameOther.PlaceholderText = T.NameNodeFreeHint;
+        UiKit.SetChipText(_nameAsNode, T.NameNodeSaveNode);
+        UiKit.SetChipText(_nameAsOther, T.NameNodeOther);
+        _nameAsNode.SetTooltipText(T.NameNodeSaveNodeTip);
+        _nameAsOther.SetTooltipText(T.NameNodeOtherTip);
         _toggleSpots = -1;
         Refresh();
     }
@@ -226,7 +236,7 @@ internal sealed partial class AtlasView : HostedView
         if (!IsShown) return;
         if (map > 0) e.Atlas.ReloadIfChanged(map);
         e.Timers.ReloadIfChanged();
-        _spots = e.Atlas.Spots(map);
+        _spots = e.NodeSpots(map);   // A2M-45: objects named "other" (doors, chests…) are not drawn
         _timers = e.Timers.ForServer(e.Timers.CurrentServer);
         PrepareSpots(e);
         RefreshKinds();
@@ -482,7 +492,7 @@ internal sealed partial class AtlasView : HostedView
         var k = _f * _scale;
         var (wx, wy) = AtlasMath.ScreenToWorld(_cal, x, y, _tx, _ty, k);
         var spot = e.Atlas.Nearest(_mapShown, wx, wy, AtlasMath.PickCm(_cal, k));
-        if (spot is null || spot.Seeded) return;   // a seeded spot already has its kind from the map data
+        if (spot is null || spot.Seeded || e.IsOtherObject(spot.Code)) return;   // seeded: kind from the map data; "other": not drawn, so not picked
         ShowNamePanel(spot.Code, prompt: false);
     }
 
@@ -518,6 +528,7 @@ internal sealed partial class AtlasView : HostedView
         _nameQuestion.SetText(string.Format(T.NameNodeQuestion, code));
         e.Data.Objects.TryGetValue(code, out var current);
         _nameOther.SetText("");
+        _nameOther.PlaceholderText = T.NameNodeFreeHint;
         BuildCatalog(current);
         _namePanel.Visible = true;
         _nameTimer.Visible = prompt;
@@ -537,6 +548,18 @@ internal sealed partial class AtlasView : HostedView
         _namePanel.Visible = false;
         _nameClock.Stop();
         _nameAskedAt = 0;
+    }
+
+    /// <summary>"Other (not a node)": stored with category "other", so the map leaves it out and the prompt never comes back for this code.</summary>
+    private void NameOther()
+    {
+        if (_nameOther.GetText().Trim().Length == 0)
+        {
+            _nameOther.PlaceholderText = T.NameNodeOtherEmpty;
+            _nameOther.GrabFocus();
+            return;
+        }
+        NameNode(_nameOther.GetText(), AtlasShare.OtherCategory);
     }
 
     private void NameNode(string name, string category)
