@@ -177,8 +177,12 @@ public sealed class OverlayBuilder
         var now = DateTimeOffset.Now;
         var s = meter.Settings;
         _pills.Clear();
-        foreach (var ev in meter.Events)
+        // Diego 2026-10-14: boss events (events.json "boss": true, e.g. Kaira) sit right after the field-boss timer pill, the rest keep the
+        // catalogue order; "hidden": true (the daily Reset) gets no pill but stays in the catalogue for the Items Today card.
+        var order = EventPillOrder(meter.Events);
+        for (var oi = 0; oi < order.Length; oi++)
         {
+            var ev = meter.Events[order[oi]];
             var (start, end, running) = ev.Next(now, s.EventAnchors.TryGetValue(ev.Key, out var anchor) ? anchor : null, s.EventPeriods.TryGetValue(ev.Key, out var pm) ? pm : null);
             var left = running ? end - now : start - now;
             var span = ScheduledEvent.Countdown(left);
@@ -205,6 +209,18 @@ public sealed class OverlayBuilder
     }
 
     /// <summary>Colour step for a time to the start (or to the end while running). Measured against the game's own timer colours only by eye.</summary>
+    /// <summary>Catalogue indexes of the events that get a pill: boss events first, then the others, each group in catalogue order.</summary>
+    public static int[] EventPillOrder(IReadOnlyList<ScheduledEvent> events)
+    {
+        var n = 0;
+        for (var i = 0; i < events.Count; i++) if (!events[i].Hidden) n++;
+        var order = new int[n];
+        var k = 0;
+        for (var i = 0; i < events.Count; i++) if (!events[i].Hidden && events[i].Boss) order[k++] = i;
+        for (var i = 0; i < events.Count; i++) if (!events[i].Hidden && !events[i].Boss) order[k++] = i;
+        return order;
+    }
+
     public static PillTone ToneOf(TimeSpan left, bool running) =>
         running || left.TotalMinutes < 5 ? PillTone.Now
         : left.TotalMinutes < 10 ? PillTone.Close

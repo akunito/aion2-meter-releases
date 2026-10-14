@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace AionMeter.Core.Atlas;
 
 /// <summary>A recurring server event (Shugo Festival, Spacetime Rift, …) from data/atlas/events.json, in the server's time zone.</summary>
-public sealed record ScheduledEvent(string Key, string Name, TimeZoneInfo Zone, IReadOnlyList<TimeOnly> Times, int DurationMinutes, int AlertMinutes, IReadOnlySet<DayOfWeek>? Days = null, int EveryMinutes = 0)
+public sealed record ScheduledEvent(string Key, string Name, TimeZoneInfo Zone, IReadOnlyList<TimeOnly> Times, int DurationMinutes, int AlertMinutes, IReadOnlySet<DayOfWeek>? Days = null, int EveryMinutes = 0, bool Boss = false, bool Hidden = false)
 {
     /// <summary>
     /// The occurrence running now (start, end) or the next one. A periodic event (every_minutes) takes an <paramref name="anchor"/>:
@@ -98,7 +98,8 @@ public sealed record ScheduledEvent(string Key, string Name, TimeZoneInfo Zone, 
                     foreach (var dn in ds.EnumerateArray()) if (Enum.TryParse<DayOfWeek>(dn.GetString(), true, out var dow)) days.Add(dow);
                 }
                 list.Add(new ScheduledEvent(e.GetProperty("key").GetString() ?? "", e.GetProperty("name").GetString() ?? "", zone, times,
-                    e.TryGetProperty("duration_minutes", out var du) ? du.GetInt32() : 10, e.TryGetProperty("alert_minutes", out var al) ? al.GetInt32() : 5, days, every));
+                    e.TryGetProperty("duration_minutes", out var du) ? du.GetInt32() : 10, e.TryGetProperty("alert_minutes", out var al) ? al.GetInt32() : 5, days, every,
+                    e.TryGetProperty("boss", out var bo) && bo.GetBoolean(), e.TryGetProperty("hidden", out var hi) && hi.GetBoolean()));
             }
         }
         catch (Exception ex) when (ex is IOException or JsonException or KeyNotFoundException or TimeZoneNotFoundException or InvalidTimeZoneException)
