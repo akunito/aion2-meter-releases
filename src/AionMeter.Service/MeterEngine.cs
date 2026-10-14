@@ -1060,7 +1060,7 @@ public class MeterEngine : IDisposable
         Timers.Pin(next.Source == ServerSource.Settings ? next.ServerId : 0);
         if (!_serverApplied || next.Region != prev.Region)
         {
-            try { Events = ScheduledEvent.ForZone(_euEvents, TimeZoneInfo.FindSystemTimeZoneById(next.TimeZoneId)); }
+            try { Events = ScheduledEvent.ForZone(_euEvents, Core.Game.TimeZones.Find(next.TimeZoneId)); }
             catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException) { Events = _euEvents; Log.Error($"Events: no time zone {next.TimeZoneId}, EU clock kept", ex); }
         }
         var repoll = _serverApplied && next.ExchangeKey != prev.ExchangeKey && !Settings.Transient && Prices.Count > 0;

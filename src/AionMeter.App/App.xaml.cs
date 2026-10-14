@@ -224,6 +224,27 @@ public partial class App : Application
             };
             once.Start();
         }
+        // A2M-27 dev switch: --open settings|history|report|restore opens that window at start. Under Wine the tray (the only
+        // way to the Settings window and History) is a white floating explorer.exe window with no menu, so these were untestable.
+        if (ArgValue(e.Args, "--open") is { } open) Dispatcher.BeginInvoke(() => OpenByName(open), DispatcherPriority.ApplicationIdle);
+    }
+
+    private void OpenByName(string name)
+    {
+        switch (name)
+        {
+            case "settings": OpenSettingsWindow(null); break;
+            case "history": ShowHistory(); break;
+            case "report": ShowBugReport(); break;
+            case "restore":
+                // the way Settings → Restore from code opens it (owned, modal): with Show(), owned or not, Wine painted the whole
+                // window black except the caret (2026-10-14); ShowDialog from Settings paints normally
+                var w = new RestoreWindow(_meter);
+                if (_overlay.IsVisible) w.Owner = _overlay; else w.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+                w.ShowDialog();
+                break;
+            default: Log.Info($"--open: unknown window '{name}' (settings, history, report, restore)"); break;
+        }
     }
 
     /// <summary>The "install Npcap" message with the download link (first start without it, Settings → Capture button).</summary>

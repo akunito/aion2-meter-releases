@@ -80,6 +80,7 @@ public sealed class PcapReplaySource : IEventSource
         {
             count++;
             var raw = e.GetPacket();
+            SegmentReader.Segment seg;
             if (_realtime)
             {
                 var t = raw.Timeval;
@@ -88,9 +89,19 @@ public sealed class PcapReplaySource : IEventSource
                 var due = started.AddMilliseconds(ms - firstPacketMs.Value);
                 var wait = due - DateTime.UtcNow;
                 if (wait > TimeSpan.Zero) Thread.Sleep(wait);
+                // A2M-27: a realtime replay stands in for live capture, so its packets carry today's clock. With the recorded
+                // timestamps (days old) every idle check that compares with the wall clock (the forwarded receiver, the live
+                // tracker) closed each fight after 1 s: the Wine run of 2026-10-14 got hundreds of 0:01 "Idle (not kept)"
+                // fights and an empty History from the login replay.
+                var liveMs = new DateTimeOffset(due).ToUnixTimeMilliseconds();
+                Forward?.Publish((int)raw.LinkLayerType, (uint)(liveMs / 1000), (uint)(liveMs % 1000 * 1000 + (long)t.MicroSeconds % 1000), raw.Data, raw.PacketLength);
+                if (!SegmentReader.TryRead(raw.LinkLayerType, liveMs, raw.Data, out seg)) continue;
             }
-            Forward?.Publish(raw);
-            if (!SegmentReader.TryRead(raw, out var seg)) continue;
+            else
+            {
+                Forward?.Publish(raw);
+                if (!SegmentReader.TryRead(raw, out seg)) continue;
+            }
             _pipeline.OnSegment(seg.TimeMs, seg.Key, seg.Seq, seg.Syn, seg.FinOrRst, seg.Payload);
         }
         SetStatus(CaptureState.Stopped, $"Replay finished · {count} packets");

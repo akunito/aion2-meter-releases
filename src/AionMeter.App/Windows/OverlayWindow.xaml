@@ -573,13 +573,20 @@
                 </Grid>
                 <!-- Footer, two lines (Diego 2026-10-11): status + fight links on the left, the timer/event pills below, wrapping -->
                 <StackPanel x:Name="FooterPanel" SizeChanged="Footer_SizeChanged">
+                    <!-- A2M-27: status and links in their own columns, the status in a DockPanel so it trims. In one cell with a horizontal
+                         StackPanel the text had infinite width, never trimmed, and a long status ("Forwarded capture: Connection refused.
+                         · retrying 127.0.0.1:47013 in 8 s") ran under "Open the fight" / "Fights" (Wine run 2026-10-14). -->
                     <Grid x:Name="FooterStatusLine" Margin="0,0,12,4">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Status}" HorizontalAlignment="Left" Margin="0,0,14,0">
-                            <Ellipse Width="6" Height="6" Fill="{Binding StatusBrush}" Margin="0,0,7,0" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <DockPanel VerticalAlignment="Center" ToolTip="{Binding Status}" HorizontalAlignment="Left" Margin="0,0,14,0" Background="Transparent">
+                            <Ellipse DockPanel.Dock="Left" Width="6" Height="6" Fill="{Binding StatusBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
                             <TextBlock x:Name="FooterText" FontSize="12" Foreground="#B4BCCB" TextTrimming="CharacterEllipsis"
                                        Effect="{StaticResource TextShadow}" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                        </DockPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
                         <Button Style="{StaticResource FooterLink}" Content="{Binding T.OpenFight}" Click="Details_Click" Effect="{StaticResource TextShadow}" />
                         <Button Style="{StaticResource FooterLink}" Click="Segments_Click" Effect="{StaticResource TextShadow}">
                             <TextBlock><Run Text="{Binding T.Fights, Mode=OneWay}" /><Run Text=" " /><Run Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" /></TextBlock>

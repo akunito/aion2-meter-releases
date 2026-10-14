@@ -116,4 +116,35 @@ public class ServerContextTests
         Assert.Equal(new DateTimeOffset(2026, 10, 13, 19, 0, 0, TimeSpan.Zero), eu[0].Next(now).Start.ToUniversalTime());
         Assert.Equal(eu[1].Next(now).Start, nae[1].Next(now).Start);
     }
+
+    // A2M-27: under Wine every IANA lookup throws (no ICU); the Windows id must be tried, or events.json loads no event.
+    private static TimeZoneInfo WineLookup(string id) => id.Contains('/')
+        ? throw new TimeZoneNotFoundException(id)
+        : TimeZoneInfo.CreateCustomTimeZone(id, TimeSpan.FromHours(1), id, id);
+
+    [Theory]
+    [InlineData("Europe/Berlin", "W. Europe Standard Time")]
+    [InlineData("Asia/Seoul", "Korea Standard Time")]
+    [InlineData("America/New_York", "Eastern Standard Time")]
+    [InlineData("America/Los_Angeles", "Pacific Standard Time")]
+    [InlineData("America/Sao_Paulo", "E. South America Standard Time")]
+    public void TimeZones_FallBackToTheWindowsId_WhenIanaIdsAreUnknown(string iana, string windows)
+    {
+        Assert.Equal(windows, TimeZones.Find(iana, WineLookup).Id);
+        Assert.Equal(iana, TimeZones.Find(iana).Id);   // where IANA works it is used as is
+        // the Windows name is a real zone with the same clock (ICU maps it on Linux too)
+        var now = new DateTimeOffset(2026, 7, 1, 12, 0, 0, TimeSpan.Zero);
+        Assert.Equal(TimeZoneInfo.FindSystemTimeZoneById(iana).GetUtcOffset(now), TimeZoneInfo.FindSystemTimeZoneById(windows).GetUtcOffset(now));
+    }
+
+    [Fact]
+    public void TimeZones_UnknownIdStillThrows() =>
+        Assert.Throws<TimeZoneNotFoundException>(() => TimeZones.Find("Mars/Olympus", WineLookup));
+
+    [Fact]
+    public void TimeZones_EveryRegionAndEventZoneHasAWindowsId()
+    {
+        foreach (var region in (string[])["nae", "naw", "eu", "la", "as"]) Assert.NotNull(TimeZones.WindowsId(ServerContext.TimeZoneOf(region)));
+        Assert.NotNull(TimeZones.WindowsId(ScheduledEvent.EuZoneId));
+    }
 }

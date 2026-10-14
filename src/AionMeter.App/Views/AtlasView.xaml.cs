@@ -112,9 +112,15 @@ public partial class AtlasView : UserControl
             }
             else { _imgW = _imgH = 0; _f = 1; Viewport.Background = NoMapBg; Log.Info($"Atlas map {map}: no background ({_cal?.BackgroundPath ?? "no calibration"})"); }
             // Following: a map change (instance in and out) must not zoom out to the whole map; the next tick re-centres at the follow zoom.
-            if (FollowBox.IsChecked == true && _mapShown > 0) _followZoomed = false; else FitWholeMap();
+            // A2M-27: with Follow on but no position yet (no capture, or before the first position packet) nothing ever placed the
+            // view and the tab showed the image's top-left corner, blank parchment (Wine run without capture, 2026-10-14): fit
+            // the whole map until a position arrives; the follow branch below re-centres as soon as one does.
+            _followZoomed = false;
+            _fitPending = !(FollowBox.IsChecked == true && _mapShown > 0 && atlas.SelfAtMs > 0);
             StaticLayer.InvalidateVisual();
         }
+        // the first Refresh can run before layout (ActualWidth 0): FitWholeMap would size the map for a 100 px viewport
+        if (_fitPending && Viewport.ActualWidth > 0) { _fitPending = false; FitWholeMap(); StaticLayer.InvalidateVisual(); }
         if (!IsVisible && !_sample) return;   // another tab is in front: the 500 ms clock must not rebuild hundreds of elements nobody sees
         Overlay.Children.Clear();
         _labelPts.Clear();
@@ -473,6 +479,8 @@ public partial class AtlasView : UserControl
     }
 
     /// <summary>First view of a map: the whole zone in the window, centred; Follow then takes over when the player's position is known.</summary>
+    private bool _fitPending;
+
     private void FitWholeMap()
     {
         var w = _imgW > 0 ? _imgW : 1000;
@@ -675,7 +683,9 @@ public partial class AtlasView : UserControl
         var (ox, oy) = _cal.ToPixel(0, 0); var (ux, uy) = _cal.ToPixel(1000, 1000);
         var wx = (float)((px - ox) / (ux - ox) * 1000); var wy = (float)((py - oy) / (uy - oy) * 1000);
         var spot = _meter.Atlas.Nearest(_mapShown, wx, wy, maxCm: (float)(14 / (_f * _scale) / _cal.Scale));
-        if (spot is null || _meter.IsOtherObject(spot.Code)) return;   // "other" (A2M-45) is not drawn, so not picked
+        // seeded: the kind comes from the map data and the code is 0; the GTK card already skipped them, the WPF pick opened
+        // "New kind of node (object 0)" on one (Wine run 2026-10-14) and a name given there went to object 0.
+        if (spot is null || spot.Seeded || _meter.IsOtherObject(spot.Code)) return;   // "other" (A2M-45) is not drawn, so not picked
         AppHost.Current.ShowNameNode(spot.Code);
         e.Handled = true;
     }

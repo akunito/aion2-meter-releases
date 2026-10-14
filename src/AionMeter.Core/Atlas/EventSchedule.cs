@@ -79,7 +79,7 @@ public sealed record ScheduledEvent(string Key, string Name, TimeZoneInfo Zone, 
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             foreach (var e in doc.RootElement.GetProperty("events").EnumerateArray())
             {
-                var zone = TimeZoneInfo.FindSystemTimeZoneById(e.TryGetProperty("zone", out var z) ? z.GetString() ?? "Europe/Berlin" : "Europe/Berlin");
+                var zone = Game.TimeZones.Find(e.TryGetProperty("zone", out var z) ? z.GetString() ?? "Europe/Berlin" : "Europe/Berlin");
                 var times = new List<TimeOnly>();
                 var every = 0;
                 if (e.TryGetProperty("times", out var ts))

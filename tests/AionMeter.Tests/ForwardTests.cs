@@ -98,6 +98,66 @@ public class ForwardTests(ITestOutputHelper output)
         Assert.True(file.AsSpan(PcapFormat.GlobalHeaderBytes).SequenceEqual(got.AsSpan(PcapFormat.GlobalHeaderBytes)), "records differ");
     }
 
+    /// <summary>
+    /// A2M-27 (Wine run 2026-10-14): a realtime replay stands in for live capture, so its packets carry today's clock; with the
+    /// recorded (days old) timestamps the receiver's idle check closed every fight after 1 s and History stayed empty.
+    /// </summary>
+    [Fact]
+    public async Task RealtimeReplay_ForwardsTodaysClock_SameFramesAndSpacing()
+    {
+        // the fixture's first 1.5 s as a small pcap (realtime replay sleeps the recorded gaps)
+        var file = File.ReadAllBytes(Pcap);
+        var end = PcapFormat.GlobalHeaderBytes;
+        var firstSec = BitConverter.ToUInt32(file, end);
+        var firstUs = BitConverter.ToUInt32(file, end + 4);
+        var records = new List<(long Ms, int Off, int Len)>();
+        while (end + 16 <= file.Length)
+        {
+            var ms = (BitConverter.ToUInt32(file, end) - (long)firstSec) * 1000 + (BitConverter.ToUInt32(file, end + 4) - (long)firstUs) / 1000;
+            if (ms > 1500) break;
+            var len = (int)BitConverter.ToUInt32(file, end + 8);
+            records.Add((ms, end + 16, len));
+            end += 16 + len;
+        }
+        Assert.True(records.Count > 5, $"{records.Count} records");
+        var small = Path.Combine(Path.GetTempPath(), $"a2m27-rt-{Guid.NewGuid():N}.pcap");
+        File.WriteAllBytes(small, file.AsSpan(0, end).ToArray());
+        try
+        {
+            using var fwd = new PcapForwarder(Loopback0);
+            var at = await fwd.Listening;
+            using var client = new TcpClient();
+            await client.ConnectAsync(at.Address, at.Port);
+            await WaitFor(() => fwd.ClientCount == 1);
+            var buf = new MemoryStream();
+            var copy = client.GetStream().CopyToAsync(buf);
+            var before = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            new PcapReplaySource(GameData.Empty, small, realtime: true) { Forward = fwd }.RunToEnd();
+            var after = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var disposing = Task.Run(fwd.Dispose);
+            await copy.WaitAsync(TimeSpan.FromSeconds(30));
+            client.Dispose();
+            await disposing;
+            var got = buf.ToArray();
+
+            var off = PcapFormat.GlobalHeaderBytes;
+            long? firstGot = null;
+            for (var i = 0; i < records.Count; i++)
+            {
+                var ms = BitConverter.ToUInt32(got, off) * 1000L + BitConverter.ToUInt32(got, off + 4) / 1000;
+                Assert.InRange(ms, before - 50, after + 50);
+                firstGot ??= ms;
+                Assert.InRange(ms - firstGot.Value, records[i].Ms - 2, records[i].Ms + 2);   // recorded spacing kept
+                var len = (int)BitConverter.ToUInt32(got, off + 8);
+                Assert.Equal(records[i].Len, len);
+                Assert.True(file.AsSpan(records[i].Off, len).SequenceEqual(got.AsSpan(off + 16, len)), $"frame {i} differs");
+                off += 16 + len;
+            }
+            Assert.Equal(got.Length, off);
+        }
+        finally { File.Delete(small); }
+    }
+
     [Fact]
     public async Task SlowClient_IsDropped_AndPublishNeverBlocks()
     {
