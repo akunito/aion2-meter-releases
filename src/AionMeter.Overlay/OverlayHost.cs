@@ -31,6 +31,9 @@ internal sealed class OverlayHost : ICardHost
     private bool _remapping, _dragClaimed;
     private string _dragMonitor = "";
     private (int W, int H, int MH, int MV) _resizeStart;
+    private (int X, int Y) _edge;
+    private bool _edgeClaimed;
+    private int _edgeFloorW;
     private bool _hidden;
 
     private readonly string _uiJson;
@@ -200,6 +203,54 @@ internal sealed class OverlayHost : ICardHost
         };
         resize.OnDragEnd += (_, _) => _s.Save();
         _card.Grip.AddController(resize);
+
+        // Right-button drag anywhere = resize from the nearest edge/corner, what Sway's Alt+right-drag does for windows (Diego kept trying it).
+        // No modifier check: with keyboard mode NONE GDK often does not know the modifiers. Like the move, it claims the press only past 4 px,
+        // so a right click (Atlas node naming, pet card, unequip in Build) stays a click; a control that claims its right press keeps it.
+        // Measured in a nested Sway 1.11 (2026-10-14, HEADLESS-1 1600×900 at 1.5, screenshots): the 4 edges and 4 corners on DPS (top-right
+        // anchor) and on Settings (bottom-left) move the grabbed edges by the drag to the pixel and leave the opposite edges where they were,
+        // also with Alt held (Sway's floating_modifier Mod1 does not catch a layer surface) and at UI scale 1.1 (surface edge exact, the frame
+        // inside rendered ±1 physical px); floors 560×540 on a tab, the pill lines (403) and the rows (260 high) on DPS; edges stop at the
+        // output. A 3 px right press resizes nothing; a right click on an Atlas node opens the naming panel; a right drag on the map is the map's.
+        var edge = Gtk.GestureDrag.New();
+        edge.SetButton(3);
+        edge.OnDragBegin += (_, e) =>
+        {
+            _edgeClaimed = false;
+            // the surface as it is: the content can hold it wider than the saved size (a pill whose countdown text grew), measured 16 px,
+            // and the opposite edge is computed from it
+            var (cw, ch) = CardSize();
+            var (ww, wh) = (_win!.GetWidth(), _win.GetHeight());
+            _resizeStart = (Math.Max(cw, ww), Math.Max(ch, wh), _s.MarginH, _s.MarginV);
+            _edge = Placement.EdgeAt(e.StartX, e.StartY, ww, wh);
+            _edgeFloorW = (int)Math.Ceiling(_card!.PillMinWidth() / _s.Scale);
+        };
+        edge.OnDragUpdate += (g, e) =>
+        {
+            if (!_edgeClaimed && (e.OffsetX * e.OffsetX + e.OffsetY * e.OffsetY <= 16 || !(_edgeClaimed = g.SetState(Gtk.EventSequenceState.Claimed))))
+                return;
+            var (minW, minH) = TabState.MinSize(_card?.Tab ?? TabState.Meter);
+            minW = Math.Max(minW, _edgeFloorW);
+            EdgeResize(e.OffsetX, e.OffsetY, minW, minH);
+            ApplySize();
+            // The content can refuse the size (measured: before the pill floor, a card resized back from 530 to 470 stayed 487 wide; the DPS
+            // rows refuse less than 260 high): the surface then keeps its size and, anchored on the moving side, the opposite edge moved
+            // instead. Stop the edge at the content's minimum.
+            var (fw, fh) = _card!.ContentMin();
+            int cw = (int)Math.Ceiling(fw / _s.Scale), ch = (int)Math.Ceiling(fh / _s.Scale);
+            if (cw > _s.Width || ch > _s.Height)
+            {
+                EdgeResize(e.OffsetX, e.OffsetY, Math.Max(minW, cw), Math.Max(minH, ch));
+                ApplySize();
+            }
+            ApplyMargins();
+        };
+        edge.OnDragEnd += (_, _) => { if (_edgeClaimed) _s.Save(); };
+        _card.Root.AddController(edge);
+
+        void EdgeResize(double dx, double dy, int minW, int minH) =>
+            (_s.Width, _s.Height, _s.MarginH, _s.MarginV) = Placement.EdgeResize(_s.Anchor, _edge.X, _edge.Y, _resizeStart.W, _resizeStart.H,
+                _resizeStart.MH, _resizeStart.MV, dx, dy, minW, minH, _outW, _outH, _s.Scale);
 
         // Zoom: the wheel over the resize corner, or Ctrl+wheel anywhere when GDK knows the modifiers (keyboard mode NONE: often it does not)
         var wheel = Gtk.EventControllerScroll.New(Gtk.EventControllerScrollFlags.Vertical);

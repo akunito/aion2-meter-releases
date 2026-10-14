@@ -62,6 +62,53 @@ public static class Placement
         return (w, h, mh, mv);
     }
 
+    /// <summary>
+    /// Which edges a right-button drag pressed at (<paramref name="x"/>, <paramref name="y"/>) inside a <paramref name="w"/>×<paramref name="h"/>
+    /// card moves: -1 = left/top, 1 = right/bottom, 0 = neither. Outer thirds pick that edge, a corner cell both; the centre cell takes the
+    /// corner of its quadrant, which is Sway's own floating_modifier rule (seatop_default: always the corner of the half the press is in).
+    /// </summary>
+    public static (int X, int Y) EdgeAt(double x, double y, int w, int h)
+    {
+        int ex = x * 3 < w ? -1 : x * 3 >= 2 * w ? 1 : 0;
+        int ey = y * 3 < h ? -1 : y * 3 >= 2 * h ? 1 : 0;
+        if (ex == 0 && ey == 0) { ex = x * 2 < w ? -1 : 1; ey = y * 2 < h ? -1 : 1; }
+        return (ex, ey);
+    }
+
+    /// <summary>
+    /// A right-button drag resize: the edges picked by <see cref="EdgeAt"/> follow the pointer (<paramref name="dx"/>, <paramref name="dy"/>,
+    /// totals since the press, see <see cref="Drag"/>), the opposite edges stay where they are on the output, so moving the left/top edge of a
+    /// left/top-anchored card also moves its margin. Start size and margins in px, <paramref name="minW"/>/<paramref name="minH"/> and the
+    /// returned W/H unscaled (what overlay.json keeps): the moving edge is placed from the width the card will really get (unscaled × scale,
+    /// rounded), otherwise a 1.5 scale shifted the opposite edge by a pixel. The moving edges stop at the output's edges and at the minimum.
+    /// </summary>
+    public static (int W, int H, int MarginH, int MarginV) EdgeResize(Anchor a, int edgeX, int edgeY, int startW, int startH, int startMarginH,
+        int startMarginV, double dx, double dy, int minW, int minH, int outW, int outH, double scale)
+    {
+        if (!(scale > 0)) scale = 1;
+        var (w, l) = Span(IsRight(a) ? outW - startMarginH - startW : startMarginH, startW, edgeX, dx, minW, outW, scale);
+        var (h, t) = Span(IsBottom(a) ? outH - startMarginV - startH : startMarginV, startH, edgeY, dy, minH, outH, scale);
+        var mh = IsRight(a) ? outW - l - (int)Math.Round(w * scale) : l;
+        var mv = IsBottom(a) ? outH - t - (int)Math.Round(h * scale) : t;
+        return (w, h, Math.Max(0, mh), Math.Max(0, mv));
+    }
+
+    /// <summary>One axis of <see cref="EdgeResize"/>: the unscaled length and the new near edge (left/top) in px.</summary>
+    private static (int Len, int Near) Span(int near, int len, int edge, double d, int min, int outLen, double scale)
+    {
+        var far = near + len;
+        var minPx = (int)Math.Round(min * scale);
+        int lo = outLen > 0 ? 0 : int.MinValue / 2, hi = outLen > 0 ? outLen : int.MaxValue / 2;
+        var px = edge switch
+        {
+            < 0 => far - Math.Min(Math.Max(near + (int)Math.Round(d), lo), far - minPx),
+            > 0 => Math.Max(Math.Min(far + (int)Math.Round(d), hi), near + minPx) - near,
+            _ => len,
+        };
+        var u = Math.Max(min, (int)Math.Round(px / scale));
+        return (u, edge < 0 ? far - (int)Math.Round(u * scale) : near);
+    }
+
     /// <summary>Keeps a saved place on screen after the output changed (another monitor, another resolution).</summary>
     public static (int H, int V) Fit(int marginH, int marginV, int outW, int outH, int cardW, int cardH) =>
         (Clamp(marginH, outW - cardW), Clamp(marginV, outH - cardH));

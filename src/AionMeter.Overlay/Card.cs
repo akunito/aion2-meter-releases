@@ -39,6 +39,10 @@ internal sealed class Card
     private readonly List<(Gtk.Box Pill, Gtk.Label Text, PillTone Tone)> _pills = new();
     private readonly Gtk.Box[] _lines = new Gtk.Box[3];
     private int[] _lineOf = [];
+    private int _pillCount, _reqW;
+    private int[] _pillNat = new int[16];
+    /// <summary>Frame margins + padding + footer and line insets around the pill lines, unscaled px (measured: allocation = request − 72).</summary>
+    private const int PillInset = 72;
     private double _bossFraction = -1;
     private string _language = "";
     private string _stateClass = "", _stateText = "";
@@ -306,7 +310,8 @@ internal sealed class Card
 
         // ------------------------------------------------ resize grip
         // gold, brighter under the pointer: Sway's floating_modifier (Alt+drag / Alt+right-drag) never reaches a layer surface, so this
-        // corner is the only resize handle and must be seen on every tab (the dim 6E5A33 mark was missed, Diego 2026-10-13)
+        // corner is the visible resize handle (a right-button drag anywhere also resizes) and must be seen on every tab (the dim 6E5A33
+        // mark was missed, Diego 2026-10-13)
         var gripIcon = Icons.View(Icons.Grip, 0xC9A45C, 14, 1.5);
         var grip = gripIcon.Widget;
         grip.CanTarget = true;
@@ -530,7 +535,24 @@ internal sealed class Card
         return b;
     }
 
-    public void SetSize(int w, int h) => Root.SetSizeRequest(w, h);
+    public void SetSize(int w, int h)
+    {
+        Root.SetSizeRequest(w, h);
+        if (w == _reqW) return;
+        _reqW = w;
+        LayoutPills(_pillCount);
+    }
+
+    /// <summary>The narrowest card (px) the footer pills fit into at their current texts.</summary>
+    public int PillMinWidth() => PillWrap.MinWidth(_pillNat.AsSpan(0, _pillCount + 1), _lines.Length) + (int)Math.Round(PillInset * _s.Scale);
+
+    /// <summary>The smallest surface the content allows (px, frame margins included): Root's own size request does not count here.</summary>
+    public (int W, int H) ContentMin()
+    {
+        _frame.Measure(Gtk.Orientation.Horizontal, -1, out var w, out _, out _, out _);
+        _frame.Measure(Gtk.Orientation.Vertical, -1, out var h, out _, out _, out _);
+        return (w, h);
+    }
 
     public void SetClickThrough(bool on)
     {
@@ -697,19 +719,20 @@ internal sealed class Card
     /// </summary>
     private void LayoutPills(int count)
     {
-        var avail = _pillLines.GetWidth();
-        if (avail <= 0) avail = (int)Math.Round((_s.Width - 20 - 2 - 16 - 20 - 12) * _s.Scale);
+        _pillCount = count;
+        // Measured in the nested sway (2026-10-14): lines laid out from the allocation kept a card that had been wider from shrinking (the
+        // longest line is the card's minimum width: 420 → 530 → resized back to 470 stayed 487), with the grip and the right-drag alike. The
+        // allocation lags a resize by a frame; the lines get the requested width minus PillInset (allocation 348 at a 420 request, 398 at 470).
+        var avail = (int)Math.Round(((_reqW > 0 ? _reqW / _s.Scale : _s.Width) - PillInset) * _s.Scale);
         var n = count + 1;
-        Span<int> line = stackalloc int[n];
-        int x = 0, l = 0;
+        if (_pillNat.Length < n) _pillNat = new int[Math.Max(n, 2 * _pillNat.Length)];
         for (var i = 0; i < n; i++)
         {
             var w = i == 0 ? _timers : _pills[i - 1].Pill;
-            w.Measure(Gtk.Orientation.Horizontal, -1, out _, out var nat, out _, out _);
-            if (x > 0 && x + nat > avail && l < _lines.Length - 1) { l++; x = 0; }
-            line[i] = l;
-            x += nat;
+            w.Measure(Gtk.Orientation.Horizontal, -1, out _, out _pillNat[i], out _, out _);
         }
+        Span<int> line = stackalloc int[n];
+        PillWrap.Lines(_pillNat.AsSpan(0, n), avail, line, _lines.Length);
         var same = _lineOf.Length == n;
         for (var i = 0; same && i < n; i++) same = _lineOf[i] == line[i];
         if (same) return;
