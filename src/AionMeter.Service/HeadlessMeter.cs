@@ -35,6 +35,8 @@ public sealed class HeadlessOptions
     public string? Forward { get; init; }
     /// <summary>A2M-27: "tcp://host:port" = read another meter's forwarded stream instead of capturing; null = settings.CaptureSource.</summary>
     public string? Source { get; init; }
+    /// <summary>Tests: the capture library probe (A2M-27, "no Npcap / Wine"); null = this PC's.</summary>
+    public Func<bool>? LibraryPresent { get; init; }
     /// <summary>With <see cref="Replay"/> and a forward: how long the replay waits for the first client before it starts anyway.</summary>
     public int ForwardWaitSeconds { get; init; } = 60;
 }
@@ -82,7 +84,7 @@ public sealed class HeadlessMeter : IDisposable
         Settings.Save();   // persist any migration done while loading (the App does the same)
         UiText.Use(Settings.Language);
         Core.Net.CloudflareHttp.SolverUrl = Settings.CloudflareSolverUrl;
-        var availability = CaptureAvailability.OfThisPc();
+        var availability = options.LibraryPresent is { } probe ? new CaptureAvailability(probe) : CaptureAvailability.OfThisPc();
         // A2M-27: opt-in only (flag or settings), on the one address given; a bad value leaves it off rather than guessing an address
         if ((options.Forward ?? Settings.ForwardListen) is { Length: > 0 } forward)
         {
