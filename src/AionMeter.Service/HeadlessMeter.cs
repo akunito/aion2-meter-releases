@@ -80,6 +80,7 @@ public sealed class HeadlessMeter : IDisposable
             {
                 DeviceName = options.Device ?? Settings.CaptureDevice,
                 RecordDirectory = Settings.RecordPackets ? Path.Combine(AppSettings.AppDataDir, "captures") : null,
+                RecordKeepBytes = (long)(Settings.CaptureKeepGb * 1_073_741_824),
                 LibraryPresent = () => availability.Present,
             });
         Engine = new MeterEngine(Settings, factory, availability);

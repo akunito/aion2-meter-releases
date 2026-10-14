@@ -121,6 +121,7 @@ public partial class App : Application
         {
             DeviceName = settings.CaptureDevice,
             RecordDirectory = settings.RecordPackets ? Path.Combine(AppSettings.AppDataDir, "captures") : null,
+            RecordKeepBytes = (long)(settings.CaptureKeepGb * 1_073_741_824),
             LibraryPresent = () => availability.Present,
         });
 

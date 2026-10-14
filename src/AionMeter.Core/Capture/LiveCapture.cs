@@ -14,6 +14,8 @@ public sealed class LiveCaptureOptions
 
     /// <summary>When set, every captured game packet is also written to a .pcap file in this folder.</summary>
     public string? RecordDirectory { get; set; }
+    /// <summary>Size budget for <see cref="RecordDirectory"/> (CaptureRetention): oldest recordings go first; 0 = unlimited.</summary>
+    public long RecordKeepBytes { get; set; }
 
     /// <summary>Whether the capture library can be loaded; null = <see cref="CaptureAvailability.DefaultProbe"/>. The app passes its
     /// <see cref="CaptureAvailability"/>, tests a stub. While it answers false the monitor never touches SharpPcap (A2M-27).</summary>
@@ -338,9 +340,22 @@ public sealed class LiveCapture : IEventSource
     {
         if (_options.RecordDirectory is not { Length: > 0 } dir) return;
         Directory.CreateDirectory(dir);
+        CaptureRetention.Prune(dir, _options.RecordKeepBytes, null);
         RecordingPath = Path.Combine(dir, $"aion2_{DateTime.Now:yyyyMMdd_HHmmss}.pcap");
         _writer = new CaptureFileWriterDevice(RecordingPath);
         _writer.Open(new DeviceConfiguration { LinkLayerType = device.LinkType });
+        _nextPruneMs = Environment.TickCount64 + PruneEveryMs;
+    }
+
+    // a long session is one growing file: re-check the budget every 10 min from the capture thread (one directory listing, no allocation per packet)
+    private const long PruneEveryMs = 600_000;
+    private long _nextPruneMs;
+
+    private void PruneRecordingsIfDue()
+    {
+        if (_writer is null || _options.RecordKeepBytes <= 0 || Environment.TickCount64 < _nextPruneMs) return;
+        _nextPruneMs = Environment.TickCount64 + PruneEveryMs;
+        CaptureRetention.Prune(_options.RecordDirectory!, _options.RecordKeepBytes, RecordingPath);
     }
 
     private void CloseDevice()
@@ -373,7 +388,7 @@ public sealed class LiveCapture : IEventSource
         Interlocked.Increment(ref _packets);
         try
         {
-            _writer?.Write(raw);
+            if (_writer is not null) { _writer.Write(raw); PruneRecordingsIfDue(); }
             if (SegmentReader.TryRead(raw, out var seg))
             {
                 if (seg.Key.SrcPort == 13328 && seg.Payload.Length > 0) NoteServerPacket(seg.TimeMs);

@@ -163,6 +163,8 @@ public sealed class AppSettings
     /// <summary>For <see cref="HistoryMode.BossesAndLong"/>: non-boss fights shorter than this are not saved.</summary>
     public int HistoryMinSeconds { get; set; } = 20;
     public bool RecordPackets { get; set; }
+    /// <summary>Size budget of the captures folder in GB, oldest recordings deleted first (CaptureRetention); 0 = unlimited.</summary>
+    public double CaptureKeepGb { get; set; } = 2;
     public string? CaptureDevice { get; set; }
 
     // Hotkeys (modifier+key, parsed by HotkeyManager)
