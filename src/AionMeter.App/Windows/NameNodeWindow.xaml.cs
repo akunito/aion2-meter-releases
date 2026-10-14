@@ -61,20 +61,23 @@ public partial class NameNodeWindow : Window
         var dir = Path.Combine(MeterService.DataDirectory, "atlas");
         var path = Path.Combine(dir, "gather-catalog.json");
         if (!File.Exists(path)) return;
-        const string lang = "en"; // Diego: English names only, in the atlas and in the picker
+        // A2M-47: labels in the names language (Settings → Names); objects.json and the map keep the English name
+        var lang = _meter.Settings.ResolvedNamesLanguage;
         try
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             foreach (var cat in doc.RootElement.GetProperty("categories").EnumerateArray())
             {
                 var catKey = cat.GetProperty("key").GetString() ?? "";
-                var header = new TextBlock { Text = (cat.TryGetProperty("en", out var cen) ? cen.GetString() : null) ?? catKey, Foreground = (Brush)FindResource("TextMute"), FontSize = 11, Margin = new Thickness(0, 6, 0, 2) };
+                var catEn = (cat.TryGetProperty("en", out var cen) ? cen.GetString() : null) ?? catKey;
+                var header = new TextBlock { Text = lang == "es" && cat.TryGetProperty("es", out var ces) && ces.GetString() is { Length: > 0 } catEs ? catEs : catEn, Foreground = (Brush)FindResource("TextMute"), FontSize = 11, Margin = new Thickness(0, 6, 0, 2) };
                 Catalog.Children.Add(header);
                 var row = new WrapPanel();
                 foreach (var node in cat.GetProperty("nodes").EnumerateArray())
                 {
                     var key = node.GetProperty("key").GetString() ?? "";
-                    var name = (node.TryGetProperty(lang, out var n) ? n.GetString() : null) ?? (node.TryGetProperty("en", out var en) ? en.GetString() : key) ?? key;
+                    var name = (node.TryGetProperty("en", out var en) ? en.GetString() : key) ?? key;
+                    var label = lang == "es" && node.TryGetProperty("es", out var nes) && nes.GetString() is { Length: > 0 } es ? es : name;
                     var icon = Path.Combine(dir, "icons", key + ".png");
                     var content = new StackPanel { Orientation = Orientation.Horizontal };
                     if (File.Exists(icon))
@@ -83,7 +86,7 @@ public partial class NameNodeWindow : Window
                         bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.UriSource = new Uri(icon); bmp.DecodePixelWidth = 40; bmp.EndInit(); bmp.Freeze();
                         content.Children.Add(new Image { Source = bmp, Width = 24, Height = 24, Margin = new Thickness(0, 0, 6, 0) });
                     }
-                    content.Children.Add(new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center });
+                    content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
                     var selected = _current is not null && string.Equals(_current.Trim(), name, StringComparison.OrdinalIgnoreCase);
                     if (selected) _currentShown = true;
                     // The kind already chosen for this code stands out in the theme's gold (right-click rename case).

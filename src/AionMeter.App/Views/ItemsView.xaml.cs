@@ -72,8 +72,10 @@ public partial class ItemsView : UserControl
     {
         _meter = meter;
         _icons = icons ?? meter.ItemIconCache;
-        _lang = meter.Settings.PriceSearchLanguage == "es" ? "es" : "en";
+        _lang = meter.Settings.ResolvedNamesLanguage;
         InitializeComponent();
+        ((ComboBoxItem)LangBox.Items[0]).Content = T.NamesShort + ": English";   // A2M-47: every game name, not only this tab's
+        ((ComboBoxItem)LangBox.Items[1]).Content = T.NamesShort + ": Español";
         _syncing = true;
         LangBox.SelectedIndex = _lang == "es" ? 1 : 0;
         foreach (var (mode, label) in new[] { (ItemSortMode.Game, T.ItemsSortGame), (ItemSortMode.Grade, T.ItemsSortGrade), (ItemSortMode.Name, T.ItemsSortName), (ItemSortMode.Value, T.ItemsSortValue) })
@@ -99,7 +101,7 @@ public partial class ItemsView : UserControl
             _reloadTick.Stop(); _iconTick.Stop();
         };
         // hidden tab: one reload when it comes back, not one per packet
-        IsVisibleChanged += (_, e) => { if (!_sample && e.NewValue is true && _stale) { _stale = false; Reload(); } };
+        IsVisibleChanged += (_, e) => { if (!_sample && e.NewValue is true && !SyncNames() && _stale) { _stale = false; Reload(); } };
         SizeChanged += (_, _) => ApplyWidth();
     }
 
@@ -885,13 +887,29 @@ public partial class ItemsView : UserControl
 
     private void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape && SearchBox.Text.Length > 0) { SearchBox.Text = ""; e.Handled = true; } }
 
+    /// <summary>A2M-47: this switch writes the one names language (Settings → Names) and the engine's tables follow it.</summary>
     private void Lang_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_syncing || LangBox.SelectedItem is not ComboBoxItem { Tag: string lang }) return;
         _lang = lang;
-        if (!_sample && _meter.Settings.PriceSearchLanguage != lang) { _meter.Settings.PriceSearchLanguage = lang; _meter.Settings.Save(); }
+        if (!_sample && _meter.Settings.ResolvedNamesLanguage != lang) { _meter.Settings.PickNames(lang); _meter.Settings.Save(); _meter.ApplyNamesLanguage(); }
         BuildLegend();
         Render();
+    }
+
+    /// <summary>Back on screen: the names language may have moved meanwhile (Settings, another tab's switch). True when it re-rendered.</summary>
+    private bool SyncNames()
+    {
+        var lang = _meter.Settings.ResolvedNamesLanguage;
+        if (lang == _lang) return false;
+        _lang = lang;
+        _syncing = true;
+        LangBox.SelectedIndex = lang == "es" ? 1 : 0;
+        _syncing = false;
+        _stale = false;
+        BuildLegend();
+        Reload();
+        return true;
     }
 
     private void Sort_Changed(object sender, SelectionChangedEventArgs e)

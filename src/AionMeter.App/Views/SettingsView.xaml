@@ -75,6 +75,17 @@
                             </StackPanel>
                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
                                        Text="{Binding LanguageHint, Source={x:Static s:UiText.Current}}" />
+                            <!-- A2M-47: game names in their own language; rows in the order of the GTK SettingsView (NamesIndex) -->
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding NamesLanguageLabel, Source={x:Static s:UiText.Current}}" Style="{StaticResource Label}" />
+                                <ComboBox x:Name="NamesBox" MinWidth="160">
+                                    <ComboBoxItem Content="{Binding NamesSameAsUi, Source={x:Static s:UiText.Current}}" />
+                                    <ComboBoxItem Content="English" Tag="en" />
+                                    <ComboBoxItem Content="Español" Tag="es" />
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                       Text="{Binding NamesLanguageHint, Source={x:Static s:UiText.Current}}" />
                         </StackPanel>
                     </Border>
 

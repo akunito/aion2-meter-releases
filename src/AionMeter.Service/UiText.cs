@@ -324,7 +324,11 @@ public sealed class UiText
     // ---------------------------------------------------------------- settings window
     public string SettingsTitle { get; init; } = "Settings";
     public string SecLanguage { get; init; } = "LANGUAGE";
-    public string LanguageHint { get; init; } = "Interface, skill and monster names. Applied immediately.";
+    public string LanguageHint { get; init; } = "Interface texts; item, skill and monster names follow it unless Names below says otherwise. Applied immediately.";
+    public string NamesLanguageLabel { get; init; } = "Names: items, skills and monsters";
+    public string NamesSameAsUi { get; init; } = "Same as interface";
+    public string NamesLanguageHint { get; init; } = "Item, recipe, skill, stigma, Daevanion, monster and boss names in every tab and on the DPS card. The name switches in Items, Build and Prices change this same setting. Item search finds both languages.";
+    public string NamesShort { get; init; } = "Names";
     public string SecOverlay { get; init; } = "OVERLAY";
     public string BarsRelative { get; init; } = "Bars relative to the top player";
     public string BarsRelativeHint { get; init; } = "The leader's bar is full and everyone else is sized against it. Off: bars show share of party damage.";
@@ -492,7 +496,7 @@ public sealed class UiText
     public string ItemsTitle { get; init; } = "Items";
     public string TrayItems { get; init; } = "Items: bag, warehouses and the shared account warehouse of your characters";
     public string ItemsSearch { get; init; } = "Find an item (English or Spanish)…";
-    public string ItemsLangTip { get; init; } = "Language of item names (the same setting as Craft and Prices)";
+    public string ItemsLangTip { get; init; } = "Language of item, skill and monster names in every tab (the same setting as Settings → Names)";
     public string ItemsShow { get; init; } = "Show";
     public string ItemsAll { get; init; } = "All";
     public string ItemsEquipment { get; init; } = "Equipment";
@@ -626,7 +630,7 @@ public sealed class UiText
     public string BuildImportBadUrl { get; init; } = "That is not a questlog.gg link: paste a skill-builder or a daevanion-planner build link";
     public string BuildDeleteTip { get; init; } = "Delete this build";
     public string BuildDeleteConfirm { get; init; } = "Delete the build \"{0}\"?";
-    public string BuildSkillLangTip { get; init; } = "Language of skill names and descriptions";
+    public string BuildSkillLangTip { get; init; } = "Language of skill names and descriptions, and of every other game name (the same setting as Settings → Names)";
     public string BuildCard { get; init; } = "Build";
     public string BuildOpenSource { get; init; } = "Open on questlog.gg";
     public string BuildShowDone { get; init; } = "Show skills already at the build level";
@@ -831,7 +835,7 @@ public sealed class UiText
     public string PricesSampled { get; init; } = "site sample {0}";
     public string PricesHourlyNote { get; init; } = "aion2.exchange samples each item about once an hour: Check now re-reads, it cannot force a new sample";
     public string PricesSearch { get; init; } = "search an item by name…";
-    public string PricesSearchLang { get; init; } = "Search language";
+    public string PricesSearchLang { get; init; } = "Language of item names and of the search (the same setting as Settings → Names)";
     public string PricesExpandTip { get; init; } = "Click for the price chart";
     public string PricesRange24h { get; init; } = "24h";
     public string PricesRange7d { get; init; } = "7 days";
@@ -1335,7 +1339,11 @@ public sealed class UiText
 
         SettingsTitle = "Ajustes",
         SecLanguage = "IDIOMA",
-        LanguageHint = "Interfaz y nombres de habilidades y monstruos. Se aplica al momento.",
+        LanguageHint = "Textos de la interfaz; los nombres de objetos, habilidades y monstruos la siguen salvo que Nombres diga otra cosa. Se aplica al momento.",
+        NamesLanguageLabel = "Nombres: objetos, habilidades y monstruos",
+        NamesSameAsUi = "Igual que la interfaz",
+        NamesLanguageHint = "Nombres de objetos, recetas, habilidades, estigmas, Daevanion, monstruos y jefes en todas las pestañas y en la tarjeta de DPS. Los selectores de nombres de Objetos, Build y Precios cambian este mismo ajuste. La búsqueda de objetos encuentra los dos idiomas.",
+        NamesShort = "Nombres",
         SecOverlay = "OVERLAY",
         BarsRelative = "Barras relativas al primer jugador",
         BarsRelativeHint = "La barra del líder va llena y las demás se miden contra ella. Desactivado: las barras muestran la parte del daño del grupo.",
@@ -1495,7 +1503,7 @@ public sealed class UiText
         ItemsTitle = "Objetos",
         TrayItems = "Objetos: bolsa, almacenes y el almacén de cuenta compartido de tus personajes",
         ItemsSearch = "Busca un objeto (inglés o español)…",
-        ItemsLangTip = "Idioma de los nombres de objetos (el mismo ajuste que Artesanía y Precios)",
+        ItemsLangTip = "Idioma de los nombres de objetos, habilidades y monstruos en todas las pestañas (el mismo ajuste que Ajustes → Nombres)",
         ItemsShow = "Mostrar",
         ItemsAll = "Todo",
         ItemsEquipment = "Equipo",
@@ -1628,7 +1636,7 @@ public sealed class UiText
         BuildImportBadUrl = "Eso no es un enlace de questlog.gg: pega el enlace de una build del skill-builder o del daevanion-planner",
         BuildDeleteTip = "Borrar esta build",
         BuildDeleteConfirm = "¿Borrar la build \"{0}\"?",
-        BuildSkillLangTip = "Idioma de los nombres y descripciones de habilidades",
+        BuildSkillLangTip = "Idioma de los nombres y descripciones de habilidades, y de todos los demás nombres del juego (el mismo ajuste que Ajustes → Nombres)",
         BuildCard = "Build",
         BuildOpenSource = "Abrir en questlog.gg",
         BuildShowDone = "Mostrar habilidades que ya están al nivel de la build",
@@ -1833,7 +1841,7 @@ public sealed class UiText
         PricesSampled = "muestra de la web {0}",
         PricesHourlyNote = "aion2.exchange toma una muestra de cada objeto más o menos una vez por hora: Comprobar ahora vuelve a leer, no puede forzar una muestra nueva",
         PricesSearch = "busca un objeto por nombre…",
-        PricesSearchLang = "Idioma de búsqueda",
+        PricesSearchLang = "Idioma de los nombres de objetos y de la búsqueda (el mismo ajuste que Ajustes → Nombres)",
         PricesExpandTip = "Haz clic para ver el gráfico de precios",
         PricesRange24h = "24 h",
         PricesRange7d = "7 días",

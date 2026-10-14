@@ -572,7 +572,7 @@ internal sealed partial class AtlasView : HostedView
         UiLoop.Post(Refresh);   // the click came from a catalogue chip that the next panel rebuilds
     }
 
-    /// <summary>data/atlas/gather-catalog.json: the 17 kinds by category, English names (Diego: English only in the atlas), the current one gold.</summary>
+    /// <summary>data/atlas/gather-catalog.json: the kinds by category in the names language (A2M-47; objects.json keeps the English name), the current one gold.</summary>
     private void BuildCatalog(string? current)
     {
         while (_nameCatalog.GetFirstChild() is { } c) _nameCatalog.Remove(c);
@@ -581,22 +581,25 @@ internal sealed partial class AtlasView : HostedView
         var width = Math.Max(200, Viewport.W - 60);
         Gtk.Box? line = null;
         double used = 0;
+        var lang = Shell.Settings.ResolvedNamesLanguage;
         foreach (var node in _catalog)
         {
             var selected = AtlasCatalog.IsCurrent(current, node.Name);
-            var chip = CatalogChip(node, selected, out var est);
+            var chip = CatalogChip(node, lang, selected, out var est);
             if (line is null || used + est > width) { line = UiKit.HBox(5); _nameCatalog.Append(line); used = 0; }
             line.Append(chip);
             used += est + 5;
         }
     }
 
-    /// <summary>A catalogue chip: icon + English name, gold when it is the current name; <paramref name="width"/> = estimated px (Inter 12 ≈ 6.8 px a character).</summary>
-    private Gtk.Button CatalogChip(CatalogNode node, bool selected, out double width)
+    /// <summary>A catalogue chip: icon + name in <paramref name="lang"/>, gold when it is the current name; clicking stores the English name;
+    /// <paramref name="width"/> = estimated px (Inter 12 ≈ 6.8 px a character).</summary>
+    private Gtk.Button CatalogChip(CatalogNode node, string lang, bool selected, out double width)
     {
         var row = UiKit.HBox();
         row.Valign = Gtk.Align.Center;
-        width = 18 + node.Name.Length * 6.8;
+        var text = node.Label(lang);
+        width = 18 + text.Length * 6.8;
         if (Texture(node.Key) is { } tex)
         {
             var img = ItemKit.Image(tex, 22);
@@ -604,7 +607,7 @@ internal sealed partial class AtlasView : HostedView
             row.Append(img);
             width += 28;
         }
-        var label = Gtk.Label.New(node.Name);
+        var label = Gtk.Label.New(text);
         UiKit.SetFg(label, selected ? Fg.GoldBright : Fg.Text);
         label.AddCssClass(KitCss.SizeClass(12));
         row.Append(label);
@@ -614,7 +617,7 @@ internal sealed partial class AtlasView : HostedView
         b.SetCursorFromName("pointer");
         b.FocusOnClick = false;
         b.SetSizeRequest(-1, UiKit.Px(30));
-        b.SetTooltipText(node.CategoryName);
+        b.SetTooltipText(node.CategoryLabel(lang));
         var (n, c) = (node.Name, node.Category);
         b.OnClicked += (_, _) => NameNode(n, c);
         return b;

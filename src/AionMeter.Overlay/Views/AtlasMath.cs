@@ -246,7 +246,13 @@ internal sealed class AtlasTrail
 }
 
 /// <summary>One kind of data/atlas/gather-catalog.json (English names: Diego wants English only in the atlas).</summary>
-internal sealed record CatalogNode(string Category, string CategoryName, string Key, string Name);
+/// <summary>A gather kind. <see cref="Name"/> (English) is what objects.json stores and the map labels show; the Spanish names are display only
+/// (A2M-47 Settings → Names).</summary>
+internal sealed record CatalogNode(string Category, string CategoryName, string Key, string Name, string? CategoryNameEs = null, string? NameEs = null)
+{
+    public string Label(string lang) => lang == "es" && NameEs is { Length: > 0 } es ? es : Name;
+    public string CategoryLabel(string lang) => lang == "es" && CategoryNameEs is { Length: > 0 } es ? es : CategoryName;
+}
 
 internal static class AtlasCatalog
 {
@@ -262,10 +268,12 @@ internal static class AtlasCatalog
             {
                 var catKey = cat.GetProperty("key").GetString() ?? "";
                 var catName = (cat.TryGetProperty("en", out var cen) ? cen.GetString() : null) ?? catKey;
+                var catEs = cat.TryGetProperty("es", out var ces) ? ces.GetString() : null;
                 foreach (var node in cat.GetProperty("nodes").EnumerateArray())
                 {
                     var key = node.GetProperty("key").GetString() ?? "";
-                    list.Add(new CatalogNode(catKey, catName, key, (node.TryGetProperty("en", out var en) ? en.GetString() : null) ?? key));
+                    list.Add(new CatalogNode(catKey, catName, key, (node.TryGetProperty("en", out var en) ? en.GetString() : null) ?? key,
+                        catEs, node.TryGetProperty("es", out var es) ? es.GetString() : null));
                 }
             }
         }

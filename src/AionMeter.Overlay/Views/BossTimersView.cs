@@ -286,7 +286,7 @@ internal sealed class BossTimersView : HostedView
         }
         var tip = BossTimersLogic.SourceTip(t, now, T);
         if (tip != row.StatusTip) { row.StatusTip = tip; row.StatusBox.SetTooltipText(tip); }
-        var zone = e.Timers.MapName(t.MapId, T.Code)
+        var zone = e.Timers.MapName(t.MapId, e.Data.Language)
                    ?? (t.SlotId != 0 ? string.Format(T.MapNumber, t.MapId) : t.MapId != 0 ? e.Data.MapName(t.MapId) : t.Zone);
         Set(row.Meta, ref row.MetaText, BossTimersLogic.Meta(zone, t, now, T));
         row.Respawn = t.RespawnMinutes;

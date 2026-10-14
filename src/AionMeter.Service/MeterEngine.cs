@@ -38,7 +38,7 @@ public class MeterEngine : IDisposable
         Settings = settings;
         CaptureFactory = captureFactory;
         Availability = availability ?? CaptureAvailability.OfThisPc();
-        Data = GameData.Load(DataDirectory, UiText.Normalize(settings.Language));
+        Data = GameData.Load(DataDirectory, settings.ResolvedNamesLanguage);
         Options = new MeterOptions();
         settings.ApplyTo(Options);
         Tracker = new CombatTracker(Data, Options);
@@ -153,14 +153,10 @@ public class MeterEngine : IDisposable
         Settings.CopyFrom(fresh);
         // the factory reads CaptureDevice / RecordPackets / CaptureSource when it opens the adapter: a new choice needs a reopen (the WPF Save does the same)
         if (capture != (Settings.CaptureDevice, Settings.RecordPackets, Settings.CaptureSource) && CaptureFactory is not null && !Viewer) Task.Run(RestartCapture);
-        if (UiText.Normalize(Settings.Language) != UiText.Normalize(language))
-        {
-            Data.ReloadNames(DataDirectory, Settings.Language);
-            UiText.Use(Settings.Language);
-        }
+        if (UiText.Normalize(Settings.Language) != UiText.Normalize(language)) UiText.Use(Settings.Language);
         Core.Net.CloudflareHttp.SolverUrl = Settings.CloudflareSolverUrl;
         ApplySettingsInPlace();
-        Log.Info($"Settings reloaded from settings.json (language {Settings.Language}, measure {Settings.TargetMode}, server {Settings.ServerId})");
+        Log.Info($"Settings reloaded from settings.json (language {Settings.Language}, names {Data.Language}, measure {Settings.TargetMode}, server {Settings.ServerId})");
         if (!Viewer && Settings.ShareAtlasNames) Telemetry.QueueAtlas(this);   // switched on in the Linux UI: the names answered so far go as one batch
         return true;
     }
@@ -1029,12 +1025,10 @@ public class MeterEngine : IDisposable
     {
         language = UiText.Normalize(language);
         Settings.Language = language;
-        // A2M-47 "general language": switching the interface also moves the help pages, skill catalogue and item-name
-        // search to it; each keeps its own EN/ES selector for overriding afterwards.
+        // A2M-47 "general language": switching the interface also moves the help pages to it (they keep their own EN/ES selector);
+        // game names follow it unless Settings → Names picked a language of their own (NamesLanguage).
         Settings.HelpLanguage = language;
-        Settings.SkillLanguage = language;
-        Settings.PriceSearchLanguage = language;
-        Data.ReloadNames(DataDirectory, language);
+        ApplyNamesLanguage();
         UiText.Use(language);
         Settings.Save();
     }
@@ -1099,8 +1093,19 @@ public class MeterEngine : IDisposable
     }
 
     /// <summary><see cref="ApplySettings"/> without writing settings.json (the daemon after a reload, the Linux UI after its own save).</summary>
+    /// <summary>Reloads the skill / NPC / map tables when <see cref="AppSettings.ResolvedNamesLanguage"/> moved (Settings → Names or the
+    /// interface language with names following it). True when they were reloaded.</summary>
+    public bool ApplyNamesLanguage()
+    {
+        var names = Settings.ResolvedNamesLanguage;
+        if (Data.Language == names) return false;
+        Data.ReloadNames(DataDirectory, names);
+        return true;
+    }
+
     public void ApplySettingsInPlace()
     {
+        ApplyNamesLanguage();
         Settings.ApplyTo(Options);
         OnSettingsApplied();
         RefreshServer();
@@ -1108,6 +1113,7 @@ public class MeterEngine : IDisposable
 
     public void ApplySettings()
     {
+        ApplyNamesLanguage();
         Settings.ApplyTo(Options);
         OnSettingsApplied();
         Settings.Save();

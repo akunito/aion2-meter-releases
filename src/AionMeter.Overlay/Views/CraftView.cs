@@ -239,7 +239,7 @@ internal sealed class CraftView : HostedView
         if (_detached) return;
         if (Shell.Engine is not { } m) { _status.SetText("…"); return; }
         var names = m.Names;
-        var lang = Shell.Settings.PriceSearchLanguage;
+        var lang = Shell.Settings.ResolvedNamesLanguage;
         var n = new CraftNames(
             id => names.Name(id, lang) ?? m.Items.NameOf(id),
             id => names.Label(id, lang) ?? m.Items.NameOf(id),   // materials: "(legendary)" only on an ambiguous name
@@ -418,7 +418,7 @@ internal sealed class CraftView : HostedView
             _output = r.Output;
             AskIcon();
             _name.SetText(r.Name);
-            var lang = _owner.Shell.Settings.PriceSearchLanguage;
+            var lang = _owner.Shell.Settings.ResolvedNamesLanguage;
             if (r.Grade == Grade.Unknown) _chip.Visible = false;
             else
             {

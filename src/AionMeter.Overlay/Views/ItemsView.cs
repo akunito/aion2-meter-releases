@@ -68,7 +68,7 @@ internal sealed class ItemsView : HostedView
     {
         ItemsKit.EnsureCss(Shell.Host.Scale);
         _watch = DataWatch.Of(shell);
-        _lang = shell.Settings.PriceSearchLanguage == "es" ? "es" : "en";
+        _lang = shell.Settings.ResolvedNamesLanguage;
         _nmF = Nm;
         _gradeF = id => M.Grades.Of(id);
         _priceF = Price;
@@ -92,7 +92,7 @@ internal sealed class ItemsView : HostedView
         var (searchHost, search) = ItemKit.SearchBox(T.ItemsSearch, 220, () => _searchTick.Restart());
         _search = search;
         top.Append(searchHost);
-        _langBox = UiKit.Combo(["Items: English", "Items: Español"], _lang == "es" ? 1 : 0, 130);
+        _langBox = UiKit.Combo(NamesLabels(), _lang == "es" ? 1 : 0, 130);
         _langBox.MarginEnd = UiKit.Px(10);
         UiKit.Tip(_langBox, T.ItemsLangTip);
         UiKit.OnSelected(_langBox, () => { if (!_syncing) LangChanged(); });
@@ -228,8 +228,9 @@ internal sealed class ItemsView : HostedView
         _search.PlaceholderText = T.ItemsSearch;
         UiKit.Tip(_langBox, T.ItemsLangTip);
         _sortLabel.SetText(T.ItemsSort);
+        _lang = Shell.Settings.ResolvedNamesLanguage;
         _syncing = true;
-        try { UiKit.SetItems(_sortBox, SortLabels(), (int)_sort); }
+        try { UiKit.SetItems(_sortBox, SortLabels(), (int)_sort); UiKit.SetItems(_langBox, NamesLabels(), _lang == "es" ? 1 : 0); }
         finally { _syncing = false; }
         _sideTitle.SetText(T.ItemsAcross);
         _noChar.SetText(T.ItemsNoChar);
@@ -1059,16 +1060,20 @@ internal sealed class ItemsView : HostedView
         _toolsLine2.Visible = !one;
     }
 
+    private static string[] NamesLabels() => [UiText.Current.NamesShort + ": English", UiText.Current.NamesShort + ": Español"];
+
+    /// <summary>A2M-47: this switch writes the one names language (Settings → Names); SaveSettings raises LanguageChanged on every view,
+    /// this one included, which re-reads it. Posted: LanguageChanged refills this drop-down, never inside its own selection notify.</summary>
     private void LangChanged()
     {
         var lang = UiKit.Selected(_langBox) == 1 ? "es" : "en";
         if (lang == _lang) return;
-        _lang = lang;
-        Shell.RefreshSettings();
-        if (Shell.Settings.PriceSearchLanguage != lang) { Shell.Settings.PriceSearchLanguage = lang; Shell.SaveSettings(); }
-        _matches.Clear();
-        BuildLegend();
-        Render();
+        UiLoop.Post(() =>
+        {
+            Shell.RefreshSettings();
+            Shell.Settings.PickNames(lang);
+            Shell.SaveSettings();
+        });
     }
 
     private void RetryIcons()

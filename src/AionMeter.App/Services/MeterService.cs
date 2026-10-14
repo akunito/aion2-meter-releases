@@ -30,7 +30,7 @@ public sealed class MeterService : MeterEngine
     /// <summary>A2M-44: what the player card needs for its profile tabs (item/skill icons, skill catalogue, profiles known without the network).</summary>
     public Views.ProfileDeps CardDeps
     {
-        get => _cardDeps ??= new Views.ProfileDeps(ItemIconCache, Skills, () => Settings.SkillLanguage, KnownProfile);
+        get => _cardDeps ??= new Views.ProfileDeps(ItemIconCache, Skills, () => Settings.ResolvedNamesLanguage, KnownProfile);
         set => _cardDeps = value;   // render tool: sample profile and icon folder
     }
 

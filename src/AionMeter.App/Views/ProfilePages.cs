@@ -14,7 +14,7 @@ namespace AionMeter.App.Views;
 
 /// <summary>What the player card needs beyond a fight to draw a profile: icons (item, skill, pet, portrait), skill catalogue, the profile source.</summary>
 /// <param name="Lookup">The profile known without the network for (name, server id), e.g. <see cref="MeterService.KnownProfile"/>.</param>
-public sealed record ProfileDeps(IconCache Icons, SkillBook Skills, Func<string> SkillLanguage, Func<string, int, CharacterProfile?>? Lookup);
+public sealed record ProfileDeps(IconCache Icons, SkillBook Skills, Func<string> NamesLanguage, Func<string, int, CharacterProfile?>? Lookup);
 
 /// <summary>
 /// A2M-44: the card's Profile / Skills / Daevanion pages, built in code from a <see cref="CharacterProfile"/> (questlog's armory layout in
@@ -240,7 +240,7 @@ public sealed class ProfilePages
     {
         var name = new TextBlock { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = ItemTile.TextOf(grade) };
         name.Inlines.Add((it.Enchant > 0 ? "+" + it.Enchant.ToString(CultureInfo.InvariantCulture) + " " : "") + it.Name);
-        if (GradeTag.Of(grade, _deps.SkillLanguage()) is { } tag) name.Inlines.Add(tag.Inline());
+        if (GradeTag.Of(grade, _deps.NamesLanguage()) is { } tag) name.Inlines.Add(tag.Inline());
         var stack = new StackPanel();
         stack.Children.Add(name);
         var line = ProfileLayout.SlotLabel(it.Slot) + (it.Exceed > 0 ? " · " + string.Format(T.ProfExceed, it.Exceed) : "");
@@ -368,7 +368,7 @@ public sealed class ProfilePages
         tile.Set(s.Id, icon, sub, look, 0, false, s.Level > 0 ? s.Level.ToString(CultureInfo.InvariantCulture) : null, null, null);
         if (icon is null && stem is { Length: > 0 })
             _pending.Add(() => { if (Fetch() is not { } img) return false; tile.SetIcon(img); return true; });
-        var lang = _deps.SkillLanguage();
+        var lang = _deps.NamesLanguage();
         var name = info?.Name(lang) is { Length: > 0 } n ? n : s.Name;
         var cell = new StackPanel { Width = 66, Margin = new Thickness(0, 0, 4, 8), Background = Brushes.Transparent };
         cell.Children.Add(tile);

@@ -104,13 +104,13 @@ internal sealed class BuildView : HostedView
     {
         BuildColors.EnsureCss();
         var s = shell.Settings;
-        _lang = s.SkillLanguage == "es" ? "es" : "en";
+        _lang = s.ResolvedNamesLanguage;
         _showDone = s.BuildShowDone;
 
         // --- sub-tabs | skill language; character + build; actions (Avalonia's WrapPanels as fixed lines that fit the card's ~490 px)
         _subSkills = BuildUi.SubTab(T.BuildSubSkills, () => SetSub(false));
         _subDaev = BuildUi.SubTab(T.BuildSubDaevanion, () => SetSub(true));
-        _langBox = BuildUi.Combo(["Skills: English", "Skills: Español"], _lang == "es" ? 1 : 0, 140, 16);
+        _langBox = BuildUi.Combo(NamesLabels(), _lang == "es" ? 1 : 0, 140, 16);
         _langBox.SetTooltipText(T.BuildSkillLangTip);
         UiKit.OnSelected(_langBox, () => { if (!_syncing) LangChanged(UiKit.Selected(_langBox) == 1 ? "es" : "en"); });
         var top = UiKit.HBox();
@@ -450,8 +450,15 @@ internal sealed class BuildView : HostedView
     {
         base.LanguageChanged();
         Title = T.BuildTitle;
+        _lang = Shell.Settings.ResolvedNamesLanguage;
+        _langBox.SetTooltipText(T.BuildSkillLangTip);
+        _syncing = true;
+        try { UiKit.SetItems(_langBox, NamesLabels(), _lang == "es" ? 1 : 0); }
+        finally { _syncing = false; }
         if (IsShown) Render();
     }
+
+    private static string[] NamesLabels() => [UiText.Current.NamesShort + ": English", UiText.Current.NamesShort + ": Español"];
 
     private void OnIcon() { if (!_iconTick.IsEnabled) _iconTick.Start(); }
 
@@ -1258,13 +1265,17 @@ internal sealed class BuildView : HostedView
         Render();
     }
 
+    /// <summary>A2M-47: this switch writes the one names language (Settings → Names); SaveSettings raises LanguageChanged on every view,
+    /// this one included, which re-reads it and renders. Posted: LanguageChanged refills this drop-down.</summary>
     private void LangChanged(string lang)
     {
-        _lang = lang;
-        Shell.RefreshSettings();
-        Shell.Settings.SkillLanguage = lang;
-        Shell.SaveSettings();
-        Render();
+        if (lang == _lang) return;
+        UiLoop.Post(() =>
+        {
+            Shell.RefreshSettings();
+            Shell.Settings.PickNames(lang);
+            Shell.SaveSettings();
+        });
     }
 
     private void BuildBoxChanged()

@@ -227,7 +227,7 @@ internal sealed class ProfilePages
     {
         var stack = UiKit.VBox();
         var groups = ProfileLayout.Skills(p);
-        var lang = _shell.Settings.SkillLanguage;
+        var lang = _shell.Settings.ResolvedNamesLanguage;
         var first = true;
         foreach (var kind in (string[])["active", "stigma", "passive"])
         {

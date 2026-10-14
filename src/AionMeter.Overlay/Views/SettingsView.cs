@@ -25,7 +25,7 @@ internal sealed class SettingsView : HostedView
     private Gtk.CheckButton _saveHistory = null!, _record = null!, _icons = null!, _abyss = null!, _checkUpdates = null!, _autoInstall = null!, _checkUpstream = null!;
     private Gtk.CheckButton _shareUsage = null!, _shareBuilds = null!, _shareBackup = null!, _shareAtlas = null!, _repSummary = null!, _repTop = null!, _repInv = null!;
     private Gtk.Entry _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!, _backupCode = null!;
-    private Gtk.DropDown _language = null!, _maxRows = null!, _mode = null!, _historyMode = null!, _device = null!, _region = null!, _server = null!, _channel = null!;
+    private Gtk.DropDown _language = null!, _names = null!, _maxRows = null!, _mode = null!, _historyMode = null!, _device = null!, _region = null!, _server = null!, _channel = null!;
     private Gtk.Scale _opacity = null!, _rowSize = null!, _uiScale = null!;
     private Gtk.Label _backupWarn = null!, _backupOff = null!, _copyState = null!, _serverNow = null!, _daemonLine = null!, _restartState = null!;
     private Gtk.Button _restart = null!;
@@ -110,6 +110,9 @@ internal sealed class SettingsView : HostedView
         _language = UiKit.Combo(["English", "Español"], UiText.Normalize(s.Language) == "es" ? 1 : 0);
         lang.Append(UiKit.Field("Language / Idioma", _language, 0));
         lang.Append(UiKit.Hint(T.LanguageHint, 0));
+        _names = UiKit.Combo([T.NamesSameAsUi, "English", "Español"], AppSettings.NamesIndex(s.NamesLanguage));
+        lang.Append(UiKit.Field(T.NamesLanguageLabel, _names));
+        lang.Append(UiKit.Hint(T.NamesLanguageHint, 0));
         stack.Append(UiKit.Section(lang, "LANGUAGE / IDIOMA"));
 
         // Overlay
@@ -460,11 +463,9 @@ internal sealed class SettingsView : HostedView
         s.CaptureDevice = _devices[Math.Max(0, UiKit.Selected(_device))].Name;
         s.RecordPackets = _record.Active;
         s.Language = UiKit.Selected(_language) == 1 ? "es" : "en";
-        if (UiText.Normalize(s.Language) != UiText.Normalize(previousLanguage))
-        {
-            // A2M-47 "general language": the help pages, skill catalogue and item search follow the interface (MeterEngine.SetLanguage)
-            s.HelpLanguage = s.SkillLanguage = s.PriceSearchLanguage = s.Language;
-        }
+        // A2M-47 "general language": the help pages follow the interface (MeterEngine.SetLanguage); game names follow NamesLanguage
+        if (UiText.Normalize(s.Language) != UiText.Normalize(previousLanguage)) s.HelpLanguage = s.Language;
+        s.NamesLanguage = AppSettings.NamesValue(UiKit.Selected(_names));
         s.DownloadIcons = _icons.Active;
         s.AbyssLogsPercentile = _abyss.Active;
         s.CheckUpdates = _checkUpdates.Active;
