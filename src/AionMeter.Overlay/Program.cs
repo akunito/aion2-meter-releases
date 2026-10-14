@@ -20,7 +20,8 @@ if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
           --data-dir  the meter's data dir: overlay.json, ui.json, and what the viewer engine reads (default $XDG_DATA_HOME/AionMeter)
           --tab KEY   open a tab at start (settings, or a ported strip tab); --help-page KEY a help page; --window report|restore|import a dialog
         Mouse: drag the card (its header on every tab, or any part that is not a control) to move it, also onto another output;
-        the gold bottom-right corner resizes it, the wheel there zooms. Sway's floating_modifier (Alt+drag) does not apply to layer surfaces.
+        right-button drag anywhere resizes it from the nearest edge or corner (like Sway's Alt+right-drag; Alt optional), and so does the gold
+        bottom-right corner; the wheel there zooms. Sway's floating_modifier itself does not apply to layer surfaces.
         Signals (pid in $XDG_RUNTIME_DIR/aionmeter-overlay.pid): SIGUSR1 toggles click-through, SIGUSR2 hides/shows the card.
         The tab pills switch the card in place (A2M-50); tabs not ported to GTK yet are dimmed: the tools window (aionmeter-ui, Hyper+Shift+M) has them.
         Needs libgtk-4, libgtk4-layer-shell and a wlroots compositor (Sway); no Xwayland.
