@@ -58,10 +58,11 @@ internal static class Css
         .footer { margin: 8px 10px 0 10px; }
         .banner { border-radius: 8px; padding: 4px 10px; border: 1px solid rgba(61,214,140,0.5); background-color: rgba(61,214,140,0.165); margin-bottom: 8px; }
         .card .banner label { color: #D2FAE6; font-size: 12px; font-weight: 600; margin-left: 8px; }
-        .statusline { margin: 0 12px 4px 0; }
+        .statusend { margin-left: 4px; }
         .sdot { min-width: 6px; min-height: 6px; border-radius: 3px; margin-right: 7px; background-color: #F5B544; }
         .sdot.good { background-color: #3DD68C; } .sdot.error { background-color: #EF4D56; } .sdot.mute { background-color: #6B7590; }
-        .card label.status { font-size: 12px; color: #B4BCCB; margin-right: 14px; }
+        .card label.status { font-size: 12px; color: #B4BCCB; }
+        .fightsbtn { margin-top: 2px; }
         .linkbtn { all: unset; }
         .card .linkbtn > box > label { font-size: 12px; color: #D9B56A; margin-right: 5px; }
         .card .linkbtn:hover > box > label { color: #ECCB82; }

@@ -8,6 +8,10 @@ namespace AionMeter.Overlay.Shell;
 internal interface ICardHost
 {
     Gtk.Application App { get; }
+    /// <summary>--layer: the card is a layer-shell surface (dialogs too); otherwise a Sway window and dialogs are transient toplevels of <see cref="Window"/>.</summary>
+    bool Layer { get; }
+    /// <summary>The card's window (null before it exists).</summary>
+    Gtk.Window? Window { get; }
     /// <summary>The GdkMonitor the card is on (extra surfaces go there); IntPtr.Zero = the compositor's choice.</summary>
     IntPtr Monitor { get; }
     /// <summary>The card's UI scale (ui.json "UiScale" or --scale).</summary>

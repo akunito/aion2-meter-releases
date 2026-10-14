@@ -4,14 +4,22 @@ using AionMeter.Service.Overlay;
 namespace AionMeter.Overlay;
 
 /// <summary>
-/// The GTK application, the layer surface and its placement (margins = position), drag/resize, click-through and hide; A2M-50: the keyboard
-/// mode and the size per tab, and the <see cref="AppShell"/> the hosted views get (it outlives card rebuilds).
-/// The card itself (widgets, CSS, snapshots, tab host) is <see cref="Card"/>.
+/// The GTK application, the card's window, drag/resize, click-through and hide; A2M-50: the size per tab and the <see cref="AppShell"/> the
+/// hosted views get (it outlives card rebuilds). Two modes: the window mode (default) is a plain xdg toplevel with app_id aionmeter that Sway
+/// places, moves and resizes like any window (Alt+drag, sticky/floating toggles; the patched Sway's above_fullscreen rule keeps it over the
+/// game), its rect saved through Sway IPC (<see cref="SwayWindow"/>); --layer is the layer-shell surface on the OVERLAY layer placed by anchor
+/// and margins, with the keyboard mode per tab and the drag across outputs. The card itself (widgets, CSS, snapshots, tab host) is <see cref="Card"/>.
 /// </summary>
 internal sealed class OverlayHost : ICardHost
 {
+    /// <summary>The card's window title: SwayWindow tells it from its dialogs by it (same pid, same app_id).</summary>
+    public const string Title = "AION 2 meter";
     private readonly OverlaySettings _s;
     private readonly string _socket;
+    private readonly bool _layer;
+    private SwayWindow? _sway;
+    private SwayNode? _node;
+    private bool _moveClaimed;
     private Gtk.Application? _app;
     private Gtk.Window? _win;
     private IntPtr _w;
@@ -46,10 +54,12 @@ internal sealed class OverlayHost : ICardHost
     /// <param name="uiJson">ui.json: the shared "UI scale" (unless <paramref name="scaleFixed"/>: --scale for this run) and LastTab.</param>
     /// <param name="startTab">--tab: a tab to open once the card is up; <paramref name="startHelp"/> --help-page, <paramref name="startWindow"/> --window.</param>
     /// <param name="defaultMonitor">--monitor: the output when overlay.json names none, or when the saved one is not connected.</param>
+    /// <param name="layer">--layer: the layer-shell card; otherwise the window mode.</param>
     public OverlayHost(OverlaySettings settings, string socket, string uiJson, bool scaleFixed, string? startTab = null, string? startHelp = null, string? startWindow = null,
-        string? defaultMonitor = null)
+        string? defaultMonitor = null, bool layer = false)
     {
         _s = settings;
+        _layer = layer;
         _defaultMonitor = defaultMonitor ?? "";
         _socket = socket;
         _uiJson = uiJson;
@@ -61,6 +71,8 @@ internal sealed class OverlayHost : ICardHost
 
     // ---- ICardHost (what the shell and the views see)
     public Gtk.Application App => _app!;
+    public bool Layer => _layer;
+    public Gtk.Window? Window => _win;
     public IntPtr Monitor => _monitor;
     public double Scale => _s.Scale;
     public double Opacity => _s.Opacity;
@@ -76,9 +88,14 @@ internal sealed class OverlayHost : ICardHost
 
     public int Run()
     {
-        _app = Gtk.Application.New("com.akunito.aionmeter.overlay", Gio.ApplicationFlags.NonUnique);
+        // Window mode: GTK takes the Wayland app_id from the application id, else from the program name, and an application id needs a dot
+        // (g_application_id_is_valid = a D-Bus name), so "aionmeter" (the Sway rules' app_id) can only come from prgname with no id.
+        // (GirCore resolves the GLib library name only after a module init: SetPrgname first threw DllNotFoundException 'GLib')
+        if (!_layer) { Gtk.Module.Initialize(); GLib.Functions.SetPrgname("aionmeter"); }
+        _app = Gtk.Application.New(_layer ? "com.akunito.aionmeter.overlay" : null, Gio.ApplicationFlags.NonUnique);
         _app.OnActivate += (_, _) => Activate();
         var rc = _app.RunWithSynchronizationContext(null);
+        _sway?.Dispose();
         _client?.Dispose();
         _shell?.Dispose();
         return rc;
@@ -89,7 +106,7 @@ internal sealed class OverlayHost : ICardHost
 
     private void Activate()
     {
-        if (!LayerShell.IsSupported())
+        if (_layer && !LayerShell.IsSupported())
         {
             Console.Error.WriteLine("overlay: the compositor has no wlr-layer-shell (or GDK is not on Wayland: unset GDK_BACKEND=x11)");
             _app!.Quit();
@@ -98,31 +115,38 @@ internal sealed class OverlayHost : ICardHost
         var win = Gtk.Window.New();
         _win = win;
         win.Application = _app;
-        win.Title = "AION 2 meter";
+        win.Title = Title;
         win.Decorated = false;
         win.AddCssClass("aionmeter");
         _w = win.Handle.DangerousGetHandle();
 
-        LayerShell.InitForWindow(_w);
-        LayerShell.SetNamespace(_w, "aionmeter");
-        LayerShell.SetLayer(_w, LayerShell.Layer.Overlay);
-        // Never take the keyboard from the game; popovers still get clicks.
-        LayerShell.SetKeyboardMode(_w, LayerShell.KeyboardMode.None);
-        LayerShell.SetExclusiveZone(_w, 0);
-        PickMonitor();
+        if (_layer)
+        {
+            LayerShell.InitForWindow(_w);
+            LayerShell.SetNamespace(_w, "aionmeter");
+            LayerShell.SetLayer(_w, LayerShell.Layer.Overlay);
+            // Never take the keyboard from the game; popovers still get clicks.
+            LayerShell.SetKeyboardMode(_w, LayerShell.KeyboardMode.None);
+            LayerShell.SetExclusiveZone(_w, 0);
+            PickMonitor();
+        }
         // the kit restyles entries, drop-downs and checks; dark Adwaita underneath keeps what it does not cover (popover arrows, selection) dark too
         if (Gtk.Settings.GetDefault() is { } gs) gs.GtkApplicationPreferDarkTheme = true;
 
         _client = new OverlayClient(_socket, Post);
         _shell = new AppShell(_client, this, _uiJson);
         BuildCard(null);
-        ApplyPlacement();
-        win.OnRealize += (_, _) => Console.Error.WriteLine($"overlay: layer surface on {(_monitor != IntPtr.Zero ? LayerShell.Monitors().Find(m => m.Handle == _monitor).Connector : "(compositor's output)")} {_outW}x{_outH}, anchor {Placement.Name(_s.Anchor)} margins {_s.MarginH},{_s.MarginV}, card {Px(_s.Width)}x{Px(_s.Height)}, scale {_s.Scale}");
+        if (_layer)
+        {
+            ApplyPlacement();
+            win.OnRealize += (_, _) => Console.Error.WriteLine($"overlay: layer surface on {(_monitor != IntPtr.Zero ? LayerShell.Monitors().Find(m => m.Handle == _monitor).Connector : "(compositor's output)")} {_outW}x{_outH}, anchor {Placement.Name(_s.Anchor)} margins {_s.MarginH},{_s.MarginV}, card {Px(_s.Width)}x{Px(_s.Height)}, scale {_s.Scale}");
+        }
+        else StartWindowMode(win);
         win.Present();
         if (_s.ClickThrough) SetClickThrough(true);
         _client.Start();
         _shell.StartEngine();
-        // Esc on a tab goes back (the surface only has the keyboard on a tab: ON_DEMAND, after a click)
+        // Esc on a tab goes back (the layer surface only has the keyboard on a tab: ON_DEMAND, after a click; a window has it once focused)
         var keys = Gtk.EventControllerKey.New();
         keys.OnKeyPressed += (_, e) => e.Keyval == 0xff1b && _card is not null && _card.Escape();   // GDK_KEY_Escape
         win.AddController(keys);
@@ -147,10 +171,12 @@ internal sealed class OverlayHost : ICardHost
     {
         scale = AionMeter.Service.Overlay.UiScale.Clamp(scale);
         if (_card is null || Math.Abs(scale - _s.Scale) < 0.001) return;
+        var ratio = scale / _s.Scale;
         _s.Scale = scale;
         if (save && !_scaleFixed) { AionMeter.Service.Overlay.UiScale.Write(_uiJson, scale); _uiJsonStamp = Stamp(_uiJson); }
         BuildCard(_card.Tab);
-        ApplyPlacement();
+        if (_layer) ApplyPlacement();
+        else ScaleWindow(ratio);
         Console.Error.WriteLine($"overlay: scale {scale:0.##}");
         _shell?.RaiseUiScaleChanged(scale);
     }
@@ -161,12 +187,13 @@ internal sealed class OverlayHost : ICardHost
         var win = _win!;
         var old = _card;
         old?.Detach();
-        _card = new Card(_s, _shell!, ToggleHidden, () => SetClickThrough(true), OnTabChanged);
+        _card = new Card(_s, _shell!, ToggleHidden, () => SetClickThrough(true), OnTabChanged, !_layer);
         win.Child = _card.Root;
         _card.Seed(old?.Last);
         if (_s.ClickThrough) _card.SetClickThrough(true);
         ApplySize();
         if (tab is not null && tab != TabState.Meter) _card.SelectTab(tab);
+        if (!_layer) { WindowGestures(); return; }
 
         // on the card's root, not the window: on the window the grip's claim did not deny it, and both gestures fought over the margins
         // during a resize (WAYLAND_DEBUG, nested sway 2026-10-13); a drag ends at a re-map on another output either way
@@ -252,7 +279,12 @@ internal sealed class OverlayHost : ICardHost
             (_s.Width, _s.Height, _s.MarginH, _s.MarginV) = Placement.EdgeResize(_s.Anchor, _edge.X, _edge.Y, _resizeStart.W, _resizeStart.H,
                 _resizeStart.MH, _resizeStart.MV, dx, dy, minW, minH, _outW, _outH, _s.Scale);
 
-        // Zoom: the wheel over the resize corner, or Ctrl+wheel anywhere when GDK knows the modifiers (keyboard mode NONE: often it does not)
+        ZoomControllers();
+    }
+
+    /// <summary>Zoom: the wheel over the resize corner, or Ctrl+wheel anywhere when GDK knows the modifiers (keyboard mode NONE: often it does not).</summary>
+    private void ZoomControllers()
+    {
         var wheel = Gtk.EventControllerScroll.New(Gtk.EventControllerScrollFlags.Vertical);
         wheel.OnScroll += (c, e) =>
         {
@@ -261,10 +293,134 @@ internal sealed class OverlayHost : ICardHost
             Rescale(_s.Scale + (e.Dy < 0 ? 1 : -1) * AionMeter.Service.Overlay.UiScale.Step, save: true);
             return true;
         };
-        _card.Root.AddController(wheel);
+        _card!.Root.AddController(wheel);
         var gripWheel = Gtk.EventControllerScroll.New(Gtk.EventControllerScrollFlags.Vertical);
         gripWheel.OnScroll += (_, e) => { Rescale(_s.Scale + (e.Dy < 0 ? 1 : -1) * AionMeter.Service.Overlay.UiScale.Step, save: true); return true; };
         _card.Grip.AddController(gripWheel);
+    }
+
+    // ------------------------------------------------------------ window mode (A2M-50: a Sway window instead of a layer surface)
+
+    private void StartWindowMode(Gtk.Window win)
+    {
+        // a Wayland client cannot place itself: this is only the size of the first map (Sway's rect is restored right after it) and the
+        // size outside Sway
+        var g = _s.Win;
+        var (w, h) = g.Saved ? (g.W, g.H) : CardSize();
+        win.SetDefaultSize(w, h);
+        win.OnRealize += (_, _) =>
+        {
+            // the pills are laid out from the window's real width (the layer card's: from the requested width), on every configure
+            if (win.GetSurface() is { } surface) surface.OnLayout += (_, e) => _card?.SetLayoutWidth(e.Width);
+            Console.Error.WriteLine($"overlay: window mode, app_id aionmeter, {w}x{h}, saved {(g.Saved ? $"{g.W}x{g.H}+{g.X}+{g.Y} on {g.Output}" : "none")}, scale {_s.Scale}" +
+                (_defaultMonitor.Length > 0 ? $" (--monitor {_defaultMonitor} ignored: Sway places windows)" : ""));
+        };
+        _card!.SetLayoutWidth(w);
+        _sway = SwayWindow.Start(Title, Post, g);
+        if (_sway is null) Console.Error.WriteLine("overlay: no SWAYSOCK: the compositor places the window, its place is not saved");
+        else _sway.Changed += OnSwayChanged;
+    }
+
+    /// <summary>Sway moved, resized, mapped or unmapped the card: the rect goes to overlay.json (tiled: not saved, the floating rect stays).</summary>
+    private void OnSwayChanged(SwayNode? node)
+    {
+        _node = node;
+        if (node is not { Floating: true } n || _card is null) return;
+        var meter = _card.Tab == TabState.Meter;
+        var (w, h) = WindowGeometry.SizeToSave(meter, _s.WinW, _s.WinH, n.W, n.H, Px(TabState.MinTabWidth), Px(TabState.MinTabHeight));
+        var g = new WinGeom(n.Output, n.X, n.Y, w, h);
+        if (g == _s.Win) return;
+        _s.Win = g;
+        _s.Save();
+        _sway!.Saved = g;
+    }
+
+    /// <summary>
+    /// Window mode tab switch: the size request is the tab's minimum (Sway keeps a floating window at least at its min size on resize); a
+    /// window smaller than it is grown explicitly, and back on DPS it returns to the saved DPS size, as the layer card does.
+    /// </summary>
+    private void WindowTabSize(string tab)
+    {
+        if (_sway is null || _node is not { Floating: true } n) return;
+        int w, h;
+        if (tab == TabState.Meter)
+        {
+            if (!_s.Win.Saved) return;
+            (w, h) = (_s.WinW, _s.WinH);
+        }
+        else (w, h) = (Math.Max(n.W, Px(TabState.MinTabWidth)), Math.Max(n.H, Px(TabState.MinTabHeight)));
+        if ((w, h) != (n.W, n.H)) _sway.Command(WindowGeometry.ResizeAt(n.Id, n.X, n.Y, w, h));
+    }
+
+    /// <summary>A UI-scale change grows or shrinks the window with its content (the layer card's size is unscaled × scale).</summary>
+    private void ScaleWindow(double ratio)
+    {
+        if (_s.Win.Saved)
+        {
+            _s.WinW = (int)Math.Round(_s.WinW * ratio);
+            _s.WinH = (int)Math.Round(_s.WinH * ratio);
+            _s.Save();
+            if (_sway is not null) _sway.Saved = _s.Win;
+        }
+        if (_sway is not null && _node is { Floating: true } n)
+            _sway.Command(WindowGeometry.ResizeAt(n.Id, n.X, n.Y, (int)Math.Round(n.W * ratio), (int)Math.Round(n.H * ratio)));
+    }
+
+    /// <summary>
+    /// The layer card's gestures, handed to the compositor: a left drag anywhere (past 4 px, so clicks still click) is xdg_toplevel.move, a
+    /// right drag the resize from the nearest edges (<see cref="Placement.EdgeAt"/>, Sway's own rule), the gold corner the bottom-right resize.
+    /// Sway starts them only for a floating view and only with the serial of the latest button press (xdg_shell.c handle_request_move/resize).
+    /// </summary>
+    private void WindowGestures()
+    {
+        var card = _card!;
+        var drag = Gtk.GestureDrag.New();
+        drag.OnDragBegin += (_, _) => _moveClaimed = false;
+        drag.OnDragUpdate += (g, e) =>
+        {
+            if (_moveClaimed || e.OffsetX * e.OffsetX + e.OffsetY * e.OffsetY <= 16 || !g.GetStartPoint(out var x, out var y)) return;
+            _moveClaimed = g.SetState(Gtk.EventSequenceState.Claimed);
+            if (_moveClaimed) Begin(g, -1, x, y);
+        };
+        card.Root.AddController(drag);
+
+        var edge = Gtk.GestureDrag.New();
+        edge.SetButton(3);
+        edge.OnDragBegin += (_, _) => _edgeClaimed = false;
+        edge.OnDragUpdate += (g, e) =>
+        {
+            if (_edgeClaimed || e.OffsetX * e.OffsetX + e.OffsetY * e.OffsetY <= 16 || !g.GetStartPoint(out var x, out var y)) return;
+            _edgeClaimed = g.SetState(Gtk.EventSequenceState.Claimed);
+            var (ex, ey) = Placement.EdgeAt(x, y, card.Root.GetWidth(), card.Root.GetHeight());
+            if (_edgeClaimed) Begin(g, WindowGeometry.SurfaceEdge(ex, ey), x, y);
+        };
+        card.Root.AddController(edge);
+
+        var grip = Gtk.GestureDrag.New();
+        grip.OnDragBegin += (g, e) =>
+        {
+            g.SetState(Gtk.EventSequenceState.Claimed);   // the move gesture on the card must not see this press
+            Begin(g, WindowGeometry.SurfaceEdge(1, 1), e.StartX, e.StartY, card.Grip);
+        };
+        card.Grip.AddController(grip);
+        ZoomControllers();
+    }
+
+    /// <summary>xdg_toplevel.move (<paramref name="edge"/> -1) or .resize from the press at (<paramref name="x"/>, <paramref name="y"/>) in
+    /// <paramref name="on"/>'s coordinates (default the card's root); the gesture is reset, the compositor owns the pointer from here.</summary>
+    private void Begin(Gtk.GestureDrag g, int edge, double x, double y, Gtk.Widget? on = null)
+    {
+        var win = _win!;
+        if ((on ?? _card!.Root).TranslateCoordinates(win, x, y, out var wx, out var wy) is false) return;
+        LayerShell.NativeGetSurfaceTransform(_w, out var nx, out var ny);
+        var surface = LayerShell.NativeGetSurface(_w);
+        var device = g.GetDevice()?.Handle.DangerousGetHandle() ?? IntPtr.Zero;
+        var button = (int)g.GetCurrentButton();
+        var time = g.GetCurrentEventTime();
+        if (surface == IntPtr.Zero || device == IntPtr.Zero) return;
+        if (edge < 0) LayerShell.ToplevelBeginMove(surface, device, button, wx + nx, wy + ny, time);
+        else LayerShell.ToplevelBeginResize(surface, edge, device, button, wx + nx, wy + ny, time);
+        g.Reset();
     }
 
     private int Px(int v) => (int)Math.Round(v * _s.Scale);
@@ -394,6 +550,13 @@ internal sealed class OverlayHost : ICardHost
     /// </summary>
     private void OnTabChanged(string tab)
     {
+        if (!_layer)
+        {
+            ApplySize();
+            WindowTabSize(tab);
+            Console.Error.WriteLine($"overlay: tab {tab}, window {_node?.W}x{_node?.H}");
+            return;
+        }
         LayerShell.SetKeyboardMode(_w, TabState.Keyboard(tab));
         ApplySize();
         ApplyPlacement();
@@ -408,6 +571,13 @@ internal sealed class OverlayHost : ICardHost
 
     private void ApplySize()
     {
+        if (!_layer)
+        {
+            // window mode: the size is Sway's; the request is only the floor (DPS rows, 560×540 on a tab; the card adds the pill floor)
+            var (mw, mh) = TabState.MinSize(_card?.Tab ?? TabState.Meter);
+            _card!.SetMinimum(Px(mw), Px(mh));
+            return;
+        }
         var (w, h) = CardSize();
         _card!.SetSize(w, h);
         _win!.SetDefaultSize(w, h);
@@ -430,6 +600,8 @@ internal sealed class OverlayHost : ICardHost
         if (_win is null) return;
         _hidden = !_hidden;
         _win.SetVisible(!_hidden);
+        // window mode: a shown toplevel is a new Sway container placed by Sway; SwayWindow sees the new con id and restores the saved rect
+        if (!_hidden && !_layer) { _win.Present(); _sway?.Poke(); }
         // a re-mapped surface starts with the default input region again
         if (!_hidden && _s.ClickThrough) LayerShell.SetClickThrough(_w, true);
     }

@@ -8,7 +8,7 @@ namespace AionMeter.Overlay;
 
 /// <summary>
 /// The overlay card (Avalonia OverlayWindow): header with the tab strip, fight title, time limit, state label and clock; boss HP bar; the
-/// ranking; update banner; status line, Fights menu and the timer/event pills. The DPS part comes from the daemon's `overlay` snapshots
+/// ranking with the Fights menu at its bottom right; update banner; the timer/event pills with the status line at the end of their last line. The DPS part comes from the daemon's `overlay` snapshots
 /// (OverlayBuilder); nothing is computed here. A2M-50: the tab host — a registered view (<see cref="ViewRegistry"/>) replaces the boss bar and
 /// the rows in a Gtk.Stack, the pill again / Back / Esc return, the gear is the Settings pill (again: back to the tab before it), `?` the tab's help.
 /// The tab rules are <see cref="TabState"/>; the host applies keyboard mode and size on <c>tabChanged</c>.
@@ -17,7 +17,14 @@ internal sealed class Card
 {
     private readonly OverlayClient _client;
     private readonly OverlaySettings _s;
-    private readonly Gtk.Box _frame, _toolbar, _limitBox, _stateBox, _labels, _rows, _banner, _pillLines, _timers, _statusLine, _viewHost;
+    private readonly Gtk.Box _frame, _toolbar, _limitBox, _stateBox, _labels, _rows, _banner, _pillLines, _timers, _viewHost;
+    /// <summary>The DPS status (dot + text): at the end of the last pill line, right-aligned (a line of its own when that one is full).</summary>
+    private readonly Gtk.Box _statusBox;
+    private readonly Gtk.ScrolledWindow _status;
+    private bool _statusShown = true;
+    private int _statusAt = -1;
+    private readonly bool _windowMode;
+    private int _minW, _minH, _reqMinW = -1, _reqMinH = -1;
     private readonly Gtk.Label _title, _state, _clock, _limit, _bossHp, _bossPercent, _empty, _footer, _abyss, _announce, _timersText, _bannerText, _modeLabel, _fightsLabel;
     private readonly Gtk.Stack _stack;
     private readonly Gtk.ScrolledWindow _toolClip;
@@ -37,7 +44,11 @@ internal sealed class Card
     private readonly Columns _cols = new();
     private readonly List<RowWidget> _rowWidgets = new();
     private readonly List<(Gtk.Box Pill, Gtk.Label Text, PillTone Tone)> _pills = new();
-    private readonly Gtk.Box[] _lines = new Gtk.Box[3];
+    /// <summary>Pill lines (<see cref="PillLines"/>) + one for the status when the last pill line has no room for it.</summary>
+    private readonly Gtk.Box[] _lines = new Gtk.Box[PillLines + 1];
+    private const int PillLines = 3;
+    /// <summary>The status keeps the end of the last pill line while at least this much (unscaled px, or its whole text if shorter) is left there.</summary>
+    public const int StatusMin = 150;
     private int[] _lineOf = [];
     private int _pillCount, _reqW;
     private int[] _pillNat = new int[16];
@@ -57,8 +68,11 @@ internal sealed class Card
     public Gtk.Widget Grip { get; }
 
     /// <param name="tabChanged">The tab in front changed (the host sets the keyboard mode and the size).</param>
-    public Card(OverlaySettings s, AppShell shell, Action hide, Action clickThrough, Action<string> tabChanged)
+    /// <param name="windowMode">A Sway window: its size is the compositor's, the card only requests a floor (<see cref="SetMinimum"/>) and lays
+    /// the pills out from the window's width (<see cref="SetLayoutWidth"/>); a layer surface is sized by <see cref="SetSize"/>.</param>
+    public Card(OverlaySettings s, AppShell shell, Action hide, Action clickThrough, Action<string> tabChanged, bool windowMode = false)
     {
+        _windowMode = windowMode;
         _shell = shell;
         _client = shell.Daemon;
         var client = _client;
@@ -217,6 +231,19 @@ internal sealed class Card
         scroll.Child = _rows;
         scroll.Vexpand = true;
         partyBox.Append(scroll);
+        // the fight list belongs to the DPS tab: bottom right inside the ranking's box, gone with the rows on every other tab (Diego 2026-10-14)
+        var fightsRow = Box(Gtk.Orientation.Horizontal, null);
+        var fightsLabel = _fightsLabel = Gtk.Label.New(t.Fights);
+        fightsRow.Append(fightsLabel);
+        fightsRow.Append(Icons.View(Icons.Chevron, 0xD9B56A, 9, 1.6).Widget);
+        _fightsButton = Gtk.Button.New();
+        _fightsButton.AddCssClass("linkbtn");
+        _fightsButton.AddCssClass("fightsbtn");
+        _fightsButton.Child = fightsRow;
+        _fightsButton.Halign = Gtk.Align.End;
+        Hand(_fightsButton);
+        _fightsButton.OnClicked += (_, _) => { _fightsWanted = true; _client.Send("fights", "max", 40); };
+        partyBox.Append(_fightsButton);
         _empty = Label("empty", 0.5f);
         _empty.Wrap = true;
         _empty.Justify = Gtk.Justification.Center;
@@ -250,26 +277,24 @@ internal sealed class Card
         _banner.Append(_bannerText);
         footer.Append(_banner);
 
-        var statusLine = _statusLine = Box(Gtk.Orientation.Horizontal, "statusline");
+        // the status rides at the end of the last pill line (Diego 2026-10-14): a spacer pushes dot + text right, the text ellipsizes; in a
+        // clipping scroller (external policy: natural width 0) so a long status never widens the card nor wraps a pill
+        _statusBox = Box(Gtk.Orientation.Horizontal, "statusend");
+        var statusSpacer = Box(Gtk.Orientation.Horizontal, null);
+        statusSpacer.Hexpand = true;
+        _statusBox.Append(statusSpacer);
         _statusDot = Box(Gtk.Orientation.Horizontal, "sdot");
         _statusDot.Valign = Gtk.Align.Center;
-        statusLine.Append(_statusDot);
-        _footer = Label("status", 0);
+        _statusBox.Append(_statusDot);
+        _footer = Label("status", 1);
         _footer.Ellipsize = Pango.EllipsizeMode.End;
-        _footer.Hexpand = true;
-        statusLine.Append(_footer);
-        var fightsRow = Box(Gtk.Orientation.Horizontal, null);
-        var fightsLabel = _fightsLabel = Gtk.Label.New(t.Fights);
-        fightsRow.Append(fightsLabel);
-        fightsRow.Append(Icons.View(Icons.Chevron, 0xD9B56A, 9, 1.6).Widget);
-        _fightsButton = Gtk.Button.New();
-        _fightsButton.AddCssClass("linkbtn");
-        _fightsButton.Child = fightsRow;
-        _fightsButton.Valign = Gtk.Align.Center;
-        Hand(_fightsButton);
-        _fightsButton.OnClicked += (_, _) => { _fightsWanted = true; _client.Send("fights", "max", 40); };
-        statusLine.Append(_fightsButton);
-        footer.Append(statusLine);
+        _statusBox.Append(_footer);
+        _status = Gtk.ScrolledWindow.New();
+        _status.SetPolicy(Gtk.PolicyType.External, Gtk.PolicyType.Never);
+        _status.PropagateNaturalHeight = true;
+        _status.Hexpand = true;
+        _status.Valign = Gtk.Align.Center;
+        _status.Child = _statusBox;
         _abyss = Label("abyss", 0);
         _abyss.Ellipsize = Pango.EllipsizeMode.End;
         _abyss.Visible = false;
@@ -291,7 +316,18 @@ internal sealed class Card
         _timers.Append(_timersText);
         Hand(_timers);
         Click(_timers, () => SelectTab(_tabs.Current == "timers" ? TabState.Meter : "timers"));
-        footer.Append(_pillLines);
+        if (windowMode)
+        {
+            // A window's minimum width is its content's: the longest pill line, laid out at the current width, would be the minimum, so Sway
+            // could never make the card narrower (the layer card's lag, measured 2026-10-14). The lines sit in a clipping scroller (natural
+            // and minimum width 0) and the 3-line fit comes back as an explicit floor (ApplyMin, PillMinWidth).
+            var pillClip = Gtk.ScrolledWindow.New();
+            pillClip.SetPolicy(Gtk.PolicyType.External, Gtk.PolicyType.Never);
+            pillClip.PropagateNaturalHeight = true;
+            pillClip.Child = _pillLines;
+            footer.Append(pillClip);
+        }
+        else footer.Append(_pillLines);
         inner.Append(footer);
 
         _fightsList = Box(Gtk.Orientation.Vertical, null);
@@ -378,7 +414,9 @@ internal sealed class Card
         if (_views.TryGetValue(prev, out var old)) old.Hidden();
         var now = _tabs.Current;
         var meter = now == TabState.Meter;
-        _statusLine.Visible = meter;   // the DPS status and the fight links belong to the DPS tab
+        // the DPS status belongs to the DPS tab (the fight list sits inside the rows' box and goes with it)
+        _statusShown = meter;
+        LayoutPills(_pillCount);
         if (meter)
         {
             ClearHost();
@@ -543,8 +581,33 @@ internal sealed class Card
         LayoutPills(_pillCount);
     }
 
+    /// <summary>Window mode: the floor the window may be resized to (px); the pill floor is added on top (ApplyMin).</summary>
+    public void SetMinimum(int w, int h)
+    {
+        (_minW, _minH) = (w, h);
+        ApplyMin();
+    }
+
+    /// <summary>Window mode: the window's width (px) as the compositor configured it; the pills are laid out from it. Posted: it arrives in
+    /// the surface's layout signal, where moving widgets between lines would queue a resize inside the frame's layout phase.</summary>
+    public void SetLayoutWidth(int w)
+    {
+        if (w <= 0 || w == _reqW) return;
+        _reqW = w;
+        UiLoop.Post(() => LayoutPills(_pillCount));
+    }
+
+    private void ApplyMin()
+    {
+        if (!_windowMode) return;
+        var w = Math.Max(_minW, PillMinWidth());
+        if ((w, _minH) == (_reqMinW, _reqMinH)) return;
+        (_reqMinW, _reqMinH) = (w, _minH);
+        Root.SetSizeRequest(w, _minH);
+    }
+
     /// <summary>The narrowest card (px) the footer pills fit into at their current texts.</summary>
-    public int PillMinWidth() => PillWrap.MinWidth(_pillNat.AsSpan(0, _pillCount + 1), _lines.Length) + (int)Math.Round(PillInset * _s.Scale);
+    public int PillMinWidth() => PillWrap.MinWidth(_pillNat.AsSpan(0, _pillCount + 1), PillLines) + (int)Math.Round(PillInset * _s.Scale);
 
     /// <summary>The smallest surface the content allows (px, frame margins included): Root's own size request does not count here.</summary>
     public (int W, int H) ContentMin()
@@ -732,18 +795,28 @@ internal sealed class Card
             w.Measure(Gtk.Orientation.Horizontal, -1, out _, out _pillNat[i], out _, out _);
         }
         Span<int> line = stackalloc int[n];
-        PillWrap.Lines(_pillNat.AsSpan(0, n), avail, line, _lines.Length);
-        var same = _lineOf.Length == n;
+        PillWrap.Lines(_pillNat.AsSpan(0, n), avail, line, PillLines);
+        var statusAt = -1;
+        if (_statusShown)
+        {
+            _statusBox.Measure(Gtk.Orientation.Horizontal, -1, out _, out var statusNat, out _, out _);
+            statusAt = PillWrap.StatusLine(_pillNat.AsSpan(0, n), line, avail, Math.Min(statusNat, (int)Math.Round(StatusMin * _s.Scale)));
+        }
+        ApplyMin();
+        var same = _lineOf.Length == n && statusAt == _statusAt;
         for (var i = 0; same && i < n; i++) same = _lineOf[i] == line[i];
         if (same) return;
+        if (_status.GetParent() is Gtk.Box sp) sp.Remove(_status);
         for (var i = 0; i < _lineOf.Length; i++)
         {
             var w = i == 0 ? _timers : _pills[i - 1].Pill;
             if (w.GetParent() is Gtk.Box p) p.Remove(w);
         }
         _lineOf = line.ToArray();
+        _statusAt = statusAt;
         for (var i = 0; i < n; i++) _lines[line[i]].Append(i == 0 ? _timers : _pills[i - 1].Pill);
-        for (var i = 0; i < _lines.Length; i++) _lines[i].Visible = Array.IndexOf(_lineOf, i) >= 0;
+        if (statusAt >= 0) _lines[statusAt].Append(_status);
+        for (var i = 0; i < _lines.Length; i++) _lines[i].Visible = i == statusAt || Array.IndexOf(_lineOf, i) >= 0;
     }
 
     private void ShowFights(OverlayFightItem[] items)

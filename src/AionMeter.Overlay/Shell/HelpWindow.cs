@@ -47,7 +47,7 @@ internal sealed class HelpWindow : LayerWindow
         _tab = HelpPage.Tab(tab);
         Title = HelpPage.Title(_tab, UiText.Current);
         Render();
-        if (!IsOpen) Show();
+        if (!IsOpen) Show(); else Raise();
     }
 
     private void Render()

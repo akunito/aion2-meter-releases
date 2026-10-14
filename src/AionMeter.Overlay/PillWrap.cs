@@ -18,6 +18,19 @@ public static class PillWrap
         return widest;
     }
 
+    /// <summary>
+    /// The line the DPS status goes on (A2M-50, Diego 2026-10-14: at the end of the timers pill line, right-aligned): the last pill line while
+    /// at least <paramref name="need"/> px are left on it, else a line of its own right below.
+    /// </summary>
+    public static int StatusLine(ReadOnlySpan<int> nat, ReadOnlySpan<int> line, int avail, int need)
+    {
+        if (nat.Length == 0) return 0;
+        var last = line[nat.Length - 1];
+        var used = 0;
+        for (var i = 0; i < nat.Length; i++) if (line[i] == last) used += nat[i];
+        return avail - used >= need ? last : last + 1;
+    }
+
     /// <summary>The narrowest width the pills fit into (no line wider than it). Greedy needs no more lines at a larger width, so the fit is
     /// monotone and a binary search finds it.</summary>
     public static int MinWidth(ReadOnlySpan<int> nat, int maxLines)

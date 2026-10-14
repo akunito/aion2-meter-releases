@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using AionMeter.Service.Overlay;
 
 namespace AionMeter.Linux.Shell;
 

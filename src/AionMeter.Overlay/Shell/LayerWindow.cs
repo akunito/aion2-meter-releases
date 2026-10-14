@@ -6,7 +6,8 @@ namespace AionMeter.Overlay.Shell;
 /// An extra layer-shell surface beside the card (A2M-50: dialogs, help): OVERLAY layer on the card's output, no anchors = centred by the
 /// compositor, keyboard ON_DEMAND (a click gives it the keyboard; the game keeps it until then), the card's dialog frame (gold-edged dark card,
 /// class k-dialog under k-root) with a serif title and an X; Esc closes. Sway paints no floating window over a fullscreen view, so a normal
-/// GTK window would sit under the game. Size in unscaled px (× the card's scale); CSS restyles it with the card's sheet.
+/// GTK window would sit under the game. Window mode (the default since A2M-50's window pass): a transient toplevel of the card instead, the
+/// patched Sway's above_fullscreen rule keeps it over the game. Size in unscaled px (× the card's scale); CSS restyles it with the card's sheet.
 /// </summary>
 internal abstract class LayerWindow
 {
@@ -29,13 +30,23 @@ internal abstract class LayerWindow
         win.Title = title;
         win.Decorated = false;
         win.AddCssClass("aionmeter");
-        var w = win.Handle.DangerousGetHandle();
-        LayerShell.InitForWindow(w);
-        LayerShell.SetNamespace(w, ns);
-        LayerShell.SetLayer(w, LayerShell.Layer.Overlay);
-        LayerShell.SetKeyboardMode(w, LayerShell.KeyboardMode.OnDemand);
-        LayerShell.SetExclusiveZone(w, 0);
-        if (shell.Host.Monitor != IntPtr.Zero) LayerShell.SetMonitor(w, shell.Host.Monitor);
+        if (shell.Host.Layer)
+        {
+            var w = win.Handle.DangerousGetHandle();
+            LayerShell.InitForWindow(w);
+            LayerShell.SetNamespace(w, ns);
+            LayerShell.SetLayer(w, LayerShell.Layer.Overlay);
+            LayerShell.SetKeyboardMode(w, LayerShell.KeyboardMode.OnDemand);
+            LayerShell.SetExclusiveZone(w, 0);
+            if (shell.Host.Monitor != IntPtr.Zero) LayerShell.SetMonitor(w, shell.Host.Monitor);
+        }
+        else
+        {
+            // window mode: a transient toplevel of the card, so Sway floats it, centres it and stacks it above the card (the card's
+            // for_window rules match the same app_id: sticky and above_fullscreen too)
+            win.TransientFor = shell.Host.Window;
+            win.Resizable = false;
+        }
 
         var frame = UiKit.VBox();
         frame.AddCssClass("k-root");
@@ -89,6 +100,12 @@ internal abstract class LayerWindow
     {
         _win.Present();
         Opened();
+    }
+
+    /// <summary>Window mode: brings an open dialog to the front (layer surfaces cannot be raised).</summary>
+    public void Raise()
+    {
+        if (!Shell.Host.Layer && IsOpen) _win.Present();
     }
 
     /// <summary>After the first Present: focus an entry. Measured (nested Sway 1.11, 2026-10-13): a newly mapped ON_DEMAND surface does not get the

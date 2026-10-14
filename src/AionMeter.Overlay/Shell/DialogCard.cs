@@ -11,10 +11,10 @@ internal abstract class DialogCard : LayerWindow
 
     protected DialogCard(AppShell shell, string key, string title, double width, double height) : base(shell, "aionmeter-" + key, title, width, height) { }
 
-    /// <summary>The open dialog of this kind (it stays where it is: layer surfaces have no raise), or a new one shown.</summary>
+    /// <summary>The open dialog of this kind (raised in window mode; a layer surface stays where it is: no raise), or a new one shown.</summary>
     public static T ShowSingle<T>(Func<T> make) where T : DialogCard
     {
-        if (Open.TryGetValue(typeof(T), out var w) && w.IsOpen) return (T)w;
+        if (Open.TryGetValue(typeof(T), out var w) && w.IsOpen) { w.Raise(); return (T)w; }
         var n = make();
         Open[typeof(T)] = n;
         n.Closed += () => { if (Open.TryGetValue(typeof(T), out var cur) && ReferenceEquals(cur, n)) Open.Remove(typeof(T)); };

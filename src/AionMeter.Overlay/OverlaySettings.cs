@@ -20,6 +20,14 @@ public sealed class OverlaySettings
     /// <summary>Not saved here: the shared "UI scale" in ui.json (or --scale for one run).</summary>
     [JsonIgnore] public double Scale { get; set; } = 1;
     public bool ClickThrough { get; set; }
+    // A2M-50 window mode (the default; the fields above are the --layer card's): the toplevel's rect in Sway's layout coordinates as get_tree
+    // reports it, and the output it was on. WinW 0 = never placed: Sway's own placement.
+    public string WinOutput { get; set; } = "";
+    public int WinX { get; set; }
+    public int WinY { get; set; }
+    public int WinW { get; set; }
+    public int WinH { get; set; }
+    [JsonIgnore] public WinGeom Win { get => new(WinOutput, WinX, WinY, WinW, WinH); set => (WinOutput, WinX, WinY, WinW, WinH) = (value.Output, value.X, value.Y, value.W, value.H); }
     public double Opacity { get; set; } = 0.92;
 
     public const int MinWidth = 340, MinHeight = 220;

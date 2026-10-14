@@ -61,6 +61,16 @@ internal static partial class LayerShell
     [LibraryImport("libgtk-4.so.1", EntryPoint = "gtk_native_get_surface")]
     public static partial IntPtr NativeGetSurface(IntPtr native);
 
+    [LibraryImport("libgtk-4.so.1", EntryPoint = "gtk_native_get_surface_transform")]
+    public static partial void NativeGetSurfaceTransform(IntPtr native, out double x, out double y);
+
+    // window mode (A2M-50): the compositor moves / resizes the toplevel (xdg_toplevel.move / .resize with the press serial GDK keeps)
+    [LibraryImport("libgtk-4.so.1", EntryPoint = "gdk_toplevel_begin_move")]
+    public static partial void ToplevelBeginMove(IntPtr toplevel, IntPtr device, int button, double x, double y, uint timestamp);
+
+    [LibraryImport("libgtk-4.so.1", EntryPoint = "gdk_toplevel_begin_resize")]
+    public static partial void ToplevelBeginResize(IntPtr toplevel, int edge, IntPtr device, int button, double x, double y, uint timestamp);
+
     [LibraryImport("libgtk-4.so.1", EntryPoint = "gdk_surface_set_input_region")]
     public static partial void SurfaceSetInputRegion(IntPtr surface, IntPtr region);
 
