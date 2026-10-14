@@ -21,6 +21,8 @@ internal interface ICardHost
     /// <summary>The card's background opacity (overlay.json).</summary>
     double Opacity { get; }
     void SetOpacity(double opacity);
+    /// <summary>Ends the card process (Settings → Daemon "Quit the card", the socket's quit, SIGTERM): the pid file and the socket go with it.</summary>
+    void Quit();
 }
 
 /// <summary>The fight breakdown tab ("fight"): the view the FightView port registers implements this so the shell can drive it.</summary>
@@ -63,7 +65,7 @@ internal sealed class AppShell : IDisposable
     public OverlayClient Daemon { get; }
     public ICardHost Host { get; }
     public IconProvider Icons { get; }
-    /// <summary>ui.json (shared with the Avalonia UI; the card writes single keys through UiJson).</summary>
+    /// <summary>ui.json (the card writes single keys through UiJson).</summary>
     public string UiJsonPath { get; }
     /// <summary>settings.json as this process knows it (the engine's own instance once it is loaded). Re-read with <see cref="RefreshSettings"/>.</summary>
     public AppSettings Settings { get; }
@@ -204,14 +206,6 @@ internal sealed class AppShell : IDisposable
             Engine?.Data.ReloadNames(MeterEngine.DataDirectory, Settings.Language);
             LanguageChanged?.Invoke();
         }
-    }
-
-    /// <summary>ui.json "LastTab" (the Avalonia tools window starts on it, UiTabs.StartTab).</summary>
-    public string LastTab => UiJson.ReadString(UiJsonPath, "LastTab") ?? "";
-
-    public void SaveLastTab(string tab)
-    {
-        if (TabState.Persisted(tab) && tab != LastTab) UiJson.Write(UiJsonPath, "LastTab", tab);
     }
 
     public void Dispose()

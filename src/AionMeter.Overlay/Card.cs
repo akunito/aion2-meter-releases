@@ -110,7 +110,7 @@ internal sealed class Card
         tabs.Valign = Gtk.Align.Center;
         // the pills' icons expand inside their pill; set explicitly so that does not propagate and stretch the strip when the title hides
         tabs.Hexpand = false;
-        // A2M-50: every pill switches this card in place (the tools window is only a fallback for the views not ported yet: Hyper+Shift+M)
+        // A2M-50: every pill switches this card in place
         foreach (var spec in ViewRegistry.Strip) tabs.Append(TabPill(spec.Key, spec.Icon));
         // the breakdown gets a pill only while it is in front (WPF TabFight); the gear is the Settings pill (TabState.PillVisible)
         tabs.Append(TabPill(TabState.Fight, Icons.Fight));
@@ -431,7 +431,6 @@ internal sealed class Card
             v.Shown();
         }
         SyncPills();
-        _shell.SaveLastTab(now);
         _tabChanged(now);
     }
 
@@ -496,7 +495,7 @@ internal sealed class Card
     {
         var t = UiText.Current;
         var tip = key switch { TabState.Fight => t.FightTab, TabState.Settings => t.SettingsTitle, _ => Array.Find(ViewRegistry.Strip, s => s.Key == key)?.Tip(t) ?? key };
-        return key == TabState.Meter || ViewRegistry.Has(key) ? tip : string.Format(t.LinuxNotYet, tip) + " — Hyper+Shift+M";
+        return tip;
     }
 
     /// <summary>WPF TabPill: icon toggle, the selected one filled gold; clicking the selected one goes back (TabState.PillTarget).</summary>

@@ -5,8 +5,9 @@ using AionMeter.Service.Overlay;
 
 namespace AionMeter.Tests;
 
-/// <summary>A2M-48 UX: the tools window's command socket, the canonical tab strip, the shared UI scale, Sway screen factors, pid files.</summary>
-public class LinuxUxTests
+/// <summary>A2M-50: the card's command socket (client, server), the canonical tab strip, the UI scale in ui.json, the pid file check, the daemon restart runner.
+/// Was LinuxUxTests (A2M-48 UX) until the Avalonia UI was retired.</summary>
+public class CardCommandTests
 {
     [Theory]
     [InlineData("""{"cmd":"show","tab":"items"}""", UiCommandKind.Show, "items")]
@@ -71,7 +72,7 @@ public class LinuxUxTests
         finally { File.Delete(path); }
     }
 
-    /// <summary>Both Linux strips are built from UiTabs.Strip; it must be WPF's TabStrip order (OverlayWindow.xaml), fight/settings excluded.</summary>
+    /// <summary>The card's strip is built from UiTabs.Strip; it must be WPF's TabStrip order (OverlayWindow.xaml), fight/settings excluded.</summary>
     [Fact]
     public void TabStrip_IsTheWpfOrder()
     {
@@ -92,16 +93,6 @@ public class LinuxUxTests
         Assert.Equal(keys, UiTabs.Strip);
         foreach (var k in UiTabs.Strip) Assert.NotEqual(k, CardText.TabTip(k));
     }
-
-    [Theory]
-    [InlineData(null, "items")]
-    [InlineData("", "items")]
-    [InlineData("meter", "items")]
-    [InlineData("settings", "items")]
-    [InlineData("nonsense", "items")]
-    [InlineData("craft", "craft")]
-    [InlineData("atlas", "atlas")]
-    public void StartTab_IsTheLastToolTab(string? last, string expected) => Assert.Equal(expected, UiTabs.StartTab(last));
 
     [Theory]
     [InlineData(1.0, 1.0)]
@@ -136,22 +127,6 @@ public class LinuxUxTests
     }
 
     [Fact]
-    public void ScreenFactors_FromSwayOutputs()
-    {
-        const string outputs = """
-            [{"name":"DP-2","active":true,"scale":1.25,"make":"NSL"},
-             {"name":"DP-1","active":true,"scale":1.5},
-             {"name":"HDMI-A-1","active":false,"scale":-1}]
-            """;
-        Assert.Equal("DP-2=1.25;DP-1=1.5", UiScale.ScreenFactors(outputs));
-        Assert.Null(UiScale.ScreenFactors("[]"));
-        Assert.Null(UiScale.ScreenFactors("{oops"));
-        Assert.True(UiScale.ZeroScaling("font pango:Inter 10\nxwayland_zero_scaling yes\nexec_always xrdb"));
-        Assert.False(UiScale.ZeroScaling("xwayland_zero_scaling no\n"));
-        Assert.False(UiScale.ZeroScaling("# xwayland_zero_scaling yes\n"));
-    }
-
-    [Fact]
     public void LivePid_ChecksTheCmdline()
     {
         var dir = Path.Combine(Path.GetTempPath(), "aionmeter-ux-tests", Guid.NewGuid().ToString("N"));
@@ -160,13 +135,57 @@ public class LinuxUxTests
         var me = Environment.ProcessId;
         var cmdline = File.ReadAllText($"/proc/{me}/cmdline").Split('\0')[0];
         File.WriteAllText(pidFile, me.ToString());
-        Assert.Equal(me, FrontEnds.LivePid(pidFile, Path.GetFileName(cmdline)));
-        Assert.Equal(0, FrontEnds.LivePid(pidFile, "AionMeter.Overlay.dll-not-this"));   // reused pid, someone else
+        Assert.Equal(me, CardProcess.LivePid(pidFile, Path.GetFileName(cmdline)));
+        Assert.Equal(0, CardProcess.LivePid(pidFile, "AionMeter.Overlay.dll-not-this"));   // reused pid, someone else
         File.WriteAllText(pidFile, "999999999");
-        Assert.Equal(0, FrontEnds.LivePid(pidFile, "dotnet"));
+        Assert.Equal(0, CardProcess.LivePid(pidFile, "dotnet"));
         File.WriteAllText(pidFile, "junk");
-        Assert.Equal(0, FrontEnds.LivePid(pidFile, "dotnet"));
-        Assert.Equal(0, FrontEnds.LivePid(Path.Combine(dir, "missing.pid"), "dotnet"));
+        Assert.Equal(0, CardProcess.LivePid(pidFile, "dotnet"));
+        Assert.Equal(0, CardProcess.LivePid(Path.Combine(dir, "missing.pid"), "dotnet"));
         Directory.Delete(dir, true);
+    }
+
+    [Fact]
+    public void CommandServer_RunsEachLineThroughPostAndRemovesItsFile()
+    {
+        var path = $"/tmp/a2m-cs-{Guid.NewGuid():N}"[..24] + ".sock";
+        File.WriteAllText(path, "stale");   // a dead socket file left behind is replaced
+        var got = new System.Collections.Concurrent.BlockingCollection<UiCommand>();
+        var posted = 0;
+        using (var server = UiCommandServer.Start(path, got.Add, a => { Interlocked.Increment(ref posted); a(); }))
+        {
+            Assert.NotNull(server);
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+            Assert.True(UiChannel.TrySend(path, new UiCommand(UiCommandKind.Show, "items")));
+            Assert.True(UiChannel.TrySend(path, new UiCommand(UiCommandKind.Quit)));
+            Assert.True(got.TryTake(out var a, 3000));
+            Assert.True(got.TryTake(out var b, 3000));
+            Assert.Equal([new UiCommand(UiCommandKind.Show, "items"), new UiCommand(UiCommandKind.Quit)], new[] { a, b }.OrderBy(c => c.Kind).ToArray());
+            // junk and the probe run nothing
+            using (var s = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified))
+            {
+                s.Connect(new UnixDomainSocketEndPoint(path));
+                s.Send("{\"cmd\":\"launch\"}\nnot json\n"u8.ToArray());
+            }
+            Assert.True(UiChannel.TrySend(path, null));
+            Assert.False(got.TryTake(out _, 300));
+            Assert.Equal(2, posted);
+        }
+        Assert.False(File.Exists(path));
+        Assert.False(UiChannel.TrySend(path, new UiCommand(UiCommandKind.Raise)));
+    }
+
+    [Fact]
+    public void CommandSocket_IsTheCardsOwn() => Assert.Equal("aionmeter-overlay.sock", Path.GetFileName(UiChannel.DefaultPath()));
+
+    [Fact]
+    public void DaemonRestart_RunnerReportsMissingProgramsAndExitCodes()
+    {
+        Assert.True(DaemonControl.Run("true", []));
+        Assert.False(DaemonControl.Run("false", []));
+        Assert.False(DaemonControl.Run("a2m50-no-such-program", ["restart", DaemonControl.Unit]));
+        Assert.False(DaemonControl.Run("sleep", ["5"], timeoutMs: 200));
+        Assert.Equal("systemctl restart aion2-meter-daemon", DaemonControl.Command);
+        Assert.Contains("sudo systemctl restart aion2-meter-daemon", DaemonControl.FailedText());
     }
 }

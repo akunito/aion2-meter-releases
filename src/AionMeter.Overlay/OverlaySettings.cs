@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace AionMeter.Overlay;
 
-/// <summary>~/.local/share/AionMeter/overlay.json: the layer-shell overlay's place, size and switches (ui.json is the Avalonia UI's, settings.json the daemon's).</summary>
+/// <summary>~/.local/share/AionMeter/overlay.json: the layer-shell overlay's place, size and switches (ui.json: the UI scale; settings.json: the daemon's).</summary>
 public sealed class OverlaySettings
 {
     /// <summary>Output connector ("DP-1"); empty = the compositor's choice (the focused output).</summary>

@@ -10,7 +10,7 @@ namespace AionMeter.Service;
 /// icons as &lt;name&gt;.png), downloads only while Settings → "Download icons" is on, one request per 400 ms for aion2hub/questlog, 64 px PNGs
 /// kept instead of the 256 px originals. Lookups never block: a missing icon is queued and <see cref="Loaded"/> fires on the UI thread
 /// (through the post the toolkit gives) when it lands, at most once per 300 ms. These files are the UI's own writes (the daemon never
-/// downloads icons). <typeparamref name="T"/> is the toolkit's image (Avalonia Bitmap, GdkTexture): the subclass decodes and shrinks.
+/// downloads icons). <typeparamref name="T"/> is the toolkit's image (GdkTexture on the card): the subclass decodes and shrinks.
 /// </summary>
 public abstract class IconCache<T> : IDisposable where T : class
 {
@@ -36,7 +36,7 @@ public abstract class IconCache<T> : IDisposable where T : class
     /// <summary>On the UI thread, at most once per 300 ms however many icons landed.</summary>
     public event Action? Loaded;
 
-    /// <param name="post">Runs an action on the UI thread (Avalonia dispatcher, GLib idle).</param>
+    /// <param name="post">Runs an action on the UI thread (GLib idle on the card).</param>
     protected IconCache(string dataDirectory, bool enabled, Action<Action> post)
     {
         Enabled = enabled;

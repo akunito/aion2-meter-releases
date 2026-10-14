@@ -14,7 +14,7 @@ namespace AionMeter.Overlay.Views;
 /// built from settings.json as it is now; Save writes it (atomic) and sends the daemon `reload-settings`; Back / Cancel / Esc discard.
 /// Windows-only parts are notes: Hotkeys (Sway bindings), Updates (deploy.sh), "start with AION 2" (the daemon is a system service). Adapters
 /// come from libpcap when it loads in this process, else /sys/class/net. The opacity slider is the card's (overlay.json); "UI scale" rebuilds
-/// the card after the save.
+/// the card after the save. A2M-50: Daemon (the retired Avalonia tray's entries): live status, Restart the daemon, Quit the card.
 /// </summary>
 internal sealed class SettingsView : HostedView
 {
@@ -27,14 +27,60 @@ internal sealed class SettingsView : HostedView
     private Gtk.Entry _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!, _backupCode = null!;
     private Gtk.DropDown _language = null!, _maxRows = null!, _mode = null!, _historyMode = null!, _device = null!, _region = null!, _server = null!, _channel = null!;
     private Gtk.Scale _opacity = null!, _rowSize = null!, _uiScale = null!;
-    private Gtk.Label _backupWarn = null!, _backupOff = null!, _copyState = null!, _serverNow = null!;
+    private Gtk.Label _backupWarn = null!, _backupOff = null!, _copyState = null!, _serverNow = null!, _daemonLine = null!, _restartState = null!;
+    private Gtk.Button _restart = null!;
+    private string _daemonText = "", _restartText = "";
+    private Fg _restartFg = Fg.Dim;
+    private bool _restarting;
     private bool _loadingServer;
     private int _built;
     private static readonly int[] RowChoices = [5, 8, 10, 12, 15, 20];
 
     public SettingsView(AppShell shell) : base(shell, "settings", UiText.Current.SettingsTitle)
     {
+        _daemonText = shell.Daemon.Connected ? DaemonLine(shell.LastOverlay?.CaptureMessage ?? "") : T.TrayDaemonOff;
+        Listen(() => { Shell.Daemon.Status += OnStatus; Shell.Daemon.ConnectionChanged += OnConnection; },
+            () => { Shell.Daemon.Status -= OnStatus; Shell.Daemon.ConnectionChanged -= OnConnection; });
         Build();
+    }
+
+    private static string DaemonLine(string msg) => string.Format(T.TrayDaemon, T.CaptureStatusText(msg));
+
+    private void OnStatus(OverlayStatus st) => SetDaemonLine(DaemonLine(st.Message.Length > 0 ? st.Message : st.State.ToString()));
+
+    private void OnConnection(bool on) { if (!on) SetDaemonLine(T.TrayDaemonOff); }
+
+    private void SetDaemonLine(string text)
+    {
+        if (text == _daemonText) return;
+        _daemonText = text;
+        _daemonLine.SetText(text);
+    }
+
+    /// <summary>systemctl (polkit), then sudo -A with the askpass; on failure the command to run goes to the line under the button and to a notification.</summary>
+    private void RestartDaemon()
+    {
+        if (_restarting) return;
+        _restarting = true;
+        _restart.Sensitive = false;
+        SetRestartState(T.RestartRunning, Fg.Dim);
+        AppShell.Run(DaemonControl.Restart, ok =>
+        {
+            _restarting = false;
+            _restart.Sensitive = true;
+            if (ok) { SetRestartState(T.RestartDone, Fg.Green); return; }
+            var failed = DaemonControl.FailedText();
+            SetRestartState(failed, Fg.Red);
+            DaemonControl.Notify(failed);
+        }, "daemon restart");
+    }
+
+    private void SetRestartState(string text, Fg fg)
+    {
+        (_restartText, _restartFg) = (text, fg);
+        _restartState.SetText(text);
+        UiKit.SetFg(_restartState, fg);
+        _restartState.Visible = text.Length > 0;
     }
 
     public override void Shown()
@@ -149,6 +195,20 @@ internal sealed class SettingsView : HostedView
         ca.Append(UiKit.Hint(ov2 is null ? string.Format(T.LinuxNoDaemon, Shell.Daemon.Path)
             : T.StatusPrefix + T.CaptureStatusText(ov2.CaptureMessage) + (ov2.Status.Length > 0 && ov2.Status != ov2.CaptureMessage ? "\n" + ov2.Status : ""), 0, Fg.Dim));
         stack.Append(UiKit.Section(ca, T.SecCapture));
+
+        // Daemon (A2M-50: the Avalonia tray's Restart / Quit, now that the card is the only Linux UI)
+        var dm = UiKit.VBox();
+        dm.Append(_daemonLine = UiKit.Text(_daemonText));
+        dm.Append(UiKit.Hint(T.DaemonHint, 0));
+        var dmButtons = UiKit.HBox();
+        dmButtons.MarginTop = UiKit.Px(8);
+        dmButtons.Append(_restart = UiKit.Ghost(T.TrayRestartDaemon, RestartDaemon));
+        _restart.Sensitive = !_restarting;
+        dmButtons.Append(UiKit.Ghost(T.TrayQuit, Shell.Host.Quit));
+        dm.Append(dmButtons);
+        dm.Append(_restartState = UiKit.Hint(_restartText, 0, _restartFg));
+        _restartState.Visible = _restartText.Length > 0;
+        stack.Append(UiKit.Section(dm, T.SecDaemon));
 
         // Hotkeys: Sway's
         stack.Append(UiKit.Section(UiKit.Hint(T.LinuxHotkeysNote, 0, Fg.Dim), T.SecHotkeys));

@@ -4,10 +4,10 @@ namespace AionMeter.Overlay.Shell;
 
 /// <summary>
 /// Item and skill icons as GdkTextures (A2M-50): the cache, download pacing and skill-name rules are <see cref="IconCache{T}"/> in
-/// AionMeter.Service (shared with the Avalonia UI, same `icons/` folder); this part decodes with GDK and shrinks with gdk-pixbuf. Show one in a
+/// AionMeter.Service (same `icons/` folder as the Windows app); this part decodes with GDK and shrinks with gdk-pixbuf. Show one in a
 /// <c>Gtk.Image</c> with a pixel size (<see cref="ItemKit.Image"/>), never a Gtk.Picture (height-for-width: it inflated the card's rows, measured).
 /// gdk-pixbuf only decodes what its loaders know: PNG/JPEG always; questlog's WebP icons only with webp-pixbuf-loader on the host — the ones
-/// the Avalonia UI already shrank are PNG in the cache and work.
+/// the retired Avalonia UI shrank are PNG in the cache and work.
 /// </summary>
 internal sealed class IconProvider : IconCache<Gdk.Texture>
 {
