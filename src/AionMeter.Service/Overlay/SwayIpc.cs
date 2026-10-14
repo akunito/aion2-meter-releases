@@ -15,7 +15,69 @@ public static class SwayIpc
     public const uint WindowEvent = 0x80000003;
     private const int HeaderSize = 14;
 
-    public static string? SocketPath => Environment.GetEnvironmentVariable("SWAYSOCK") is { Length: > 0 } s && File.Exists(s) ? s : null;
+    /// <summary>
+    /// The session sway's socket: $SWAYSOCK when it is live and not a nested headless sway, else the newest live `sway-ipc.&lt;uid&gt;.&lt;pid&gt;.sock`
+    /// in $XDG_RUNTIME_DIR that is not one. Measured 2026-10-14: agents' nested sways (`WLR_BACKENDS=headless`) left newer sockets and a stale
+    /// $SWAYSOCK in the launching shell; the card placed itself through a test sway and came back at a default spot.
+    /// </summary>
+    public static string? SocketPath
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("SWAYSOCK");
+            if (env is { Length: > 0 } && File.Exists(env) && !IsHeadlessSway(env)) return env;
+            var run = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+            if (run is not { Length: > 0 } || !Directory.Exists(run)) return null;
+            string[] files;
+            try { files = Directory.GetFiles(run, "sway-ipc.*.sock"); } catch (IOException) { return null; } catch (UnauthorizedAccessException) { return null; }
+            if (files.Length == 0) return null;
+            var stamps = new DateTime[files.Length];
+            for (var i = 0; i < files.Length; i++) stamps[i] = File.GetLastWriteTimeUtc(files[i]);
+            Array.Sort(stamps, files);
+            for (var i = files.Length - 1; i >= 0; i--) if (!IsHeadlessSway(files[i]) && SwayPidAlive(files[i])) return files[i];
+            return null;
+        }
+    }
+
+    /// <summary>The pid in `sway-ipc.&lt;uid&gt;.&lt;pid&gt;.sock`, 0 when the name has another shape.</summary>
+    public static int SocketPid(string path)
+    {
+        var name = Path.GetFileName(path.AsSpan());
+        if (!name.EndsWith(".sock", StringComparison.Ordinal)) return 0;
+        name = name[..^5];
+        var dot = name.LastIndexOf('.');
+        return dot >= 0 && int.TryParse(name[(dot + 1)..], out var pid) ? pid : 0;
+    }
+
+    private static bool SwayPidAlive(string path) => SocketPid(path) is var pid && pid > 0 && Directory.Exists("/proc/" + pid);
+
+    /// <summary>True when the sway behind the socket runs with WLR_BACKENDS=headless (a nested test compositor), read from /proc/&lt;pid&gt;/environ.</summary>
+    public static bool IsHeadlessSway(string path)
+    {
+        var pid = SocketPid(path);
+        if (pid <= 0) return false;
+        try
+        {
+            var env = File.ReadAllBytes("/proc/" + pid + "/environ");
+            return IsHeadlessEnviron(env);
+        }
+        catch (IOException) { return false; } catch (UnauthorizedAccessException) { return false; }
+    }
+
+    public static bool IsHeadlessEnviron(ReadOnlySpan<byte> environ)
+    {
+        var key = "WLR_BACKENDS=headless"u8;
+        var start = 0;
+        for (var i = 0; i <= environ.Length; i++)
+        {
+            if (i == environ.Length || environ[i] == 0)
+            {
+                if (environ[start..i].StartsWith(key)) return true;
+                start = i + 1;
+            }
+        }
+        return false;
+    }
 
     /// <summary>One message: "i3-ipc", payload length and type (native byte order, little-endian on every target), UTF-8 payload.</summary>
     public static byte[] Frame(uint type, string payload)
