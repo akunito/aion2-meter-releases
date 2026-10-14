@@ -149,10 +149,10 @@ public class MeterEngine : IDisposable
         if (Settings.Transient || (!force && !Settings.ChangedOnDisk())) return false;
         var fresh = AppSettings.Load();
         var language = Settings.Language;
-        var capture = (Settings.CaptureDevice, Settings.RecordPackets);
+        var capture = (Settings.CaptureDevice, Settings.RecordPackets, Settings.CaptureSource);
         Settings.CopyFrom(fresh);
-        // the factory reads CaptureDevice / RecordPackets when it opens the adapter: a new choice needs a reopen (the WPF Save does the same)
-        if (capture != (Settings.CaptureDevice, Settings.RecordPackets) && CaptureFactory is not null && !Viewer) Task.Run(RestartCapture);
+        // the factory reads CaptureDevice / RecordPackets / CaptureSource when it opens the adapter: a new choice needs a reopen (the WPF Save does the same)
+        if (capture != (Settings.CaptureDevice, Settings.RecordPackets, Settings.CaptureSource) && CaptureFactory is not null && !Viewer) Task.Run(RestartCapture);
         if (UiText.Normalize(Settings.Language) != UiText.Normalize(language))
         {
             Data.ReloadNames(DataDirectory, Settings.Language);
@@ -368,7 +368,7 @@ public class MeterEngine : IDisposable
     public string CaptureHealthText() => Availability.HealthText(CaptureHealth());
 
     /// <summary>Adapter counters of the live capture, null without an open adapter (replay, demo, no Npcap).</summary>
-    public CaptureHealth? CaptureHealth() { lock (_captureGate) return (_capture as LiveCapture)?.Health(); }
+    public CaptureHealth? CaptureHealth() { lock (_captureGate) return (_capture as ICaptureHealthSource)?.Health(); }
 
     public CaptureStatus CaptureStatus =>
         _replay is { Status.State: CaptureState.Capturing } r ? r.Status
@@ -485,6 +485,11 @@ public class MeterEngine : IDisposable
             }
             foreach (var (start, ms) in live.TakeSilences())
                 Log.Info($"Lag probe: server silent {ms} ms from {DateTimeOffset.FromUnixTimeMilliseconds(start).ToLocalTime():HH:mm:ss.fff}");
+        }
+        else if (_capture is Core.Capture.PcapStreamSource fwd && fwd.Faults != _loggedFaults)
+        {
+            _loggedFaults = fwd.Faults;
+            Log.Error($"Forwarded capture: {fwd.Faults} packets lost to handler faults", fwd.LastFault);
         }
 
         _viewStore?.ReloadIfChanged(Environment.TickCount64);
@@ -1175,7 +1180,7 @@ public class MeterEngine : IDisposable
     {
         if (_replaying || DemoRunning || s.Boss is null) return;
         CaptureHealth? health;
-        lock (_captureGate) health = (_capture as LiveCapture)?.Health();
+        lock (_captureGate) health = (_capture as ICaptureHealthSource)?.Health();
         var own = s.MostDamageUnsent ? " (most damage not sent)" : "";
         var capture = "";
         if (health is { } now)
@@ -1185,7 +1190,7 @@ public class MeterEngine : IDisposable
             capture = $"; capture since the last boss: {now.Received - before.Received:N0} packets, {now.Dropped - before.Dropped:N0} dropped, " +
                       $"{now.Gaps - before.Gaps:N0} stream gaps";
         }
-        else if (!Availability.Present) capture = "; capture: " + CaptureAvailability.NpcapNotInstalled;
+        else if (!Availability.Live) capture = "; capture: " + CaptureAvailability.NpcapNotInstalled;
         _lastHealth = health;
         Log.Info($"Boss fight {s.Title} ({s.Reason}, {Format.Clock(s.CombatMs)}): {s.Fighting} attacking, {s.PlayerCount} listed, " +
                  $"{s.DamageSenders} with hits{own}, " +

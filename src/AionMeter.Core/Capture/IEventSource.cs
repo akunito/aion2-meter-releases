@@ -25,3 +25,9 @@ public interface IEventSource : IDisposable
     void Start();
     void Stop();
 }
+
+/// <summary>A source with capture counters: the live adapter (Npcap/libpcap) or the forwarded stream (A2M-27).</summary>
+public interface ICaptureHealthSource
+{
+    CaptureHealth? Health();
+}

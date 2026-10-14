@@ -51,6 +51,7 @@ int Usage()
         aionmeter-cli conns                         show the AION 2 process and its TCP connections
         aionmeter-cli live [seconds] [--record]     capture live, print what was decoded
         aionmeter-cli replay <file.pcap>            run a capture through the meter, print fights
+        aionmeter-cli replay tcp://<host>:<port>    the same over a daemon's --forward stream, until the daemon closes it
         aionmeter-cli dump <file.pcap> [opcode]     print decoded packets (opcode as hex, e.g. 0438)
         aionmeter-cli replay <file.pcap> --boss --brief   player counts per fight only
         aionmeter-cli crits <file.pcap>             damage-type / modifier statistics per class (crit check)
@@ -146,16 +147,31 @@ int Replay(string path)
 {
     var stats = new EventStats(data);
     var tracker = new CombatTracker(data, new MeterOptions { TargetMode = args.Contains("--boss") ? TargetMode.BossOnly : TargetMode.All });
-    var replay = new PcapReplaySource(data, path, realtime: false);
-    replay.EventDecoded += e =>
+    void OnEvent(GameEvent e)
     {
         stats.Add(e);
         tracker.Process(e);
-    };
-    var n = replay.RunToEnd();
+    }
+    long n;
+    PacketPipeline pipeline;
+    // A2M-27: tcp://host:port reads a daemon's --forward stream (one connection, until the daemon closes it) instead of a file
+    if (PcapStreamSource.From(data, path, reconnect: false) is { } stream)
+    {
+        stream.EventDecoded += OnEvent;
+        n = stream.RunToEnd();
+        pipeline = stream.Pipeline;
+        Console.WriteLine(stream.Status.Message);
+    }
+    else
+    {
+        var replay = new PcapReplaySource(data, path, realtime: false);
+        replay.EventDecoded += OnEvent;
+        n = replay.RunToEnd();
+        pipeline = replay.Pipeline;
+    }
     tracker.Tick(long.MaxValue / 2);
     Console.WriteLine($"{n} packets");
-    stats.Print(replay.Pipeline);
+    stats.Print(pipeline);
     PrintFights(tracker);
     return 0;
 }

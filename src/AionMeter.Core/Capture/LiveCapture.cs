@@ -23,6 +23,9 @@ public sealed class LiveCaptureOptions
 
     /// <summary>How often the monitor re-checks for the library while it is missing (an install during the session is picked up without a restart).</summary>
     public int LibraryPollMs { get; set; } = 10_000;
+
+    /// <summary>A2M-27: every captured game packet is also handed to this forwarder (the Linux daemon's --forward, read by a Windows meter).</summary>
+    public PcapForwarder? Forward { get; set; }
 }
 
 /// <summary>
@@ -30,7 +33,7 @@ public sealed class LiveCaptureOptions
 /// Windows TCP table, opens only the adapter that carries them (the loopback adapter when a ping accelerator relays
 /// the game locally) and filters to those servers. Nothing is ever sent or injected.
 /// </summary>
-public sealed class LiveCapture : IEventSource
+public sealed class LiveCapture : IEventSource, ICaptureHealthSource
 {
     private readonly LiveCaptureOptions _options;
     private readonly PacketPipeline _pipeline;
@@ -389,6 +392,7 @@ public sealed class LiveCapture : IEventSource
         try
         {
             if (_writer is not null) { _writer.Write(raw); PruneRecordingsIfDue(); }
+            _options.Forward?.Publish(raw);
             if (SegmentReader.TryRead(raw, out var seg))
             {
                 if (seg.Key.SrcPort == 13328 && seg.Payload.Length > 0) NoteServerPacket(seg.TimeMs);
@@ -461,11 +465,18 @@ public static class SegmentReader
 
     public static bool TryRead(RawCapture raw, out Segment segment)
     {
+        var t = raw.Timeval;
+        return TryRead(raw.LinkLayerType, (long)t.Seconds * 1000 + (long)t.MicroSeconds / 1000, raw.Data, out segment);
+    }
+
+    /// <summary>PacketDotNet only, no SharpPcap type: the forwarded stream (A2M-27) is read on PCs without Npcap, where touching SharpPcap throws.</summary>
+    public static bool TryRead(LinkLayers link, long timeMs, byte[] data, out Segment segment)
+    {
         segment = default;
         Packet packet;
         try
         {
-            packet = Packet.ParsePacket(raw.LinkLayerType, raw.Data);
+            packet = Packet.ParsePacket(link, data);
         }
         catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or NotImplementedException)
         {
@@ -475,10 +486,8 @@ public static class SegmentReader
         var tcp = packet.Extract<TcpPacket>();
         if (ip is null || tcp is null) return false;
 
-        var t = raw.Timeval;
-        var ms = (long)t.Seconds * 1000 + (long)t.MicroSeconds / 1000;
         var key = new FlowKey(ip.SourceAddress, tcp.SourcePort, ip.DestinationAddress, tcp.DestinationPort);
-        segment = new Segment(ms, key, tcp.SequenceNumber, tcp.Synchronize, tcp.Finished || tcp.Reset, tcp.PayloadData ?? [], tcp.Acknowledgment ? tcp.AcknowledgmentNumber : null);
+        segment = new Segment(timeMs, key, tcp.SequenceNumber, tcp.Synchronize, tcp.Finished || tcp.Reset, tcp.PayloadData ?? [], tcp.Acknowledgment ? tcp.AcknowledgmentNumber : null);
         return true;
     }
 }

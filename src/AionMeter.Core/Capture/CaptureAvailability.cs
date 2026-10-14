@@ -102,12 +102,20 @@ public sealed class CaptureAvailability
         }
     }
 
-    public bool Has(CaptureFeature f) => !IsLiveOnly(f) || Present;
+    /// <summary>A2M-27: "host:port" while the capture source is another meter's forwarded stream (<see cref="PcapStreamSource"/>), else null.
+    /// That stream is read without the capture library, so the live features work on a PC (a VM, Wine) that has no Npcap.</summary>
+    public string? ForwardedFrom { get; set; }
+
+    /// <summary>The live features can work: the capture library is here, or the packets come forwarded from another meter.</summary>
+    public bool Live => ForwardedFrom is not null || Present;
+
+    /// <summary>Packet recording and .pcap replay still go through SharpPcap, so they need the library even when the capture is forwarded.</summary>
+    public bool Has(CaptureFeature f) => !IsLiveOnly(f) || (f == CaptureFeature.PacketRecording ? Present : Live);
 
     /// <summary>The Settings → Capture paragraph; empty while the capture works.</summary>
     public string SettingsText(IReadOnlyDictionary<CaptureFeature, string> labels, string headline, string lostHeader, string keptHeader)
     {
-        if (Present) return "";
+        if (Live) return "";
         var sb = new StringBuilder(512);
         sb.Append(headline).Append('\n').Append(lostHeader).Append(' ');
         Join(sb, labels, true);
@@ -131,7 +139,8 @@ public sealed class CaptureAvailability
 
     /// <summary>The capture-health line (boss log, Settings): adapter counters, or why there are none.</summary>
     public string HealthText(CaptureHealth? health) =>
-        !Present ? NpcapNotInstalled
+        ForwardedFrom is { } from ? (health is { } f ? $"forwarded capture from {from}: {f.Received:N0} packets, {f.Gaps:N0} stream gaps" : "forwarded capture from " + from)
+        : !Present ? NpcapNotInstalled
         : health is { } h ? $"{h.Received:N0} packets, {h.Dropped:N0} dropped, {h.Gaps:N0} stream gaps"
         : "no adapter open";
 }

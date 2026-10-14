@@ -117,13 +117,20 @@ public partial class App : Application
         Core.Net.CloudflareHttp.SolverUrl = settings.CloudflareSolverUrl; // scrapers fall back to the solver when set
         // A2M-27: one probe for the whole app; while it says no, nothing calls SharpPcap (capture, adapter list, replay)
         var availability = CaptureAvailability.OfThisPc();
-        Func<Core.Game.GameData, IEventSource> factory = data => new LiveCapture(data, new LiveCaptureOptions
+        // A2M-27: Settings → Capture "Receive from another meter" reads the Linux daemon's --forward stream (VM / Wine test setup, no Npcap needed)
+        Func<Core.Game.GameData, IEventSource> factory = data =>
         {
-            DeviceName = settings.CaptureDevice,
-            RecordDirectory = settings.RecordPackets ? Path.Combine(AppSettings.AppDataDir, "captures") : null,
-            RecordKeepBytes = (long)(settings.CaptureKeepGb * 1_073_741_824),
-            LibraryPresent = () => availability.Present,
-        });
+            var stream = PcapStreamSource.From(data, settings.CaptureSource);
+            availability.ForwardedFrom = stream?.Endpoint;
+            return stream ?? (IEventSource)new LiveCapture(data, new LiveCaptureOptions
+            {
+                DeviceName = settings.CaptureDevice,
+                RecordDirectory = settings.RecordPackets ? Path.Combine(AppSettings.AppDataDir, "captures") : null,
+                RecordKeepBytes = (long)(settings.CaptureKeepGb * 1_073_741_824),
+                LibraryPresent = () => availability.Present,
+            });
+        };
+        availability.ForwardedFrom = CaptureEndpoint.StreamEndpoint(settings.CaptureSource);
 
         _meter = new MeterService(settings, factory, availability);
         // The naming prompt opens over the atlas (or the overlay): on the monitor the player keeps the meter, not on the game's.
@@ -168,7 +175,7 @@ public partial class App : Application
         SessionEnding += (_, end) => Log.Info($"Windows {end.ReasonSessionEnding}: closing");
 
         // A new player's first start: without Npcap nothing can be measured — say so (once; Settings → Capture re-opens it) and offer the download.
-        if (!availability.Present && !settings.NpcapHelpShown)
+        if (!availability.Live && !settings.NpcapHelpShown)
         {
             settings.NpcapHelpShown = true; settings.Save();
             Dispatcher.BeginInvoke(ShowNpcapHelp, DispatcherPriority.ApplicationIdle);

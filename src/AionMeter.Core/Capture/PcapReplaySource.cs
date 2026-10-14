@@ -33,6 +33,9 @@ public sealed class PcapReplaySource : IEventSource
     public CaptureStatus Status => _status;
     public PacketPipeline Pipeline => _pipeline;
 
+    /// <summary>A2M-27: every packet read, before decoding (the daemon's --forward on a --replay); with realtime, at its recorded pace.</summary>
+    public PcapForwarder? Forward { get; set; }
+
     public void Start()
     {
         _cts = new CancellationTokenSource();
@@ -77,14 +80,17 @@ public sealed class PcapReplaySource : IEventSource
         {
             count++;
             var raw = e.GetPacket();
-            if (!SegmentReader.TryRead(raw, out var seg)) continue;
             if (_realtime)
             {
-                firstPacketMs ??= seg.TimeMs;
-                var due = started.AddMilliseconds(seg.TimeMs - firstPacketMs.Value);
+                var t = raw.Timeval;
+                var ms = (long)t.Seconds * 1000 + (long)t.MicroSeconds / 1000;
+                firstPacketMs ??= ms;
+                var due = started.AddMilliseconds(ms - firstPacketMs.Value);
                 var wait = due - DateTime.UtcNow;
                 if (wait > TimeSpan.Zero) Thread.Sleep(wait);
             }
+            Forward?.Publish(raw);
+            if (!SegmentReader.TryRead(raw, out var seg)) continue;
             _pipeline.OnSegment(seg.TimeMs, seg.Key, seg.Seq, seg.Syn, seg.FinOrRst, seg.Payload);
         }
         SetStatus(CaptureState.Stopped, $"Replay finished · {count} packets");
