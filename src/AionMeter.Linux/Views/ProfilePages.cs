@@ -208,7 +208,7 @@ public sealed class ProfilePages
     {
         var stack = new StackPanel();
         var groups = ProfileLayout.Skills(p);
-        var lang = _shell.Settings.SkillLanguage;
+        var lang = _shell.Settings.ResolvedNamesLanguage;
         foreach (var kind in (string[])["active", "stigma", "passive"])
         {
             var count = 0; var subs = 0;

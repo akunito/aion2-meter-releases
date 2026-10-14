@@ -116,7 +116,7 @@ public sealed class BuildView : HostedView
     public BuildView(AppShell shell) : base(shell, "build", UiText.Current.BuildTitle)
     {
         var s = shell.Settings;
-        _lang = s.SkillLanguage == "es" ? "es" : "en";
+        _lang = s.ResolvedNamesLanguage;
         _showDone = s.BuildShowDone;
 
         // --- sub-tabs | character, skill language (the header's right side stays free for the card's narrow width)
@@ -1170,7 +1170,7 @@ public sealed class BuildView : HostedView
     {
         _lang = lang;
         Shell.RefreshSettings();
-        Shell.Settings.SkillLanguage = lang;
+        Shell.Settings.PickNames(lang);
         Shell.SaveSettings();
         Render();
     }

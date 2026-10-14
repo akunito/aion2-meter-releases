@@ -374,7 +374,7 @@ public sealed class SettingsView : HostedView
         if (UiText.Normalize(s.Language) != UiText.Normalize(previousLanguage))
         {
             // A2M-47 "general language": the help pages, skill catalogue and item search follow the interface (MeterEngine.SetLanguage)
-            s.HelpLanguage = s.SkillLanguage = s.PriceSearchLanguage = s.Language;
+            s.HelpLanguage = s.Language;   // game names follow NamesLanguage (A2M-47)
         }
         s.DownloadIcons = _icons.IsChecked == true;
         s.AbyssLogsPercentile = _abyss.IsChecked == true;

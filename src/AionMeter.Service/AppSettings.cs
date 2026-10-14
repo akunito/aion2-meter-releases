@@ -98,8 +98,42 @@ public sealed class AppSettings
     public int IdleTimeoutSec { get; set; } = 10;
     public int BossIdleTimeoutSec { get; set; } = 30;
 
-    /// <summary>Interface and skill / NPC name language: "en" (default) or "es"; "ru" of older builds loads as "en" (A2M-47).</summary>
+    /// <summary>Interface language: "en" (default) or "es"; "ru" of older builds loads as "en" (A2M-47). Game names follow it unless
+    /// <see cref="NamesLanguage"/> says otherwise.</summary>
     public string Language { get; set; } = "en";
+
+    /// <summary>A2M-47 Settings → "Names: items, skills and monsters": "" = same as <see cref="Language"/> (default), "en" or "es". The one
+    /// source of truth for every game name (engine skill/NPC/map tables, item names, skill catalogue, Daevanion, recipes); the Items / Build /
+    /// Prices language switches write it through <see cref="PickNames"/>. Replaced the per-tab SkillLanguage and PriceSearchLanguage.</summary>
+    public string NamesLanguage { get; set; } = "";
+
+    /// <summary>The language game names are shown in: <see cref="NamesLanguage"/> when set, else the interface language.</summary>
+    [JsonIgnore]
+    public string ResolvedNamesLanguage => ResolveNames(Language, NamesLanguage);
+
+    public static string ResolveNames(string? language, string? names) => names is "en" or "es" ? names : UiText.Normalize(language);
+
+    /// <summary>Settings → Names drop-down rows (GTK and WPF): 0 = same as the interface (""), 1 = English, 2 = Spanish.</summary>
+    public static int NamesIndex(string? names) => names switch { "en" => 1, "es" => 2, _ => 0 };
+    public static string NamesValue(int index) => index switch { 1 => "en", 2 => "es", _ => "" };
+
+    /// <summary>A per-tab switch picked <paramref name="pick"/>: the interface's own language is stored as "" so the names keep following
+    /// the interface (as before, when switching the interface reset every per-tab choice); the other one is stored explicitly.</summary>
+    public void PickNames(string pick)
+    {
+        pick = UiText.Normalize(pick);
+        NamesLanguage = pick == UiText.Normalize(Language) ? "" : pick;
+    }
+
+    /// <summary>An older file's per-tab keys: either one that differs from the interface language was a deliberate pick (switching the
+    /// interface reset both to it), so the names keep that language; both equal to the interface (or absent) → "" (follow it).</summary>
+    public static string MigrateNames(string? language, string? skillLanguage, string? priceSearchLanguage)
+    {
+        var ui = UiText.Normalize(language);
+        if (priceSearchLanguage is not null && UiText.Normalize(priceSearchLanguage) != ui) return UiText.Normalize(priceSearchLanguage);
+        if (skillLanguage is not null && UiText.Normalize(skillLanguage) != ui) return UiText.Normalize(skillLanguage);
+        return "";
+    }
 
     /// <summary>A2M-40, Settings → Game: the shard (eu nae naw la as) the server dropdown lists; only decides when no server is known.</summary>
     public string Region { get; set; } = "eu";
@@ -191,12 +225,14 @@ public sealed class AppSettings
     public string HelpLanguage { get; set; } = "en";
     /// <summary>Atlas: draw the spawn points of the monsters whose pet souls the character still lacks.</summary>
     public bool AtlasShowPets { get; set; } = true;   // on unless the user switches it off (Diego, 2026-10-10)
-    /// <summary>Language of the item-name search in the Prices window ("en" / "es"), independent of the interface language.</summary>
-    public string PriceSearchLanguage { get; set; } = "en";
+    /// <summary>Read from older files only (Items / Craft / Prices name language): <see cref="Load"/> folds it into <see cref="NamesLanguage"/>, never written again.</summary>
+    [JsonPropertyName("PriceSearchLanguage"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyPriceSearchLanguage { get; set; }
     /// <summary>Prices tab, expanded row: chart range "24h", "7d" or "30d".</summary>
     public string PricesRange { get; set; } = "7d";
-    /// <summary>Build tab: language of skill names and descriptions ("en" / "es"); Spanish by default on a Spanish Windows.</summary>
-    public string SkillLanguage { get; set; } = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en";
+    /// <summary>Read from older files only (Build skill language): <see cref="Load"/> folds it into <see cref="NamesLanguage"/>, never written again.</summary>
+    [JsonPropertyName("SkillLanguage"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacySkillLanguage { get; set; }
     /// <summary>Build tab: list skills already at the build's level (off hides them from the library and dims them on the bar).</summary>
     public bool BuildShowDone { get; set; } = true;
     /// <summary>Build tab, Daevanion: draw nodes already open at full strength (off dims them to show only what is left).</summary>
@@ -257,6 +293,7 @@ public sealed class AppSettings
                 }
                 if (s.BuildTelemetryVersion < CurrentBuildTelemetry) { s.BuildTelemetrySent.Clear(); s.BuildTelemetryVersion = CurrentBuildTelemetry; }
                 s.Language = UiText.Normalize(s.Language);
+                s.MigrateLegacyNames();
                 s.LayoutVersion = CurrentLayout;
                 s.KnownStamp = File.GetLastWriteTimeUtc(FilePath);
                 return s;
@@ -266,6 +303,15 @@ public sealed class AppSettings
         {
         }
         return new AppSettings { LayoutVersion = CurrentLayout, BuildTelemetryVersion = CurrentBuildTelemetry };
+    }
+
+    /// <summary>Folds the per-tab keys of an older file into <see cref="NamesLanguage"/> (an explicit NamesLanguage wins) and drops them.</summary>
+    public void MigrateLegacyNames()
+    {
+        NamesLanguage = NamesLanguage is "en" or "es" ? NamesLanguage : "";
+        if (LegacySkillLanguage is null && LegacyPriceSearchLanguage is null) return;
+        if (NamesLanguage.Length == 0) NamesLanguage = MigrateNames(Language, LegacySkillLanguage, LegacyPriceSearchLanguage);
+        LegacySkillLanguage = LegacyPriceSearchLanguage = null;
     }
 
     /// <summary>Throw-away settings (render tool): never written to disk.</summary>

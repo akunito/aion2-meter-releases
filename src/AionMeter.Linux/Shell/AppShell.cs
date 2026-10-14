@@ -161,8 +161,7 @@ public sealed class AppShell : IDisposable
         Engine?.ApplySettingsInPlace();
         if (previousLanguage is not null && UiText.Normalize(previousLanguage) != UiText.Normalize(Settings.Language))
         {
-            UiText.Use(Settings.Language);
-            Engine?.Data.ReloadNames(MeterEngine.DataDirectory, Settings.Language);
+            UiText.Use(Settings.Language);   // the engine's names moved in ApplySettingsInPlace (NamesLanguage, A2M-47)
             LanguageChanged?.Invoke();
         }
     }

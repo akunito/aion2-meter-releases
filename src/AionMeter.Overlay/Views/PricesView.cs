@@ -81,13 +81,16 @@ internal sealed class PricesView : HostedView
     public override void LanguageChanged()
     {
         base.LanguageChanged();
+        // names language only (Settings → Names, the EN/ES switch here): keep the widgets and the search text
+        if (_builtFor == T.Code) { SyncLang(); RunSearch(); if (IsShown) Reload(); return; }
         Title = T.PricesTitle;
         Build();
         if (IsShown) Reload();
         CooldownTick();
     }
 
-    private string Lang => Shell.Settings.PriceSearchLanguage == "es" ? "es" : "en";
+    private string Lang => Shell.Settings.ResolvedNamesLanguage;
+    private string _builtFor = "";
 
     // engine events may come from any thread; one rebuild per loop turn however many arrive
     private void OnStore() => UiLoop.Post(QueueReload);
@@ -121,6 +124,7 @@ internal sealed class PricesView : HostedView
 
     private void Build()
     {
+        _builtFor = T.Code;
         var body = UiKit.VBox();
         _status = UiKit.Line("", 12, Fg.Mute);
         UiKit.Margin(_status, 18, 0, 18, 4);
@@ -505,12 +509,13 @@ internal sealed class PricesView : HostedView
     private void SetLang(string lang)
     {
         if (Lang == lang) return;
-        Shell.RefreshSettings();
-        Shell.Settings.PriceSearchLanguage = lang;
-        Shell.SaveSettings();
-        SyncLang();
-        RunSearch();
-        Reload();
+        // A2M-47: the one names language; SaveSettings raises LanguageChanged on every view (this one re-syncs, searches and reloads there)
+        UiLoop.Post(() =>
+        {
+            Shell.RefreshSettings();
+            Shell.Settings.PickNames(lang);
+            Shell.SaveSettings();
+        });
     }
 
     private void SyncLang()

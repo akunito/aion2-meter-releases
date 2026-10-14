@@ -72,7 +72,7 @@ public sealed class ItemsView : HostedView
     public ItemsView(AppShell shell) : base(shell, "items", UiText.Current.ItemsTitle)
     {
         _watch = DataWatch.Of(shell);
-        _lang = shell.Settings.PriceSearchLanguage == "es" ? "es" : "en";
+        _lang = shell.Settings.ResolvedNamesLanguage;
         _picker = _watch.Picker();
         HeaderRight.Children.Add(_picker);
 
@@ -980,7 +980,7 @@ public sealed class ItemsView : HostedView
         if (lang == _lang) return;
         _lang = lang;
         Shell.RefreshSettings();
-        if (Shell.Settings.PriceSearchLanguage != lang) { Shell.Settings.PriceSearchLanguage = lang; Shell.SaveSettings(); }
+        if (Shell.Settings.ResolvedNamesLanguage != lang) { Shell.Settings.PickNames(lang); Shell.SaveSettings(); }
         BuildLegend();
         Render();
     }

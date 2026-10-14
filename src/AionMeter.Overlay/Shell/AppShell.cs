@@ -56,6 +56,7 @@ internal sealed class AppShell : IDisposable
         UiJsonPath = uiJson;
         Settings = AppSettings.Load();   // read only: never re-saved on start (the daemon owns the migration save)
         UiText.Use(Settings.Language);
+        _names = Settings.ResolvedNamesLanguage;
         Icons = new IconProvider(MeterEngine.DataDirectory, Settings.DownloadIcons);
         daemon.Overlay += m => LastOverlay = m;
     }
@@ -72,8 +73,10 @@ internal sealed class AppShell : IDisposable
     public event Action? EngineReady;
     /// <summary>The newest `overlay` snapshot (null without a daemon).</summary>
     public OverlayModel? LastOverlay { get; private set; }
-    /// <summary>Settings saved with another language: the card calls every view's LanguageChanged.</summary>
+    /// <summary>Settings saved with another interface language or another names language (Settings → Names, the Items / Build / Prices
+    /// switches): the card calls every view's LanguageChanged, which re-reads both.</summary>
     public event Action? LanguageChanged;
+    private string _names;
 
     /// <summary>The card's UI scale (80–200 %).</summary>
     public double UiScale => Host.Scale;
@@ -189,7 +192,9 @@ internal sealed class AppShell : IDisposable
 
     /// <summary>
     /// Writes settings.json (aside + rename) and sends `reload-settings`; the daemon also notices the new mtime within 2 s if the socket is
-    /// down. Applies what the UI itself follows: icon downloads, language (UiText, the engine's names, every view's texts).
+    /// down. Applies what the UI itself follows: icon downloads, language (UiText), names language (the engine's tables through
+    /// ApplySettingsInPlace), and every view's texts when either moved. Called from a DropDown's selection handler, post it to the next
+    /// loop turn: LanguageChanged refills drop-downs (the DataWatch.Picker SIGSEGV, docs/33).
     /// </summary>
     public void SaveSettings(string? previousLanguage = null)
     {
@@ -198,10 +203,12 @@ internal sealed class AppShell : IDisposable
         Daemon.Send("reload-settings");
         Icons.Enabled = Settings.DownloadIcons;
         Engine?.ApplySettingsInPlace();
-        if (previousLanguage is not null && UiText.Normalize(previousLanguage) != UiText.Normalize(Settings.Language))
+        var ui = previousLanguage is not null && UiText.Normalize(previousLanguage) != UiText.Normalize(Settings.Language);
+        if (ui) UiText.Use(Settings.Language);
+        var names = Settings.ResolvedNamesLanguage;
+        if (ui || names != _names)
         {
-            UiText.Use(Settings.Language);
-            Engine?.Data.ReloadNames(MeterEngine.DataDirectory, Settings.Language);
+            _names = names;
             LanguageChanged?.Invoke();
         }
     }

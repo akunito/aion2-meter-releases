@@ -91,9 +91,11 @@ public partial class BuildView : UserControl
         _icons = icons ?? meter.ItemIconCache;
         _store = meter.Builds;
         _storeKey = meter.CharacterKey;
-        _lang = meter.Settings.SkillLanguage == "es" ? "es" : "en";
+        _lang = meter.Settings.ResolvedNamesLanguage;
         _showDone = meter.Settings.BuildShowDone;
         InitializeComponent();
+        ((ComboBoxItem)LangBox.Items[0]).Content = T.NamesShort + ": English";   // A2M-47: every game name, not only this tab's
+        ((ComboBoxItem)LangBox.Items[1]).Content = T.NamesShort + ": Español";
         PageDaev.Attach(meter, _icons);
         // Daevanion edits ride on this view's build and its 500 ms save (the page only hands over the new plan)
         PageDaev.PlanImported += (plan, slug) =>
@@ -130,7 +132,12 @@ public partial class BuildView : UserControl
         IsVisibleChanged += (_, e) =>
         {
             if (_sample) return;
-            if (e.NewValue is true) { if (_stale || !_dirty) { _stale = false; Reload(); } }
+            if (e.NewValue is true)
+            {
+                // A2M-47: the names language may have moved meanwhile (Settings, another tab's switch)
+                if (_meter.Settings.ResolvedNamesLanguage is var lang && lang != _lang) { _lang = lang; _syncing = true; LangBox.SelectedIndex = lang == "es" ? 1 : 0; _syncing = false; Render(); }
+                if (_stale || !_dirty) { _stale = false; Reload(); }
+            }
             else FlushSave();
         };
     }
@@ -1002,7 +1009,7 @@ public partial class BuildView : UserControl
     {
         if (_syncing || LangBox.SelectedItem is not ComboBoxItem { Tag: string l }) return;
         _lang = l;
-        if (!_sample) { _meter.Settings.SkillLanguage = l; _meter.Settings.Save(); }
+        if (!_sample) { _meter.Settings.PickNames(l); _meter.Settings.Save(); _meter.ApplyNamesLanguage(); }   // A2M-47: the one names language
         Render();
     }
 

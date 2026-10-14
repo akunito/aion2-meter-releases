@@ -92,10 +92,10 @@ public partial class PriceWatchView : UserControl
     {
         _meter = meter;
         InitializeComponent();
-        if (_meter.Settings.PriceSearchLanguage == "es") LangEs.IsChecked = true; else LangEn.IsChecked = true;
-        Loaded += (_, _) => { Reload(); _meter.Prices.Changed += OnChanged; _meter.ItemIconCache.Loaded += OnChanged; _meter.Names.Changed += OnNames; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
+        SyncLang();
+        Loaded += (_, _) => { SyncLang(); Reload(); _meter.Prices.Changed += OnChanged; _meter.ItemIconCache.Loaded += OnChanged; _meter.Names.Changed += OnNames; _cooldown.Start(); Cooldown_Tick(null, EventArgs.Empty); };
         Unloaded += (_, _) => { _meter.Prices.Changed -= OnChanged; _meter.ItemIconCache.Loaded -= OnChanged; _meter.Names.Changed -= OnNames; _cooldown.Stop(); };
-        IsVisibleChanged += (_, e) => { if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
+        IsVisibleChanged += (_, e) => { if (e.NewValue is true) SyncLang(); if (e.NewValue is true && _stale) { _stale = false; Reload(); } };
         _cooldown.Tick += Cooldown_Tick;
     }
 
@@ -325,14 +325,22 @@ public partial class PriceWatchView : UserControl
         catch (Exception ex) { StatusText.Text = ex.Message; Log.Error("Copy script", ex); }
     }
 
-    private string Lang => _meter.Settings.PriceSearchLanguage;
+    private string Lang => _meter.Settings.ResolvedNamesLanguage;
+
+    /// <summary>The EN/ES radios show the one names language (A2M-47), which Settings or another tab may have moved.</summary>
+    private void SyncLang()
+    {
+        if (Lang == "es") { if (LangEs.IsChecked != true) LangEs.IsChecked = true; }
+        else if (LangEn.IsChecked != true) LangEn.IsChecked = true;
+    }
 
     private void Lang_Checked(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded || sender is not RadioButton { Tag: string lang }) return;
-        if (_meter.Settings.PriceSearchLanguage == lang) return;
-        _meter.Settings.PriceSearchLanguage = lang;
+        if (Lang == lang) return;
+        _meter.Settings.PickNames(lang);
         _meter.Settings.Save();
+        _meter.ApplyNamesLanguage();
         RunSearch();
         Reload();
     }

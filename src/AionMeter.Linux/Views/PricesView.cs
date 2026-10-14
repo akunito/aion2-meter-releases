@@ -185,7 +185,7 @@ public sealed class PricesView : HostedView
         if (_shown) Reload();
     }
 
-    private string Lang => Shell.Settings.PriceSearchLanguage == "es" ? "es" : "en";
+    private string Lang => Shell.Settings.ResolvedNamesLanguage;
 
     /// <summary>price-history.json, read again when the daemon rewrote it (the engine's copy is a start-up snapshot).</summary>
     private PriceHistory History(MeterEngine m)
@@ -433,7 +433,7 @@ public sealed class PricesView : HostedView
         {
             if (e.InitialPressMouseButton != MouseButton.Left || Lang == lang) return;
             Shell.RefreshSettings();
-            Shell.Settings.PriceSearchLanguage = lang;
+            Shell.Settings.PickNames(lang);
             Shell.SaveSettings();
             SyncLang();
             RunSearch();

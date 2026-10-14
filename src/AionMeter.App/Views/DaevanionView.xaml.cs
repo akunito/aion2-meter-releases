@@ -72,7 +72,7 @@ public partial class DaevanionView : UserControl
     public void Show(Build? build, CharacterProfile? profile, bool sample)
     {
         if (_meter is null) return;
-        var lang = _meter.Settings.SkillLanguage == "es" ? "es" : "en";
+        var lang = _meter.Settings.ResolvedNamesLanguage;
         var same = ReferenceEquals(build?.Daevanion, _shownPlan) && build?.Id == _build?.Id && ReferenceEquals(profile, _profile) && lang == _lang && sample == _sample;
         _build = build; _profile = profile; _lang = lang; _sample = sample;
         if (same && !_pending) return;

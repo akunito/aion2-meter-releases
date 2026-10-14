@@ -149,7 +149,7 @@ public partial class BossTimersView : UserControl
         row.Portrait = t.NpcCode > 0 ? _meter.Portraits.Get(t.NpcCode) : null;
         row.Watch = t.Watch;
         row.SourceTip = t.FromGame && t.ListedAt is { } listed ? string.Format(T.SourceGame, When(listed, now)) : T.SourceMeter;
-        var zone = _meter.Timers.MapName(t.MapId, T.Code)
+        var zone = _meter.Timers.MapName(t.MapId, _meter.Data.Language)
                    ?? (t.SlotId != 0 ? string.Format(T.MapNumber, t.MapId) : t.MapId != 0 ? _meter.Data.MapName(t.MapId) : t.Zone);
         if (zone == "Open world") zone = T.OpenWorld;
         var death = t.LastKill is { } k ? string.Format(T.TimerKilled, When(k, now))

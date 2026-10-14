@@ -239,7 +239,7 @@ public sealed class CraftView : HostedView
     {
         _pendingIcons.Clear();
         if (Shell.Engine is not { } m) { _status.Text = "…"; return; }
-        var names = m.Names; var lang = Shell.Settings.PriceSearchLanguage;
+        var names = m.Names; var lang = Shell.Settings.ResolvedNamesLanguage;
         string Nm(int id) => names.Name(id, lang) ?? m.Items.NameOf(id);
         string Lb(int id) => names.Label(id, lang) ?? m.Items.NameOf(id);   // materials: "(legendary)" only on an ambiguous name
         var q = ItemQuery.Parse(_search.Text);
@@ -316,7 +316,7 @@ public sealed class CraftView : HostedView
         else _pendingIcons.Add((icon, r.Output));
         var nameLine = new StackPanel { Orientation = Orientation.Horizontal };
         nameLine.Children.Add(new TextBlock { Text = r.Name, FontWeight = FontWeight.SemiBold, FontSize = 12.5, Foreground = Visuals.Text });
-        if (ItemKit.GradeChip(r.Grade, Shell.Settings.PriceSearchLanguage) is { } chip) nameLine.Children.Add(chip);
+        if (ItemKit.GradeChip(r.Grade, Shell.Settings.ResolvedNamesLanguage) is { } chip) nameLine.Children.Add(chip);
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(nameLine);
         text.Children.Add(new TextBlock { Text = r.Sub, FontSize = 11, Foreground = Visuals.TextMute, TextWrapping = TextWrapping.Wrap });

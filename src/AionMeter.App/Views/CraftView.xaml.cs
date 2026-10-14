@@ -153,7 +153,7 @@ public partial class CraftView : UserControl
 
     private void Reload()
     {
-        var names = _meter.Names; var lang = _meter.Settings.PriceSearchLanguage;
+        var names = _meter.Names; var lang = _meter.Settings.ResolvedNamesLanguage;
         string Nm(int id) => names.Name(id, lang) ?? _meter.Items.NameOf(id);
         string Lb(int id) => names.Label(id, lang) ?? _meter.Items.NameOf(id);   // materials: "(legendary)" only on an ambiguous name
         var q = ItemQuery.Parse(SearchBox.Text);

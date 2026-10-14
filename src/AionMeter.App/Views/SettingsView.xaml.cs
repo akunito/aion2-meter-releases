@@ -96,6 +96,7 @@ public partial class SettingsView : UserControl
         NoCaptureInfo.Text = availability.SettingsText(T.CaptureFeatureLabels, T.NoCaptureHeadline, T.NoCaptureLost, T.NoCaptureKept);
 
         LanguageBox.SelectedIndex = UiText.Normalize(s.Language) == "es" ? 1 : 0;
+        NamesBox.SelectedIndex = AppSettings.NamesIndex(s.NamesLanguage);
         Icons.IsChecked = s.DownloadIcons;
         AbyssLogs.IsChecked = s.AbyssLogsPercentile;
         CheckUpdates.IsChecked = s.CheckUpdates;
@@ -153,6 +154,8 @@ public partial class SettingsView : UserControl
         s.RecordPackets = Record.IsChecked == true;
 
         var language = (LanguageBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "en";
+        // A2M-47: ApplySettings below reloads the engine's name tables when the resolved names language moved
+        s.NamesLanguage = AppSettings.NamesValue(NamesBox.SelectedIndex);
         s.DownloadIcons = Icons.IsChecked == true;
         s.AbyssLogsPercentile = AbyssLogs.IsChecked == true;
         s.CheckUpdates = CheckUpdates.IsChecked == true;
