@@ -13,8 +13,7 @@ public sealed record FightDetailReply(string Id, string Asked, bool Live, FightR
 public sealed record PricePollReply(bool Ran, string Reason, int Items, int Errors, long Next);
 
 /// <summary>
-/// The client side of <see cref="OverlayServer"/> without any UI toolkit (AionMeter.Linux has its own Avalonia copy, DaemonClient; A2M-50: this one
-/// carries every message DaemonClient does, for the GTK card's hosted views).
+/// The client side of <see cref="OverlayServer"/> without any UI toolkit (the GTK card and its hosted views).
 /// Newline-delimited JSON; reconnects with backoff (0.5 s doubling to 5 s) while the daemon is away. Every event is raised through
 /// <c>post</c> (the UI thread's dispatcher); only the newest overlay snapshot is delivered when the UI falls behind.
 /// </summary>

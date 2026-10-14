@@ -5,11 +5,11 @@ using AionMeter.Service;
 namespace AionMeter.Tests;
 
 /// <summary>
-/// A2M-48 phase 3c: what the Linux Build tab, Restore from code and Report a problem moved into AionMeter.Service (the Avalonia UI is not
-/// in the test project): description runs, questlog HTML, the character folder helpers, the restore flow and the report send.
+/// A2M-48 phase 3c: what the Build tab, Restore from code and Report a problem keep in AionMeter.Service (written for the Avalonia UI, used by
+/// the GTK card since A2M-50): description runs, questlog HTML, the character folder helpers, the restore flow and the report send.
 /// UiText.Current is process-wide and EsTextTests switches it: texts are checked by their numbers, not their words.
 /// </summary>
-public class LinuxBuildTabTests
+public class ServiceBuildTabTests
 {
     private const string Code = "3f9c0a12b7e44d85a6c1e09f2b7d5e31";
 
@@ -170,17 +170,17 @@ public class LinuxBuildTabTests
     }
 
     [Fact]
-    public void Report_zip_takes_the_two_newest_logs_of_the_daemon_and_of_the_linux_ui()
+    public void Report_zip_takes_the_two_newest_logs_of_the_daemon_and_of_the_linux_card()
     {
         var root = TempDir();
         try
         {
             var logs = Path.Combine(root, "logs");
             Directory.CreateDirectory(logs);
-            foreach (var f in new[] { "aionmeter_20261011.log", "aionmeter_20261012.log", "aionmeter_20261013.log", "aionmeter-ui_20261012.log", "aionmeter-ui_20261013.log", "aionmeter-ui_20261010.log" })
+            foreach (var f in new[] { "aionmeter_20261011.log", "aionmeter_20261012.log", "aionmeter_20261013.log", "aionmeter-overlay_20261012.log", "aionmeter-overlay_20261013.log", "aionmeter-overlay_20261010.log", "aionmeter-ui_20261013.log" })
                 File.WriteAllText(Path.Combine(logs, f), "x");
             var entries = BugReportFiles.Select(Path.Combine(root, "data"), Path.Combine(root, "app"), logs, new SharePolicy(true, true, true, false, false, false)).Select(e => e.Entry).ToList();
-            Assert.Equal(["logs/aionmeter_20261013.log", "logs/aionmeter_20261012.log", "logs/aionmeter-ui_20261013.log", "logs/aionmeter-ui_20261012.log"], entries);
+            Assert.Equal(["logs/aionmeter_20261013.log", "logs/aionmeter_20261012.log", "logs/aionmeter-overlay_20261013.log", "logs/aionmeter-overlay_20261012.log"], entries);
         }
         finally { Directory.Delete(root, true); }
     }

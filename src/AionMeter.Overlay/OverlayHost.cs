@@ -153,7 +153,7 @@ internal sealed class OverlayHost : ICardHost
         if (_startTab is { } tab) Post(() => _card?.SelectTab(tab));
         if (_startHelp is { } help) Post(() => _shell.ShowHelp(help));
         if (_startWindow is { } dialog) GLib.Functions.TimeoutAdd(0, 800, () => { _shell.ShowWindow(dialog); return false; });
-        // the shared UI scale: the tools window's Settings / Ctrl+wheel write ui.json; a 2 s mtime poll is enough for a setting
+        // the UI scale in ui.json (another card instance with --data-dir on the same dir, a hand edit); a 2 s mtime poll is enough for a setting
         _uiJsonStamp = Stamp(_uiJson);
         if (!_scaleFixed)
             GLib.Functions.TimeoutAddSeconds(0, 2, () =>
@@ -581,6 +581,27 @@ internal sealed class OverlayHost : ICardHost
         var (w, h) = CardSize();
         _card!.SetSize(w, h);
         _win!.SetDefaultSize(w, h);
+    }
+
+    public void Quit() => _app?.Quit();
+
+    /// <summary>
+    /// A line from the command socket (UiChannel): show [tab] / raise = shown and presented (a hidden card is mapped again, Sway restores its
+    /// rect), hide, toggle, quit. Main loop only.
+    /// </summary>
+    public void Command(UiCommand c)
+    {
+        if (_win is null) return;
+        Console.Error.WriteLine($"overlay: command {c.Kind}{(c.Tab is null ? "" : " " + c.Tab)}");
+        switch (c.Kind)
+        {
+            case UiCommandKind.Quit: Quit(); return;
+            case UiCommandKind.Toggle: ToggleHidden(); return;
+            case UiCommandKind.Hide: if (!_hidden) ToggleHidden(); return;
+        }
+        if (_hidden) ToggleHidden();
+        else _win.Present();
+        if (c.Tab is { } tab && _card is not null && _card.Tab != tab) _card.SelectTab(tab);
     }
 
     public void ToggleClickThrough() => SetClickThrough(!_s.ClickThrough);

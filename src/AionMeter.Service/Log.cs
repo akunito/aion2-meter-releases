@@ -14,7 +14,7 @@ public static class Log
     /// same process, A2M-50) had fixed the old dir and the daemon smoke test found no logs/ in its own dir.</summary>
     internal static void ResetPath() { lock (Gate) _filePath = null; }
 
-    /// <summary>File name stem: "aionmeter" (App, daemon); the Linux UI sets "aionmeter-ui" so two processes never append to one file.</summary>
+    /// <summary>File name stem: "aionmeter" (App, daemon); the Linux card sets "aionmeter-overlay" so two processes never append to one file.</summary>
     public static string Prefix { get; set; } = "aionmeter";
 
     public static string Directory => Path.GetDirectoryName(FilePath)!;

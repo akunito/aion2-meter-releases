@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace AionMeter.Service;
 
-/// <summary>The Items / Craft / Prices number formats and the price parser, shared by both Linux front-ends (A2M-50; were AionMeter.Linux ItemKit).</summary>
+/// <summary>The Items / Craft / Prices number formats and the price parser, of the GTK card (A2M-50).</summary>
 public static class ItemFormat
 {
     /// <summary>"12,847" → "13k", 1,234,567 → "1.2M" (mock kfmt: thousands from 10,000, one decimal below 10 M).</summary>

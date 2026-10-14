@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,28 +7,22 @@ using System.Text.Json.Nodes;
 namespace AionMeter.Service.Overlay;
 
 /// <summary>
-/// A2M-48: the card strip, left to right, as WPF OverlayWindow.xaml has it (TabMeter, TabAtlas, … TabTimers). Both Linux front-ends build
-/// their strip from this list; LinuxUxTests checks it against the XAML.
+/// A2M-48: the card strip, left to right, as WPF OverlayWindow.xaml has it (TabMeter, TabAtlas, … TabTimers). The GTK card builds its strip
+/// from this list; CardCommandTests checks it against the XAML.
 /// </summary>
 public static class UiTabs
 {
     public static readonly string[] Strip = ["meter", "atlas", "top", "prices", "craft", "build", "items", "timers"];
 
-    /// <summary>What the tools window opens on when nothing was used before: the DPS tab is the overlay's job.</summary>
-    public const string DefaultToolTab = "items";
-
     public static bool IsKnown(string key) => key == "settings" || Array.IndexOf(Strip, key) >= 0;
-
-    /// <summary>The tab the tools window starts on: the last one used unless it was DPS / Settings / unknown.</summary>
-    public static string StartTab(string? last) => last is { Length: > 0 } && last != "meter" && last != "settings" && IsKnown(last) ? last : DefaultToolTab;
 }
 
-/// <summary>A2M-48: "UI scale" (Settings → Overlay, Ctrl+wheel): one zoom for the Avalonia window and the layer-shell card, kept in ui.json.</summary>
+/// <summary>A2M-48: "UI scale" (Settings → Overlay, the wheel over the card's resize corner): the card's zoom, kept in ui.json.</summary>
 public static class UiScale
 {
     public const double Min = 0.8, Max = 2.0, Step = 0.1;
 
-    /// <summary>Clamped to 80–200 % on a 5 % grid (Ctrl+wheel steps never drift); NaN/∞ → 100 %.</summary>
+    /// <summary>Clamped to 80–200 % on a 5 % grid (wheel steps never drift); NaN/∞ → 100 %.</summary>
     public static double Clamp(double v) => double.IsFinite(v) ? Math.Round(Math.Clamp(v, Min, Max) * 20) / 20 : 1;
 
     /// <summary>ui.json's "UiScale" (1 when missing or unreadable).</summary>
@@ -44,42 +37,13 @@ public static class UiScale
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException or InvalidOperationException) { return 1; }
     }
 
-    /// <summary>
-    /// AVALONIA_SCREEN_SCALE_FACTORS for Sway with xwayland_zero_scaling (X11 sees physical pixels, so Avalonia must render at each output's
-    /// scale itself): "DP-1=1.5;DP-2=1.25" from `swaymsg -t get_outputs -r` (active outputs only); null when there is nothing to set.
-    /// </summary>
-    public static string? ScreenFactors(string outputsJson)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(outputsJson);
-            if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
-            var sb = new StringBuilder();
-            foreach (var o in doc.RootElement.EnumerateArray())
-            {
-                if (o.TryGetProperty("active", out var a) && a.ValueKind == JsonValueKind.False) continue;
-                if (!o.TryGetProperty("name", out var n) || n.GetString() is not { Length: > 0 } name) continue;
-                if (!o.TryGetProperty("scale", out var sc) || !sc.TryGetDouble(out var scale) || scale <= 0) continue;
-                if (sb.Length > 0) sb.Append(';');
-                sb.Append(name).Append('=').Append(scale.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
-            }
-            return sb.Length > 0 ? sb.ToString() : null;
-        }
-        catch (JsonException) { return null; }
-    }
-
-    /// <summary>Whether Sway's config turns xwayland_zero_scaling on (launch-time only, so the loaded config is the truth).</summary>
-    public static bool ZeroScaling(string swayConfig) =>
-        System.Text.RegularExpressions.Regex.IsMatch(swayConfig, @"^\s*xwayland_zero_scaling\s+(yes|enable|true|on)\s*$",
-            System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-    /// <summary>Sets only "UiScale" in ui.json (the Avalonia UI owns the rest of the file), aside + rename.</summary>
+    /// <summary>Sets only "UiScale" in ui.json (other keys stay, ui.json predates the card), aside + rename.</summary>
     public static void Write(string uiJson, double scale) => UiJson.Write(uiJson, "UiScale", Clamp(scale));
 }
 
 /// <summary>
-/// A2M-50: single keys of ui.json for the layer-shell card, which shares the file with the Avalonia UI (UiSettings owns the rest): read one
-/// key, patch one key (JsonNode, aside + rename) so neither process drops what the other wrote.
+/// A2M-50: single keys of ui.json for the card (the file was the retired Avalonia UI's, its other keys are kept): read one key, patch one key
+/// (JsonNode, aside + rename).
 /// </summary>
 public static class UiJson
 {
@@ -115,20 +79,21 @@ public static class UiJson
 
 public enum UiCommandKind { Show, Hide, Raise, Toggle, Quit }
 
-/// <summary>One line on the tools window's socket. <see cref="Tab"/> only with Show (null = keep the tab in front).</summary>
+/// <summary>One line on the card's command socket. <see cref="Tab"/> only with Show (null = keep the tab in front).</summary>
 public readonly record struct UiCommand(UiCommandKind Kind, string? Tab = null);
 
 /// <summary>
-/// A2M-48: the Avalonia tools window listens on $XDG_RUNTIME_DIR/aionmeter-ui.sock (newline JSON: {"cmd":"show","tab":"items"},
-/// {"cmd":"hide"}, {"cmd":"raise"}, {"cmd":"toggle"}, {"cmd":"quit"}). The layer-shell card's tab pills and a second `aionmeter-ui`
-/// (single instance) talk to it.
+/// A2M-50: the card listens on $XDG_RUNTIME_DIR/aionmeter-overlay.sock (newline JSON: {"cmd":"show","tab":"items"}, {"cmd":"hide"},
+/// {"cmd":"raise"}, {"cmd":"toggle"}, {"cmd":"quit"}); a second `aionmeter-overlay` (single instance, --show/--hide/--toggle/--quit) and the
+/// dotfiles helpers talk to it (`printf '{"cmd":"raise"}\n' | socat - UNIX-CONNECT:…` works too). Was the Avalonia tools window's
+/// aionmeter-ui.sock until 2026-10-14.
 /// </summary>
 public static class UiChannel
 {
     public static string RunDir() =>
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") is { Length: > 0 } rd && Directory.Exists(rd) ? rd : Path.GetTempPath();
 
-    public static string DefaultPath() => Path.Combine(RunDir(), "aionmeter-ui.sock");
+    public static string DefaultPath() => Path.Combine(RunDir(), "aionmeter-overlay.sock");
 
     public static bool TryParse(string line, out UiCommand cmd)
     {
@@ -171,7 +136,7 @@ public static class UiChannel
         return c.Tab is null ? $"{{\"cmd\":\"{name}\"}}\n" : $"{{\"cmd\":\"{name}\",\"tab\":\"{c.Tab}\"}}\n";
     }
 
-    /// <summary>Delivers one command to a running tools window (null: only checks that one listens); false when none listens (no socket, refused, timeout).</summary>
+    /// <summary>Delivers one command to a running card (null: only checks that one listens); false when none listens (no socket, refused, timeout).</summary>
     public static bool TrySend(string path, UiCommand? c, int timeoutMs = 600)
     {
         if (!File.Exists(path)) return false;
@@ -188,16 +153,86 @@ public static class UiChannel
     }
 }
 
-/// <summary>A2M-48: the two Linux front-ends find, signal and start each other (pid files in $XDG_RUNTIME_DIR, never `pkill -f`).</summary>
-public static class FrontEnds
+/// <summary>
+/// A2M-50: the card's command socket (<see cref="UiChannel"/>). Mode 0600; the file goes with the process. Each command runs through
+/// <c>post</c> (the GTK main loop); a client sends one line in practice, at most 8 are read per connection.
+/// </summary>
+public sealed class UiCommandServer : IDisposable
 {
-    public const int SigUsr1 = 10, SigUsr2 = 12;
-    public static string OverlayPidFile => Path.Combine(UiChannel.RunDir(), "aionmeter-overlay.pid");
-    public static string UiPidFile => Path.Combine(UiChannel.RunDir(), "aionmeter-ui.pid");
-    public const string OverlayDll = "AionMeter.Overlay.dll", UiDll = "AionMeter.Linux.dll";
+    private readonly string _path;
+    private readonly Socket _listener;
+    private readonly Action<UiCommand> _handle;
+    private readonly Action<Action> _post;
+    private volatile bool _disposed;
 
-    [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
-    private static extern int Kill(int pid, int sig);
+    private UiCommandServer(string path, Socket listener, Action<UiCommand> handle, Action<Action> post)
+    {
+        _path = path;
+        _listener = listener;
+        _handle = handle;
+        _post = post;
+    }
+
+    /// <summary>Listens on <paramref name="path"/>; null if it cannot (logged). Call only after <see cref="UiChannel.TrySend"/> found nobody there.</summary>
+    public static UiCommandServer? Start(string path, Action<UiCommand> handle, Action<Action> post)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);   // stale: nobody answered on it
+            var s = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            s.Bind(new UnixDomainSocketEndPoint(path));
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            s.Listen(4);
+            var server = new UiCommandServer(path, s, handle, post);
+            _ = Task.Run(server.AcceptLoop);
+            return server;
+        }
+        catch (Exception e) when (e is SocketException or IOException or UnauthorizedAccessException)
+        {
+            Log.Error("card command socket " + path, e);
+            return null;
+        }
+    }
+
+    private async Task AcceptLoop()
+    {
+        while (!_disposed)
+        {
+            Socket c;
+            try { c = await _listener.AcceptAsync().ConfigureAwait(false); }
+            catch (Exception) when (_disposed) { return; }
+            catch (SocketException) { continue; }
+            _ = Task.Run(() => Serve(c));
+        }
+    }
+
+    private void Serve(Socket c)
+    {
+        using var _ = c;
+        try
+        {
+            c.ReceiveTimeout = 2000;
+            using var stream = new NetworkStream(c);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            for (var i = 0; i < 8 && reader.ReadLine() is { } line; i++)
+                if (UiChannel.TryParse(line, out var cmd)) _post(() => _handle(cmd));
+        }
+        catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException) { }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        try { _listener.Dispose(); } catch (SocketException) { }
+        try { File.Delete(_path); } catch (IOException) { }
+    }
+}
+
+/// <summary>The card's pid file in $XDG_RUNTIME_DIR (the dotfiles helpers signal it; never `pkill -f`).</summary>
+public static class CardProcess
+{
+    public const string Dll = "AionMeter.Overlay.dll";
+    public static string PidFile => Path.Combine(UiChannel.RunDir(), "aionmeter-overlay.pid");
 
     /// <summary>The pid in <paramref name="pidFile"/> when that process is alive and its cmdline holds <paramref name="marker"/> (stale file, reused pid).</summary>
     public static int LivePid(string pidFile, string marker)
@@ -210,48 +245,60 @@ public static class FrontEnds
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return 0; }
     }
+}
 
-    public static bool Signal(int pid, int sig) => pid > 1 && Kill(pid, sig) == 0;
+/// <summary>
+/// Settings → Daemon "Restart the daemon" (was the Avalonia tray's): `systemctl restart` asks polkit (an agent may prompt); when that fails
+/// and SUDO_ASKPASS is set (dotfiles sudoAskpassEnable) `sudo -A` asks through the GUI askpass, as tools/linux/deploy.sh does. Both failing,
+/// the caller shows <see cref="FailedText"/> with the command to run in a terminal.
+/// </summary>
+public static class DaemonControl
+{
+    public const string Unit = "aion2-meter-daemon";
+    public static string Command => "systemctl restart " + Unit;
 
-    /// <summary>Starts <paramref name="command"/> detached from this process (setsid -f), PATH lookup; false if it could not start.</summary>
-    public static bool Launch(string command, params string[] args)
+    /// <summary>UiText.TrayRestartFailed with the command.</summary>
+    public static string FailedText() => string.Format(UiText.Current.TrayRestartFailed, "sudo " + Command);
+
+    /// <summary>Blocking (up to 2 min per attempt: a password prompt waits for the user): true when the unit was restarted.</summary>
+    public static bool Restart()
+    {
+        if (Run("systemctl", ["restart", Unit])) return true;
+        return Environment.GetEnvironmentVariable("SUDO_ASKPASS") is { Length: > 0 } ap && File.Exists(ap) && Run("sudo", ["-A", "--", "systemctl", "restart", Unit]);
+    }
+
+    /// <summary>Runs <paramref name="exe"/> (PATH lookup) with stdin closed; true on exit 0. A missing program, a timeout or a non-zero exit is logged.</summary>
+    public static bool Run(string exe, string[] args, int timeoutMs = 120_000)
     {
         try
         {
-            var psi = new ProcessStartInfo("setsid") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = false };
-            psi.ArgumentList.Add("-f");
-            psi.ArgumentList.Add(command);
+            var psi = new ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true, RedirectStandardInput = true };
             foreach (var a in args) psi.ArgumentList.Add(a);
             using var p = Process.Start(psi);
-            p?.StandardInput.Close();
-            return p is not null;
+            if (p is null) return false;
+            p.StandardInput.Close();
+            var err = p.StandardError.ReadToEndAsync();
+            _ = p.StandardOutput.ReadToEndAsync();
+            if (!p.WaitForExit(timeoutMs)) { try { p.Kill(); } catch (InvalidOperationException) { } Log.Info($"daemon restart: {exe} timed out"); return false; }
+            if (p.ExitCode == 0) { Log.Info($"daemon restart: {exe} {string.Join(' ', args)} ok"); return true; }
+            Log.Info($"daemon restart: {exe} exit {p.ExitCode}: {err.Result.Trim()}");
+            return false;
         }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { return false; }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { Log.Info($"daemon restart: {exe}: {e.Message}"); return false; }
     }
 
-    /// <summary>The tools window on <paramref name="tab"/>: tell the running one, else start `aionmeter-ui --tab` ($AIONMETER_UI_LAUNCH overrides the command).</summary>
-    public static void OpenUi(string? tab)
+    /// <summary>A desktop notification (notify-send); stderr when there is none.</summary>
+    public static void Notify(string text)
     {
-        var cmd = new UiCommand(UiCommandKind.Show, tab);
-        if (UiChannel.TrySend(UiChannel.DefaultPath(), cmd)) return;
-        // starting up: the pid file is written before the socket listens
-        if (LivePid(UiPidFile, UiDll) != 0)
+        try
         {
-            for (var i = 0; i < 20; i++) { Thread.Sleep(250); if (UiChannel.TrySend(UiChannel.DefaultPath(), cmd)) return; }
-            return;
+            var psi = new ProcessStartInfo("notify-send") { UseShellExecute = false };
+            psi.ArgumentList.Add("-a");
+            psi.ArgumentList.Add(AppInfo.Name);
+            psi.ArgumentList.Add(AppInfo.Name);
+            psi.ArgumentList.Add(text);
+            Process.Start(psi)?.Dispose();
         }
-        var launch = Environment.GetEnvironmentVariable("AIONMETER_UI_LAUNCH") is { Length: > 0 } l ? l : "aionmeter-ui";
-        if (tab is null) Launch(launch);
-        else Launch(launch, "--tab", tab);
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { Console.Error.WriteLine(text); }
     }
-
-    /// <summary>The layer-shell card: SIGUSR2 (hide/show) if it runs, else start `aionmeter-overlay`. False when neither worked.</summary>
-    public static bool ToggleOverlay()
-    {
-        var pid = LivePid(OverlayPidFile, OverlayDll);
-        return pid != 0 ? Signal(pid, SigUsr2) : Launch(Environment.GetEnvironmentVariable("AIONMETER_OVERLAY_LAUNCH") is { Length: > 0 } l ? l : "aionmeter-overlay");
-    }
-
-    /// <summary>SIGUSR1 (click-through) to the layer-shell card; false when it is not running.</summary>
-    public static bool OverlayClickThrough() => Signal(LivePid(OverlayPidFile, OverlayDll), SigUsr1);
 }

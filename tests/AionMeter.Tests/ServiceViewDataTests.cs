@@ -8,11 +8,11 @@ using AionMeter.Service.Overlay;
 namespace AionMeter.Tests;
 
 /// <summary>
-/// A2M-48 phase 3c: what the Linux UI's Atlas, Boss Timers and Top DPS tabs read from the daemon — the `position` builder (drawn point, drift
+/// A2M-48 phase 3c: what the card's Atlas, Boss Timers and Top DPS tabs read from the daemon — the `position` builder (drawn point, drift
 /// rule, heading, spots in view), the viewer NodeStore merging those spots and following the daemon's map file, and the mtime reloads of
 /// boss-timers.json, top-dps.json and atlas/objects.json.
 /// </summary>
-public class LinuxViewDataTests
+public class ServiceViewDataTests
 {
     private const long T0 = 1_791_458_000_000;
 

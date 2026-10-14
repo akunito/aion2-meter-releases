@@ -102,17 +102,6 @@ public class GtkTabsTests
         Assert.Equal((TabState.MinTabWidth, TabState.MinTabHeight), TabState.MinSize("settings"));
     }
 
-    [Fact]
-    public void Tabs_LastTabSkipsDpsSettingsAndFight()
-    {
-        Assert.False(TabState.Persisted("meter"));
-        Assert.False(TabState.Persisted("settings"));
-        Assert.False(TabState.Persisted("fight"));
-        Assert.True(TabState.Persisted("items"));
-        // what the tools window would start on from it
-        Assert.Equal("items", UiTabs.StartTab("settings"));
-    }
-
     // ---- registry
     [Fact]
     public void Registry_StripIsUiTabsStripAndSettingsIsPorted()
@@ -217,7 +206,7 @@ public class GtkTabsTests
         Assert.Equal("k-fg-gold", Palette.Class(Fg.Gold));
     }
 
-    // ---- ui.json single keys (shared with the Avalonia UiSettings)
+    // ---- ui.json single keys
     [Fact]
     public void UiJson_WritesOneKeyAndKeepsTheRest()
     {

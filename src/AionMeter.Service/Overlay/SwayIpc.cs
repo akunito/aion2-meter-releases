@@ -5,9 +5,8 @@ using System.Text;
 namespace AionMeter.Service.Overlay;
 
 /// <summary>
-/// Sway's IPC (i3-ipc framing on $SWAYSOCK), shared by the Avalonia tools window (`swaymsg` for what X11 cannot ask Sway: raise past
-/// focus_on_window_activation urgent, move to an output) and the GTK card's window mode (A2M-50: its own place and size, which a Wayland
-/// client cannot set). No-op outside Sway.
+/// Sway's IPC (i3-ipc framing on $SWAYSOCK) for the GTK card's window mode (A2M-50: its own place and size, which a Wayland client cannot
+/// set). No-op outside Sway.
 /// </summary>
 public static class SwayIpc
 {
@@ -17,32 +16,6 @@ public static class SwayIpc
     private const int HeaderSize = 14;
 
     public static string? SocketPath => Environment.GetEnvironmentVariable("SWAYSOCK") is { Length: > 0 } s && File.Exists(s) ? s : null;
-
-    public static bool Available => SocketPath is not null;
-
-    /// <summary>Runs swaymsg with <paramref name="args"/>; stdout, or null (not Sway, not found, timeout 1.5 s, non-zero exit).</summary>
-    public static string? Run(params string[] args)
-    {
-        if (!Available) return null;
-        try
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo("swaymsg") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-            foreach (var a in args) psi.ArgumentList.Add(a);
-            using var p = System.Diagnostics.Process.Start(psi);
-            if (p is null) return null;
-            var stdout = p.StandardOutput.ReadToEndAsync();
-            if (!p.WaitForExit(1500)) { try { p.Kill(); } catch (InvalidOperationException) { } return null; }
-            return p.ExitCode == 0 ? stdout.Result : null;
-        }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { return null; }
-    }
-
-    /// <summary>A command on one X11 window (`[id=…]` matches the X11 window id of an Xwayland view).</summary>
-    public static void OnWindow(IntPtr xid, string command)
-    {
-        if (xid == IntPtr.Zero) return;
-        Run($"[id={(long)xid}] {command}");
-    }
 
     /// <summary>One message: "i3-ipc", payload length and type (native byte order, little-endian on every target), UTF-8 payload.</summary>
     public static byte[] Frame(uint type, string payload)

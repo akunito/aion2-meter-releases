@@ -52,9 +52,6 @@ internal sealed class TabState
     /// </summary>
     public static bool PillVisible(string key, string current) => key != Fight || current == Fight;
 
-    /// <summary>The tab saved as ui.json LastTab (the tools window's start tab): not DPS, Settings or the breakdown.</summary>
-    public static bool Persisted(string tab) => tab is not (Meter or Settings or Fight);
-
     /// <summary>
     /// The layer surface's keyboard mode: NONE on the DPS rows so the game never loses the keyboard, ON_DEMAND while a tab is in front so an
     /// entry can be typed into after a click (the compositor gives focus on click and takes it back with NONE).

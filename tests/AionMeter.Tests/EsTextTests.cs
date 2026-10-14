@@ -16,7 +16,7 @@ public sealed class EsTextTests
         "ColDps", "ColGs", "TabDps", "TileDps", "ThDps", "HoursShort", "MinutesShort", "Seconds", "WaitingTitle",
         "ItemsTkKeys", "RaceElyos", "RegionAs", "ProfArcana", "BuildMacros",
         "BuildTitle", "BuildCard", "BuildTipBuild", "BuildSubDaevanion", "TabDaevanion", "DaevTitle", "DaevTitleNoChar",
-        "DaevPoints", "DaevBoardLine", "DaevPlanFrom", "DaevColPlan", "DaevCost", "BuildPlanPaired", "TrayDaemon",
+        "DaevPoints", "DaevBoardLine", "DaevPlanFrom", "DaevColPlan", "DaevCost", "BuildPlanPaired", "TrayDaemon", "SecDaemon",
     ];
 
     private static readonly Regex Placeholder = new(@"\{\d+(?::[^}]*)?\}", RegexOptions.Compiled);

@@ -2,7 +2,7 @@
 
   <!-- A2M-48: the Linux overlay as a native Wayland client (GTK4 + wlr-layer-shell, OVERLAY layer): composited by Sway above
        gamescope's fullscreen view, at the output's own scale. Unprivileged: it reads the daemon's socket, never captures.
-       A2M-50: it hosts the tabs too (Shell/, Views/); AionMeter.Linux (Avalonia, Xwayland) stays as the fallback tools window until every view is ported. -->
+       A2M-50: it hosts every tab too (Shell/, Views/); the Avalonia tools window (AionMeter.Linux) was retired on 2026-10-14. -->
   <ItemGroup>
     <ProjectReference Include="..\AionMeter.Service\AionMeter.Service.csproj" />
   </ItemGroup>
