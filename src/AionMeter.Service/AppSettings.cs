@@ -137,13 +137,15 @@ public sealed class AppSettings
     public bool ShareBuilds { get; set; } = true;
     /// <summary>The Restore-from-code copy (watch list + favourite recipes, keyed by the install id). Off = restore stops working for this PC.</summary>
     public bool ShareBackup { get; set; } = true;
+    /// <summary>A2M-45: names the player gives to unknown atlas objects (code, kind/name, maps), shared so the clan's atlas knows them.</summary>
+    public bool ShareAtlasNames { get; set; } = true;
     /// <summary>Bug report parts besides logs + settings (always): character summary, Top DPS rows, inventory. Remembered from the dialog too.</summary>
     public bool ReportSummary { get; set; } = true;
     public bool ReportTopDps { get; set; } = true;
     public bool ReportInventory { get; set; }
 
     /// <summary>Allocates: call it per send or per report, not per frame.</summary>
-    public Core.Diagnostics.SharePolicy CurrentSharePolicy() => new(ShareUsage, ShareBuilds, ShareBackup, ReportSummary, ReportTopDps, ReportInventory);
+    public Core.Diagnostics.SharePolicy CurrentSharePolicy() => new(ShareUsage, ShareBuilds, ShareBackup, ReportSummary, ReportTopDps, ReportInventory) { AtlasNames = ShareAtlasNames };
     public bool TelemetryNoticeShown { get; set; } = false;
     /// <summary>A2M-27: the "install Npcap" message is offered on the first start without it, once; Settings → Capture re-opens it.</summary>
     public bool NpcapHelpShown { get; set; } = false;
@@ -235,7 +237,8 @@ public sealed class AppSettings
         {
             if (File.Exists(FilePath))
             {
-                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Json) ?? new AppSettings();
+                var text = File.ReadAllText(FilePath);
+                var s = JsonSerializer.Deserialize<AppSettings>(text, Json) ?? new AppSettings();
                 if (s.LayoutVersion < 3)
                 {
                     // v3 = card layout (portrait header, two-line rows): the old compact size is too small for it.
@@ -252,9 +255,12 @@ public sealed class AppSettings
                 {
                     // A2M-45: the old single switch decides all three kinds once; the next Save drops it
                     var p = Core.Diagnostics.SharePolicy.FromLegacyTelemetry(legacy);
-                    s.ShareUsage = p.Usage; s.ShareBuilds = p.Builds; s.ShareBackup = p.Backup;
+                    s.ShareUsage = p.Usage; s.ShareBuilds = p.Builds; s.ShareBackup = p.Backup; s.ShareAtlasNames = p.AtlasNames;
                     s.Telemetry = null;
                 }
+                // a file from before the atlas switch: a player who had switched every other kind off does not start sharing by default
+                else if (!text.Contains("\"ShareAtlasNames\"", StringComparison.Ordinal))
+                    s.ShareAtlasNames = Core.Diagnostics.SharePolicy.AtlasNamesForOldFile(s.ShareUsage, s.ShareBuilds, s.ShareBackup);
                 if (s.BuildTelemetryVersion < CurrentBuildTelemetry) { s.BuildTelemetrySent.Clear(); s.BuildTelemetryVersion = CurrentBuildTelemetry; }
                 s.Language = UiText.Normalize(s.Language);
                 s.LayoutVersion = CurrentLayout;

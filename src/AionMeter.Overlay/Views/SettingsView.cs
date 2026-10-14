@@ -23,7 +23,7 @@ internal sealed class SettingsView : HostedView
     private readonly List<int> _serverIds = new();
     private Gtk.CheckButton _barsRelative = null!, _showBoss = null!, _showGear = null!, _autoShow = null!, _showOnStart = null!, _allDesktops = null!;
     private Gtk.CheckButton _saveHistory = null!, _record = null!, _icons = null!, _abyss = null!, _checkUpdates = null!, _autoInstall = null!, _checkUpstream = null!;
-    private Gtk.CheckButton _shareUsage = null!, _shareBuilds = null!, _shareBackup = null!, _repSummary = null!, _repTop = null!, _repInv = null!;
+    private Gtk.CheckButton _shareUsage = null!, _shareBuilds = null!, _shareBackup = null!, _shareAtlas = null!, _repSummary = null!, _repTop = null!, _repInv = null!;
     private Gtk.Entry _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!, _backupCode = null!;
     private Gtk.DropDown _language = null!, _maxRows = null!, _mode = null!, _historyMode = null!, _device = null!, _region = null!, _server = null!, _channel = null!;
     private Gtk.Scale _opacity = null!, _rowSize = null!, _uiScale = null!;
@@ -195,6 +195,8 @@ internal sealed class SettingsView : HostedView
         pr.Append(_shareBackup = UiKit.Check(T.ShareBackup, s.ShareBackup, 4));
         pr.Append(UiKit.Hint(T.ShareBackupHint));
         pr.Append(_backupWarn = UiKit.Hint("", 24, Fg.Red));
+        pr.Append(_shareAtlas = UiKit.Check(T.ShareAtlasNames, s.ShareAtlasNames, 4));
+        pr.Append(UiKit.Hint(T.ShareAtlasNamesHint));
         pr.Append(UiKit.Text(T.ShareReports));
         pr.Append(UiKit.Hint(T.ShareReportsHint, 0));
         pr.Append(_repSummary = UiKit.Check(T.ShareReportSummary, s.ReportSummary, 2));
@@ -412,6 +414,7 @@ internal sealed class SettingsView : HostedView
         s.ShareUsage = _shareUsage.Active;
         s.ShareBuilds = _shareBuilds.Active;
         s.ShareBackup = _shareBackup.Active;
+        s.ShareAtlasNames = _shareAtlas.Active;
         s.ReportSummary = _repSummary.Active;
         s.ReportTopDps = _repTop.Active;
         s.ReportInventory = _repInv.Active;

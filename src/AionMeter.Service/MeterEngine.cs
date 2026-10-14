@@ -161,6 +161,7 @@ public class MeterEngine : IDisposable
         Core.Net.CloudflareHttp.SolverUrl = Settings.CloudflareSolverUrl;
         ApplySettingsInPlace();
         Log.Info($"Settings reloaded from settings.json (language {Settings.Language}, measure {Settings.TargetMode}, server {Settings.ServerId})");
+        if (!Viewer && Settings.ShareAtlasNames) Telemetry.QueueAtlas(this);   // switched on in the Linux UI: the names answered so far go as one batch
         return true;
     }
 
@@ -338,10 +339,39 @@ public class MeterEngine : IDisposable
     {
         name = name.Trim();
         if (name.Length == 0) return;
-        _userNames[code] = (name, category.Trim());
+        lock (_userNames)
+        {
+            _userNames[code] = (name, category.Trim());
+            _objectNames.Save(_userNames);
+        }
         Data.Objects[code] = name;
-        _objectNames.Save(_userNames);
         Log.Info($"Object {code} named \"{name}\" ({category})");
+        if (!Viewer && !Settings.Transient) Telemetry.QueueAtlas(this);   // the Linux UI is a viewer: the daemon queues once it re-reads the file
+    }
+
+    /// <summary>A2M-45: the player said this code is not a gathering node (category "other"): the atlas does not draw it.</summary>
+    public bool IsOtherObject(int code)
+    {
+        lock (_userNames) return _userNames.TryGetValue(code, out var v) && Core.Atlas.AtlasShare.IsOther(v.Category);
+    }
+
+    /// <summary>The map's gathering spots for drawing: <see cref="NodeStore.Spots"/> without the codes named "other".</summary>
+    public List<NodeSpot> NodeSpots(int mapId)
+    {
+        var spots = Atlas.Spots(mapId);
+        lock (_userNames)
+        {
+            var any = false;
+            foreach (var v in _userNames.Values) if (Core.Atlas.AtlasShare.IsOther(v.Category)) { any = true; break; }
+            if (any) spots.RemoveAll(sp => !sp.Seeded && _userNames.TryGetValue(sp.Code, out var v) && Core.Atlas.AtlasShare.IsOther(v.Category));
+        }
+        return spots;
+    }
+
+    /// <summary>A copy of the names the player gave (code → name, category), safe off the thread that names.</summary>
+    public Dictionary<int, (string Name, string Category)> ObjectNamesSnapshot()
+    {
+        lock (_userNames) return new Dictionary<int, (string Name, string Category)>(_userNames);
     }
 
     /// <summary>A2M-48: atlas/objects.json was written by the other process (the Linux UI names nodes, the daemon asks): take its names.</summary>
@@ -349,12 +379,12 @@ public class MeterEngine : IDisposable
     {
         if (Settings.Transient || !_objectNames.ChangedOnDisk()) return false;
         var names = _objectNames.Load();
-        foreach (var (code, (name, category)) in names)
-        {
-            _userNames[code] = (name, category);
-            if (name.Length > 0) Data.Objects[code] = name;
-        }
+        lock (_userNames)
+            foreach (var (code, (name, category)) in names)
+                _userNames[code] = (name, category);
+        foreach (var (code, (name, _)) in names) if (name.Length > 0) Data.Objects[code] = name;
         Log.Info($"atlas/objects.json reloaded ({names.Count} names)");
+        if (!Viewer) Telemetry.QueueAtlas(this);
         return true;
     }
     /// <summary>A2M-48 daemon: the closed fight with its saved file (null when not kept), on the thread that closed it.</summary>

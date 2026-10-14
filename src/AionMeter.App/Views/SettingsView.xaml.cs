@@ -108,6 +108,7 @@ public partial class SettingsView : UserControl
         ShareUsageBox.IsChecked = s.ShareUsage;
         ShareBuildsBox.IsChecked = s.ShareBuilds;
         ShareBackupBox.IsChecked = s.ShareBackup;
+        ShareAtlasBox.IsChecked = s.ShareAtlasNames;
         ReportSummaryBox.IsChecked = s.ReportSummary;
         ReportTopDpsBox.IsChecked = s.ReportTopDps;
         ReportInventoryBox.IsChecked = s.ReportInventory;
@@ -162,6 +163,8 @@ public partial class SettingsView : UserControl
         s.ShareUsage = ShareUsageBox.IsChecked == true;
         s.ShareBuilds = ShareBuildsBox.IsChecked == true;
         s.ShareBackup = ShareBackupBox.IsChecked == true;
+        s.ShareAtlasNames = ShareAtlasBox.IsChecked == true;
+        if (s.ShareAtlasNames) Telemetry.QueueAtlas(_meter);   // switched on: the names answered so far go as one batch (nothing when all are sent)
         s.ReportSummary = ReportSummaryBox.IsChecked == true;
         s.ReportTopDps = ReportTopDpsBox.IsChecked == true;
         s.ReportInventory = ReportInventoryBox.IsChecked == true;

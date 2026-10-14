@@ -131,7 +131,7 @@ public partial class AtlasView : UserControl
             Dot(px, py, 7, up ? BossUp : Gone, label, up ? BossUp : Gone, skull: true);
         }
 
-        var spots = atlas.Spots(map);
+        var spots = _meter.NodeSpots(map);   // A2M-45: objects named "other" (doors, chests…) are not drawn
         RefreshToggles(spots);
         DrawZones(spots);
         if (PetsBox.IsChecked == true) DrawPets();
@@ -675,7 +675,7 @@ public partial class AtlasView : UserControl
         var (ox, oy) = _cal.ToPixel(0, 0); var (ux, uy) = _cal.ToPixel(1000, 1000);
         var wx = (float)((px - ox) / (ux - ox) * 1000); var wy = (float)((py - oy) / (uy - oy) * 1000);
         var spot = _meter.Atlas.Nearest(_mapShown, wx, wy, maxCm: (float)(14 / (_f * _scale) / _cal.Scale));
-        if (spot is null) return;
+        if (spot is null || _meter.IsOtherObject(spot.Code)) return;   // "other" (A2M-45) is not drawn, so not picked
         AppHost.Current.ShowNameNode(spot.Code);
         e.Handled = true;
     }

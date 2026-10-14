@@ -9,7 +9,7 @@ namespace AionMeter.Service;
 /// A2M-20: one anonymous usage record per day to Diego's n8n (balloon the first time). What development needs and nothing that names a
 /// player: build, Windows version, Npcap present, capture health, crash and error counts, tabs used, UI language, how many characters
 /// and fights. The install id is a random GUID so installs can be told apart; the IP is seen by n8n like any request and not stored.
-/// Same token and host as the bug reports. A2M-45: usage, builds and the backup copy ("watch") each have their own switch in
+/// Same token and host as the bug reports. A2M-45: usage, builds, the backup copy ("watch") and atlas names ("atlas") each have their own switch in
 /// Settings → Privacy, and every POST goes through <see cref="PostAsync"/>, which refuses a kind the policy denies.
 /// </summary>
 public static class Telemetry
@@ -242,6 +242,94 @@ public static class Telemetry
         finally { Interlocked.Exchange(ref _stateSending, 0); }
     }
 
+    // ------------------------------------------------------------------ atlas names (A2M-45, kind "atlas", own switch, on by default)
+
+    private static readonly object AtlasLock = new();
+    private static Timer? _atlasTimer;
+    private static MeterEngine? _atlasMeter;
+    private static int _atlasSending;
+    private static DateTimeOffset _atlasRetryAt;
+    /// <summary>The server has no "atlas" route until Diego adds one to the workflow: a refused post waits a day, so the 15-minute tick
+    /// never burns the clan's shared per-IP quota (6 a day) that the usage record needs.</summary>
+    public static readonly TimeSpan AtlasRefusedWait = TimeSpan.FromHours(24);
+    public static readonly TimeSpan AtlasErrorWait = TimeSpan.FromHours(1);
+
+    public static string AtlasSentPath => Path.Combine(AppSettings.AppDataDir, "atlas", "objects-shared.json");
+
+    /// <summary>A node was named or renamed (or the switch went on): post what the server has not acknowledged 60 s after the last change.</summary>
+    public static void QueueAtlas(MeterEngine m)
+    {
+        var s = m.Settings;
+        if (!s.ShareAtlasNames || s.Transient || s.Offline) return;
+        lock (AtlasLock)
+        {
+            _atlasMeter = m;
+            _atlasTimer ??= new Timer(static _ => { if (_atlasMeter is { } mm) _ = SendAtlasAsync(mm); });
+            _atlasTimer.Change(BuildQuiet, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    /// <summary>The nodes to post now: every name not acknowledged yet, with the maps its code was seen on. Empty when nothing is pending.</summary>
+    public static List<Core.Atlas.AtlasShare.Node> AtlasBatch(Dictionary<int, (string Name, string Category)> names, Dictionary<int, string> sent,
+        Func<IReadOnlyCollection<int>, Dictionary<int, int[]>> codeMaps)
+    {
+        var codes = Core.Atlas.AtlasShare.Pending(names, sent);
+        if (codes.Count == 0) return [];
+        var maps = codeMaps(codes);
+        var nodes = new List<Core.Atlas.AtlasShare.Node>(codes.Count);
+        foreach (var code in codes)
+        {
+            var (name, category) = names[code];
+            nodes.Add(new(code, name, category, maps.TryGetValue(code, out var ms) ? ms : []));
+        }
+        return nodes;
+    }
+
+    /// <summary>Atlas send outcome: nothing pending or not allowed (0 posted), sent, refused by the server.</summary>
+    public enum AtlasResult { Nothing, Sent, Refused }
+
+    /// <summary>
+    /// One flush: the policy gate first (nothing is read or posted with the switch off), then every name not acknowledged as one post;
+    /// a 2xx records them in <paramref name="sentPath"/>. <paramref name="post"/> returns the HTTP status, 0 = not sent (offline, gate).
+    /// </summary>
+    public static async Task<(AtlasResult Result, int Count)> ShareAtlasAsync(AppSettings s, Func<Dictionary<int, (string Name, string Category)>> names,
+        Func<IReadOnlyCollection<int>, Dictionary<int, int[]>> codeMaps, string sentPath, Func<string, Task<int>> post)
+    {
+        if (s.Transient || s.Offline || !s.CurrentSharePolicy().Filter(Core.Diagnostics.ShareKind.AtlasNames)) return (AtlasResult.Nothing, 0);
+        var sent = Core.Atlas.AtlasShare.LoadSent(sentPath);
+        var nodes = AtlasBatch(names(), sent, codeMaps);
+        if (nodes.Count == 0) return (AtlasResult.Nothing, 0);
+        var status = await post(Core.Atlas.AtlasShare.Payload(s.EnsureInstallId(), DateTimeOffset.UtcNow, nodes)).ConfigureAwait(false);
+        if (status == 0) return (AtlasResult.Nothing, 0);
+        if (status is < 200 or > 299) return (AtlasResult.Refused, nodes.Count);
+        foreach (var n in nodes) sent[n.Code] = Core.Atlas.AtlasShare.Stamp(n.Name, n.Category);
+        Core.Atlas.AtlasShare.SaveSent(sentPath, sent);
+        return (AtlasResult.Sent, nodes.Count);
+    }
+
+    /// <summary>The engine's flush: <see cref="ShareAtlasAsync"/> over its names and node store, through <see cref="PostAsync"/>, with the retry waits.</summary>
+    public static async Task SendAtlasAsync(MeterEngine m)
+    {
+        var s = m.Settings;
+        if (!s.ShareAtlasNames || s.Transient || s.Offline || DateTimeOffset.UtcNow < _atlasRetryAt || Interlocked.Exchange(ref _atlasSending, 1) == 1) return;
+        try
+        {
+            var (result, count) = await ShareAtlasAsync(s, m.ObjectNamesSnapshot, m.Atlas.CodeMaps, AtlasSentPath, async body =>
+            {
+                using var resp = await PostAsync(s, "atlas", body).ConfigureAwait(false);
+                return resp is null ? 0 : (int)resp.StatusCode;
+            }).ConfigureAwait(false);
+            if (result == AtlasResult.Refused) { _atlasRetryAt = DateTimeOffset.UtcNow + AtlasRefusedWait; Log.Info($"Atlas names refused ({count} names, next try in 24 h)"); }
+            else if (result == AtlasResult.Sent) Log.Info($"Atlas names sent: {count}");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException)
+        {
+            _atlasRetryAt = DateTimeOffset.UtcNow + AtlasErrorWait;
+            Log.Info($"Atlas names not sent: {ex.Message}");
+        }
+        finally { Interlocked.Exchange(ref _atlasSending, 0); }
+    }
+
     // ------------------------------------------------------------------ restore (A2M-30)
 
     public const string RestoreUrl = "https://example.invalid/webhook/aion2-meter-restore";
@@ -293,6 +381,8 @@ public static class Telemetry
                 if (m.Settings.ShareBackup) await SendStateAsync(m, daily: true);
                 if (m.Settings.ShareBuilds) await SweepBuildsAsync(m.Settings);
             }
+            // names a failed or interrupted flush left behind (nothing goes when everything is acknowledged)
+            if (m.Settings.ShareAtlasNames) await SendAtlasAsync(m);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException) { Log.Info($"Telemetry not sent: {ex.Message}"); }
         finally { Interlocked.Exchange(ref _sending, 0); }

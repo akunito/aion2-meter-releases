@@ -912,6 +912,13 @@ public sealed class UiText
     public string NameNodeCategory { get; init; } = "Category";
     public string NameNodeSave { get; init; } = "Save";
     public string NameNodeSkip { get; init; } = "Close";
+    // A2M-45: the prompt fires on any unknown object code, also a door or a lever: "Other" stores it as not-a-node (never drawn, never asked again)
+    public string NameNodeFreeHint { get; init; } = "Type a name… (e.g. door)";
+    public string NameNodeSaveNode { get; init; } = "Save as node";
+    public string NameNodeSaveNodeTip { get; init; } = "A gathering node kind that is not in the list: drawn on the map under this name.";
+    public string NameNodeOther { get; init; } = "Other (not a node)";
+    public string NameNodeOtherTip { get; init; } = "Not a gathering node (a door, a chest, a lever…): type what it was, then Other. It is not drawn on the map and not asked again.";
+    public string NameNodeOtherEmpty { get; init; } = "Type what it was first (e.g. door)";
     public string AtlasHint { get; init; } = "Drag to pan, wheel to zoom, right-click a node to name its kind. Green = node in view (units left), grey = remembered (back in … when learned), skull = field boss.";
     public string SecUpdates { get; init; } = "UPDATES";
     public string CheckUpdatesAuto { get; init; } = "Check for new versions";
@@ -933,6 +940,8 @@ public sealed class UiText
     public string ShareBackupHint { get; init; } = "Watched prices and favourite recipes, kept under your backup code (the install id). When they change (at most every 30 min) and once a day. Restore from code brings them back on any PC with your code.";
     public string ShareBackupOff { get; init; } = "Off: nothing is backed up and Restore from code stops working for this PC.";
     public string ShareBuildsOffBackup { get; init; } = "Anonymous builds are off: Restore from code brings back only watched prices and favourite recipes.";
+    public string ShareAtlasNames { get; init; } = "Share the node names I answer";
+    public string ShareAtlasNamesHint { get; init; } = "When you name or rename an object in the atlas: its object code, the kind or name you chose and the map it is on, with the install id. Nothing else. The names you already answered go once, the first time this is on. It helps the atlas for the whole clan.";
     public string ShareReports { get; init; } = "Bug reports include";
     public string ShareReportsHint { get; init; } = "Only when you press Send to Diego in Report a problem. Logs and settings always go; the dialog lets you change these each time.";
     public string ShareReportSummary { get; init; } = "Character summary (names, server, Kina, progress)";
@@ -1907,6 +1916,12 @@ public sealed class UiText
         NameNodeCategory = "Categoría",
         NameNodeSave = "Guardar",
         NameNodeSkip = "Cerrar",
+        NameNodeFreeHint = "Escribe un nombre… (p. ej. puerta)",
+        NameNodeSaveNode = "Guardar como recurso",
+        NameNodeSaveNodeTip = "Un tipo de recurso que no está en la lista: se dibuja en el mapa con este nombre.",
+        NameNodeOther = "Otro (no es recurso)",
+        NameNodeOtherTip = "No es un recurso (una puerta, un cofre, una palanca…): escribe qué era y pulsa Otro. No se dibuja en el mapa y no se vuelve a preguntar.",
+        NameNodeOtherEmpty = "Escribe primero qué era (p. ej. puerta)",
         AtlasHint = "Arrastra para mover, rueda para hacer zoom, clic derecho en un recurso para nombrar su tipo. Verde = recurso a la vista (unidades que quedan), gris = recordado (vuelve en … cuando se conoce), calavera = jefe de campo.",
         SecUpdates = "ACTUALIZACIONES",
         CheckUpdatesAuto = "Buscar versiones nuevas",
@@ -1927,6 +1942,8 @@ public sealed class UiText
         ShareBackupHint = "Precios vigilados y recetas favoritas, guardados bajo tu código de copia (el id de la instalación). Cuando cambian (como mucho cada 30 min) y una vez al día. Restaurar con código los devuelve en cualquier PC con tu código.",
         ShareBackupOff = "Desactivado: no se guarda copia de nada y Restaurar con código deja de funcionar para este PC.",
         ShareBuildsOffBackup = "Las builds anónimas están desactivadas: Restaurar con código solo devuelve los precios vigilados y las recetas favoritas.",
+        ShareAtlasNames = "Compartir los nombres de recursos que respondo",
+        ShareAtlasNamesHint = "Cuando nombras o renombras un objeto en el atlas: su código de objeto, el tipo o nombre que elegiste y el mapa donde está, con el id de la instalación. Nada más. Los nombres que ya respondiste se envían una vez, la primera vez que está activado. Ayuda al atlas de todo el clan.",
         ShareReports = "Los informes de problemas incluyen",
         ShareReportsHint = "Solo cuando pulsas Enviar a Diego en Informar de un problema. Los registros y los ajustes van siempre; el diálogo te deja cambiar esto cada vez.",
         ShareReportSummary = "Resumen del personaje (nombres, servidor, Kinah, progreso)",
