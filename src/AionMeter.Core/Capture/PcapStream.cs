@@ -398,7 +398,8 @@ public sealed class PcapForwarder : IDisposable
 /// <summary>
 /// A2M-27: the capture source of a meter that receives another meter's --forward stream (a Windows meter in a VM or under Wine, where the
 /// game is not running and Npcap may be missing). Reads the pcap stream without SharpPcap and feeds the same pipeline as live capture.
-/// Reconnects with backoff (1 s doubling to 30 s, back to 1 s after a connection that delivered packets).
+/// Never asks <see cref="CaptureAvailability.Present"/> and touches no SharpPcap type (A2M-27 Wine spike: no wpcap.dll there at all, and
+/// SharpPcap's file reader fails the same way as live capture). Reconnects with backoff (1 s doubling to 30 s, back to 1 s after a connection that delivered packets).
 /// </summary>
 public sealed class PcapStreamSource : IEventSource, ICaptureHealthSource
 {
@@ -425,6 +426,8 @@ public sealed class PcapStreamSource : IEventSource, ICaptureHealthSource
         _reconnect = reconnect;
         Endpoint = CaptureEndpoint.Format(host, port);
         _pipeline = new PacketPipeline(data, OnEvent) { LockThreshold = 3 };   // the stream is already filtered to the game, as live capture is
+        // at once, not at the next 1 s refresh: a burst shorter than that left "waiting for game traffic" on screen
+        _pipeline.FlowLocked += _ => SetStatus(CaptureState.Capturing, $"Capturing · forwarded from {Endpoint}");
         _status = new CaptureStatus(CaptureState.Stopped, "Capture stopped");
     }
 
@@ -574,7 +577,7 @@ public sealed class PcapStreamSource : IEventSource, ICaptureHealthSource
                 first = false;
                 var skew = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - ms;
                 if (Math.Abs(skew) > SkewNoteMs)
-                    LiveCapture.Diag($"forwarded capture: packet clock {skew / 1000} s behind this PC's (another clock, or the forwarder replays a recording)");
+                    CaptureLog.Write($"forwarded capture: packet clock {skew / 1000} s behind this PC's (another clock, or the forwarder replays a recording)");
             }
             Handle(link, ms, data);
             if (now - _statusAt >= 1_000)

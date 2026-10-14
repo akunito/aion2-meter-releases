@@ -31,3 +31,17 @@ public interface ICaptureHealthSource
 {
     CaptureHealth? Health();
 }
+
+/// <summary>The capture's one-off diagnostic lines. Outside LiveCapture so the forwarded-stream source (A2M-27) never loads a type that holds
+/// SharpPcap devices: under Wine there is no wpcap.dll at all.</summary>
+public static class CaptureLog
+{
+    /// <summary>Null = stderr with a HH:mm:ss prefix (the journal for the Linux daemon, nowhere for the WPF app).</summary>
+    public static Action<string>? Sink { get; set; }
+
+    public static void Write(string line)
+    {
+        if (Sink is { } d) d(line);
+        else Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss} {line}");
+    }
+}

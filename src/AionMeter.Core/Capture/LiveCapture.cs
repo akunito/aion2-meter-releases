@@ -127,13 +127,9 @@ public sealed class LiveCapture : IEventSource, ICaptureHealthSource
 
     /// <summary>One-off diagnostic lines (why the library failed to load, which path picked the adapter). Null = stderr with a
     /// HH:mm:ss prefix, which lands in the journal for the Linux daemon and nowhere for the WPF app. A host may point it at its log.</summary>
-    public static Action<string>? Diagnostic { get; set; }
+    public static Action<string>? Diagnostic { get => CaptureLog.Sink; set => CaptureLog.Sink = value; }
 
-    internal static void Diag(string line)
-    {
-        if (Diagnostic is { } d) d(line);
-        else Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss} {line}");
-    }
+    internal static void Diag(string line) => CaptureLog.Write(line);
 
     /// <summary>The loader's own reason the capture library failed (dlopen's message on Linux); null until it fails.</summary>
     public string? LibraryLoadError { get; private set; }

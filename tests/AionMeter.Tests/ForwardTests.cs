@@ -391,4 +391,49 @@ public class ForwardDaemonTests(ITestOutputHelper output)
             try { Directory.Delete(root, recursive: true); } catch (IOException) { }
         }
     }
+
+    /// <summary>The Wine / no-Npcap case: a meter whose capture library probe says "missing" (LibraryPresent = () =&gt; false) reads the
+    /// forwarded stream anyway — packets decoded, character bound, no "Npcap missing" status, health line from the stream.</summary>
+    [Fact]
+    public async Task Receiver_WithoutCaptureLibrary_DecodesTheForwardedStream()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aionmeter-fwdrx-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var fwd = new PcapForwarder(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0));
+            var at = await fwd.Listening;
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            using var m = new HeadlessMeter(new HeadlessOptions
+            {
+                DataDir = root, GameDataDir = RepoData(), Offline = true, StatusEverySeconds = 0, Socket = null,
+                Source = $"tcp://127.0.0.1:{at.Port}", LibraryPresent = static () => false,
+            }, TextWriter.Null, null);
+            var run = m.RunAsync(cts.Token);
+            for (var i = 0; i < 500 && fwd.ClientCount == 0; i++) await Task.Delay(20, cts.Token);
+            Assert.Equal(1, fwd.ClientCount);
+
+            var a = m.Engine.Availability;
+            Assert.False(a.Present);
+            Assert.True(a.Live);
+            Assert.Equal("127.0.0.1:" + at.Port, a.ForwardedFrom);
+
+            var packets = new PcapReplaySource(GameData.Empty, Pcap, realtime: false) { Forward = fwd }.RunToEnd();
+            for (var i = 0; i < 500 && m.Engine.CaptureHealth()?.Received != packets; i++) await Task.Delay(20, cts.Token);
+            Assert.Equal(packets, m.Engine.CaptureHealth()?.Received);
+            for (var i = 0; i < 100 && m.Engine.BoundKey.Length == 0; i++) await Task.Delay(50, cts.Token);
+            Assert.Equal("1303-Akunita", m.Engine.BoundKey);
+            var status = m.Engine.CaptureStatus.Message;
+            Assert.NotEqual(CaptureAvailability.NoCaptureStatus, status);
+            Assert.DoesNotContain("Npcap", status);
+            Assert.Equal($"Capturing · forwarded from 127.0.0.1:{at.Port}", status);
+            Assert.StartsWith($"forwarded capture from 127.0.0.1:{at.Port}: {packets:N0} packets", m.Engine.CaptureHealthText());
+            output.WriteLine($"no capture library: {packets} packets forwarded, status \"{status}\", health \"{m.Engine.CaptureHealthText()}\"");
+            cts.Cancel();
+            Assert.Equal(0, await run);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+        }
+    }
 }
