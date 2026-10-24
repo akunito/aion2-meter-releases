@@ -1,0 +1,8 @@
+# Top DPS
+Tres rankings, uno por botón de ámbito: My fights (el mejor combate que ha visto este meter por jugador y clase, de 30 s o más), Server (el ranking de tu servidor) y Europe. Las pestañas de clase filtran cada uno.
+## Qué ves
+- My fights: puesto, jugador, dónde y cuándo, daño y DPS. Pulsa una fila para ver el reparto de habilidades, la apertura, las secuencias repetidas y los lanzamientos por minuto; "Open" muestra el combate guardado, con las pestañas Profile, Skills y Daevanion de ese jugador junto a las del combate cuando el meter conoce su ficha oficial. "Load profile" (en la fila abierta) abre ese combate en la pestaña Profile y descarga la ficha si falta o tiene más de 12 h.
+- Server / Europe: el ranking oficial leído de las páginas públicas de personajes, una página cada 400 ms, así que la primera carga tarda unos segundos (un cuadro "Loading data…" lo indica). Pulsar una fila (o su "Load profile") abre la ficha del jugador en lugar de la lista: nombre, clase, servidor, legión y título, las fichas CP / ITEM LEVEL / RANK / SEEN y las pestañas Profile (equipo colocado como la pantalla de personaje del juego: armadura a la izquierda, accesorios a la derecha, armas, alas y mascota en el centro; Arcana; atributos y estadísticas divinas, con el detalle al pasar el ratón), Skills (activas, estigmas y pasivas con su nivel; los estigmas no conseguidos en gris) y Daevanion (abiertos/total por tablero y la suma de bonificaciones). Las pestañas sin datos no aparecen. "Back" o Esc vuelven a la lista.
+## Notas
+- Los rankings vienen de aion2index.com y de la API oficial de personajes; no se envía nada tuyo, solo lecturas.
+- My fights solo conoce los combates que este meter grabó en este PC.

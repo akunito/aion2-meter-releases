@@ -22,7 +22,7 @@ namespace AionMeter.App.Views;
 /// Build tab (A2M-21): the character's skill build in questlog's planner look — class skill library, 12×4 key bar, detail panel with
 /// level and specs, priority chains, macros — against the official profile (current level badge per icon, Missing summary). Edits
 /// are local and saved 500 ms after the last one through <see cref="BuildStore"/>. The Daevanion sub-tab is <see cref="DaevanionView"/>.
-/// Phase 3: questlog import (link, search dialog, suggestions card when no build is active), "Copy for questlog", build telemetry.
+/// Phase 3: questlog import (link, search dialog, suggestions card when no build is active), "Copy for questlog".
 /// </summary>
 public partial class BuildView : UserControl
 {
@@ -53,7 +53,7 @@ public partial class BuildView : UserControl
     private readonly MeterService _meter;
     private readonly IconCache _icons;
     private BuildStore _store;
-    private string _storeKey;   // whose builds _store holds: a save flushed during a character switch is still that character's (telemetry charhash)
+    private string _storeKey;   // whose builds _store holds: a save flushed during a character switch is still that character's
     private Build? _build;                       // what is shown; edits replace it and the save follows 500 ms later
     private CharacterProfile? _profile;
     private string _classId = "", _vmClass = "", _lang;
@@ -238,7 +238,6 @@ public partial class BuildView : UserControl
             if (_store.ActiveId != saved.Id) _store.ActiveId = saved.Id;
             if (isNew) FillPicker(_store.List(), saved.Id);
             RenderSaved();
-            QueueTelemetry(saved);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1049,7 +1048,6 @@ public partial class BuildView : UserControl
         {
             var saved = _store.Save(b);
             _store.ActiveId = saved.Id;
-            QueueTelemetry(saved);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); error = ex.Message; return false; }
         error = "";
@@ -1121,7 +1119,6 @@ public partial class BuildView : UserControl
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); StatusText.Text = ex.Message; return null; }
         Log.Info($"Build imported from questlog: {saved.Source?.Id} → {saved.Id} ({saved.ClassId}, {saved.Skills.Count} skills)");
-        QueueTelemetry(saved);
         _selected = 0;
         Reload();
         StatusText.Text = _classId.Length > 0 && saved.ClassId.Length > 0 && saved.ClassId != _classId
@@ -1250,13 +1247,6 @@ public partial class BuildView : UserControl
             parts.Add(ok ? p.Name : msg);
         }
         StatusText.Text = string.Format(T.BuildUpdatedFromQuestlog, string.Join(" + ", parts));
-    }
-
-    private void QueueTelemetry(Build saved)
-    {
-        if (_sample) return;
-        var p = _storeKey == _meter.CharacterKey ? _meter.CurrentProfile : _profile;
-        Telemetry.QueueBuild(_meter.Settings, saved, BuildEditor.ClassIdOf(p?.ClassName) ?? _classId, p?.Level ?? 0, _storeKey);
     }
 
     private void CopyQuestlog_Click(object sender, RoutedEventArgs e)

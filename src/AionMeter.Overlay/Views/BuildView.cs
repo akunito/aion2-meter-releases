@@ -576,7 +576,6 @@ internal sealed class BuildView : HostedView
             if (_store.ActiveId != saved.Id) _store.ActiveId = saved.Id;
             if (isNew) FillPicker(_store.List(), saved.Id);
             RenderSaved();
-            QueueTelemetry(saved);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -601,9 +600,6 @@ internal sealed class BuildView : HostedView
         SetStatus(T.BuildNoBuild);
         return false;
     }
-
-    private void QueueTelemetry(Build saved) =>
-        Telemetry.QueueBuild(Shell.Settings, saved, BuildEditor.ClassIdOf(_profile?.ClassName) ?? _classId, _profile?.Level ?? 0, _charKey);
 
     // asked once per skill; a missing icon is asked again only when the provider reports a download (RefreshIcons)
     private Gdk.Texture? IconOf(SkillVm vm)
@@ -1305,7 +1301,6 @@ internal sealed class BuildView : HostedView
         {
             var saved = _store.Save(b);
             _store.ActiveId = saved.Id;
-            QueueTelemetry(saved);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); error = ex.Message; return false; }
         error = "";
@@ -1372,7 +1367,6 @@ internal sealed class BuildView : HostedView
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Build save", ex); SetStatus(ex.Message); return null; }
         Log.Info($"Build imported from questlog: {saved.Source?.Id} → {saved.Id} ({saved.ClassId}, {saved.Skills.Count} skills) for {_charKey}");
-        QueueTelemetry(saved);
         _selected = 0;
         Reload();
         SetStatus(_classId.Length > 0 && saved.ClassId.Length > 0 && saved.ClassId != _classId

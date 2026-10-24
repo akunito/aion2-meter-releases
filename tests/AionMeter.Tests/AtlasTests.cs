@@ -253,4 +253,13 @@ public class EventAnchorTests
         Assert.True(r2);
         Assert.Equal(s1.AddMinutes(10), e1);
     }
+
+    [Fact]
+    public void Other_category_is_recognised_case_insensitively()
+    {
+        Assert.True(AtlasCategory.IsOther("other"));
+        Assert.True(AtlasCategory.IsOther("Other"));
+        Assert.False(AtlasCategory.IsOther(""));
+        Assert.False(AtlasCategory.IsOther("mining"));
+    }
 }

@@ -40,8 +40,8 @@
             <Border Grid.Row="4" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,12">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Style="{StaticResource GhostButton}" Click="Close_Click" Margin="0,0,8,0" Content="{Binding UpdateLater, Source={x:Static s:UiText.Current}}" />
-                    <Button x:Name="CreateButton" Style="{StaticResource GhostButton}" Click="Create_Click" Margin="0,0,8,0" Content="{Binding ReportCreate, Source={x:Static s:UiText.Current}}" />
-                    <Button x:Name="SendButton" Style="{StaticResource PrimaryButton}" Click="Send_Click" Content="{Binding ReportSend, Source={x:Static s:UiText.Current}}" />
+                    <Button Style="{StaticResource GhostButton}" Click="Issue_Click" Margin="0,0,8,0" Content="{Binding ReportOpenIssue, Source={x:Static s:UiText.Current}}" />
+                    <Button x:Name="CreateButton" Style="{StaticResource PrimaryButton}" Click="Create_Click" Content="{Binding ReportCreate, Source={x:Static s:UiText.Current}}" />
                 </StackPanel>
             </Border>
         </Grid>

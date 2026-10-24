@@ -88,13 +88,6 @@ public sealed class PriceWatchStore : IDisposable
     public void SetSell(int item, bool sell) { lock (_gate) { var w = _watches.Find(x => x.Item == item); if (w is null || w.Sell == sell) return; w.Sell = sell; } Save(); Changed?.Invoke(); }
     public void SetHolding(int item, int quantity, long paidEach) { lock (_gate) { var w = _watches.Find(x => x.Item == item); if (w is null || (w.Quantity == quantity && w.PaidEach == paidEach)) return; w.Quantity = quantity; w.PaidEach = paidEach; } Save(); Changed?.Invoke(); }
     public void Rename(int item, string name) { lock (_gate) { var w = _watches.Find(x => x.Item == item); if (w is null || w.Name == name) return; w.Name = name; } Save(); Changed?.Invoke(); }
-    /// <summary>Backup restore into an empty list: the thresholds and holdings come back, the poll fields fill on the next poll.</summary>
-    public void AddRange(IEnumerable<PriceWatch> watches)
-    {
-        lock (_gate) foreach (var w in watches) if (w.Item > 0 && _watches.Find(x => x.Item == w.Item) is null) _watches.Add(w);
-        Save();
-        Changed?.Invoke();
-    }
     public void Remove(int item) { lock (_gate) if (_watches.RemoveAll(x => x.Item == item) == 0) return; Save(); Changed?.Invoke(); }
 
     /// <summary>True once per interval while there is something to watch (TickCount64 clock).</summary>

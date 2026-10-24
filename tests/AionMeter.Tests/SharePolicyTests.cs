@@ -5,58 +5,17 @@ namespace AionMeter.Tests;
 public class SharePolicyTests
 {
     [Fact]
-    public void Default_shares_the_three_telemetry_kinds_and_reports_without_inventory()
+    public void Default_reports_without_inventory()
     {
         var p = SharePolicy.Default;
-        Assert.True(p.Filter(ShareKind.Usage));
-        Assert.True(p.Filter(ShareKind.Builds));
-        Assert.True(p.Filter(ShareKind.Backup));
         Assert.True(p.Filter(ShareKind.ReportLogs));
         Assert.True(p.Filter(ShareKind.ReportSummary));
         Assert.True(p.Filter(ShareKind.ReportTopDps));
         Assert.False(p.Filter(ShareKind.ReportInventory));
-        Assert.True(p.SendsAnything);
     }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Legacy_telemetry_switch_becomes_each_of_the_three_kinds(bool legacy)
-    {
-        var p = SharePolicy.FromLegacyTelemetry(legacy);
-        Assert.Equal(legacy, p.Usage);
-        Assert.Equal(legacy, p.Builds);
-        Assert.Equal(legacy, p.Backup);
-        Assert.Equal(legacy, p.SendsAnything);
-        // the report defaults do not depend on the old switch
-        Assert.True(p.ReportSummary);
-        Assert.True(p.ReportTopDps);
-        Assert.False(p.ReportInventory);
-    }
-
-    [Theory]
-    [InlineData(true, false, false, "usage")]
-    [InlineData(false, true, false, "build")]
-    [InlineData(false, false, true, "watch")]
-    public void Webhook_kinds_follow_their_own_switch_only(bool usage, bool builds, bool backup, string allowed)
-    {
-        var p = new SharePolicy(usage, builds, backup, true, true, true);
-        foreach (var kind in new[] { "usage", "build", "watch" }) Assert.Equal(kind == allowed, p.Filter(kind));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("report")]
-    [InlineData("USAGE")]
-    public void Unknown_webhook_kinds_are_refused(string kind) => Assert.False(new SharePolicy(true, true, true, true, true, true).Filter(kind));
 
     [Fact]
-    public void Logs_always_go_in_a_report()
-    {
-        var p = new SharePolicy(false, false, false, false, false, false);
-        Assert.True(p.Filter(ShareKind.ReportLogs));
-        Assert.False(p.SendsAnything);
-    }
+    public void Logs_always_go_in_a_report() => Assert.True(new SharePolicy(false, false, false).Filter(ShareKind.ReportLogs));
 
     // ------------------------------------------------------------------ bug-report file list
 
@@ -124,8 +83,7 @@ public class SharePolicyTests
         var (appData, appDir, logs) = Tree();
         try
         {
-            // the telemetry switches never change a report
-            var entries = BugReportFiles.Select(appData, appDir, logs, new SharePolicy(false, true, false, summary, top, inventory));
+            var entries = BugReportFiles.Select(appData, appDir, logs, new SharePolicy(summary, top, inventory));
             var expected = new List<string>(Always);
             if (summary) expected.AddRange(Summary);
             if (top) expected.AddRange(Top);
@@ -143,7 +101,7 @@ public class SharePolicyTests
     public void Missing_folders_give_only_what_exists()
     {
         var root = Path.Combine(Path.GetTempPath(), "aion-report-empty-" + Guid.NewGuid().ToString("N")[..8]);
-        var entries = BugReportFiles.Select(Path.Combine(root, "a"), Path.Combine(root, "b"), Path.Combine(root, "c"), new SharePolicy(true, true, true, true, true, true));
+        var entries = BugReportFiles.Select(Path.Combine(root, "a"), Path.Combine(root, "b"), Path.Combine(root, "c"), new SharePolicy(true, true, true));
         Assert.Empty(entries);
     }
 }

@@ -52,7 +52,6 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        UiHost.Current = new WpfUiHost(Dispatcher);
         if (ArgValue(e.Args, "--render-sample") is { } samplePath)
 
         {
@@ -191,14 +190,6 @@ public partial class App : Application
         Dispatcher.BeginInvoke(_overlay.SyncCharBox, DispatcherPriority.ApplicationIdle);
         _meter.Updates.Start();
         Updater.CleanDownloads();
-        if (_meter.Settings.CurrentSharePolicy().SendsAnything && !_meter.Settings.TelemetryNoticeShown)
-        {
-            _meter.Settings.TelemetryNoticeShown = true; _meter.Settings.Save();
-            Dispatcher.BeginInvoke(() => _tray?.ShowBalloon(AppInfo.Name, UiText.Current.TelemetryNotice, () => ShowSettings()), DispatcherPriority.ApplicationIdle);
-        }
-        var telemetry = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMinutes(5) };
-        telemetry.Tick += (_, _) => { telemetry.Interval = TimeSpan.FromMinutes(15); _ = Telemetry.SendIfDueAsync(_meter); };
-        telemetry.Start();
         if (e.Args.Contains("--updated")) // started by the installer after an in-app update
             Dispatcher.BeginInvoke(() => _tray?.ShowBalloon(AppInfo.Name,
                 string.Format(UiText.Current.UpdatedBalloon, _meter.Updates.Current.ToString(3))), DispatcherPriority.ApplicationIdle);
@@ -224,7 +215,7 @@ public partial class App : Application
             };
             once.Start();
         }
-        // A2M-27 dev switch: --open settings|history|report|restore opens that window at start. Under Wine the tray (the only
+        // A2M-27 dev switch: --open settings|history|report opens that window at start. Under Wine the tray (the only
         // way to the Settings window and History) is a white floating explorer.exe window with no menu, so these were untestable.
         if (ArgValue(e.Args, "--open") is { } open) Dispatcher.BeginInvoke(() => OpenByName(open), DispatcherPriority.ApplicationIdle);
     }
@@ -236,14 +227,7 @@ public partial class App : Application
             case "settings": OpenSettingsWindow(null); break;
             case "history": ShowHistory(); break;
             case "report": ShowBugReport(); break;
-            case "restore":
-                // the way Settings → Restore from code opens it (owned, modal): with Show(), owned or not, Wine painted the whole
-                // window black except the caret (2026-10-14); ShowDialog from Settings paints normally
-                var w = new RestoreWindow(_meter);
-                if (_overlay.IsVisible) w.Owner = _overlay; else w.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-                w.ShowDialog();
-                break;
-            default: Log.Info($"--open: unknown window '{name}' (settings, history, report, restore)"); break;
+            default: Log.Info($"--open: unknown window '{name}' (settings, history, report)"); break;
         }
     }
 
@@ -642,7 +626,7 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Gear, tray "Settings…", telemetry balloon (A2M-46): the settings tab of <paramref name="card"/> (the gear's own card) or of the
+    /// Gear, tray "Settings…" (A2M-46): the settings tab of <paramref name="card"/> (the gear's own card) or of the
     /// overlay while it is shown; the window with the overlay hidden. An open window always wins, so there is one editor at a time.
     /// </summary>
     public void ShowSettings(OverlayWindow? card = null)

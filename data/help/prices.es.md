@@ -1,0 +1,12 @@
+# Prices
+Vigila objetos del mercado (aion2.exchange) y recibe un sonido cuando el anuncio más barato llega a tu precio.
+## Qué ves
+- Una fila por objeto vigilado: nombre (en español al pasar el ratón), id, la hora de la muestra de la web y cuándo la leyó el meter; tus "units held" y "paid each" y el valor de tu stock; el botón ≤ / ≥ (comprar por debajo / vender por encima) con tu límite; el último precio, su tendencia a 24 h y el número de anuncios; un globo para abrir el objeto en la web y una papelera para dejar de vigilarlo.
+- Pulsa una fila para abrirla: a la izquierda los 5 anuncios más baratos (pone "not configured" hasta que se conecte la llamada de anuncios de la web), a la derecha el gráfico del precio en 24 h / 7 días / 30 días con mínimo, mediana, máximo y tu línea de compra/venta discontinua; al pasar el ratón por la línea ves la hora y el precio de cada muestra horaria, y "collecting since" dice desde cuándo tiene historial el meter.
+- La web muestrea cada objeto más o menos una vez por hora. "Check now" relee lo que tiene la web; no puede forzar una muestra nueva y espera 5 minutos entre pulsaciones.
+## Cómo usarlo
+- Busca un objeto por nombre en la caja de abajo, elígelo, pon un precio máximo, marca "sell above" si es una vigilancia de venta, Add. El selector EN / ES junto a la caja elige el idioma de la búsqueda y de los nombres de objetos; es Ajustes → Nombres, así que cambia también todos los nombres del juego en las demás pestañas.
+- El buscador también entiende una palabra de grado en inglés o español: "legendary stone", "piedra legendaria", "unique", "épico" (4 letras o más, plurales valen). Cada resultado lleva su etiqueta de grado, y al elegirlo se repite junto al id, para saber qué piedra estás añadiendo.
+- Varios objetos comparten nombre y solo cambian de grado (en inglés "Artisan's Refining Stone" es tanto la rara como la legendaria). Una etiqueta de color tras el nombre dice el grado: común gris, raro verde, legendario azul, único dorado, épico naranja, especial turquesa. Dentro de una lista de materiales el grado sale entre paréntesis solo cuando el nombre por sí solo es ambiguo.
+- "Copy market script" y "Copy watched-items script" copian un script para la consola del navegador: abre aion2.exchange en tu navegador, F12 → Console, pega, Enter. El JSON cae en Descargas y alimenta la calculadora de beneficio de Craft.
+- Un acierto (precio igual o inferior a tu máximo, o igual o superior a tu precio de venta) suena; la notificación de Windows viene apagada.

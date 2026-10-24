@@ -57,10 +57,3 @@ internal sealed class UiTimer
     /// <summary>Stop + Start: the next tick a full interval from now (debounce).</summary>
     public void Restart() { Stop(); Start(); }
 }
-
-/// <summary>Service code that edits UI-owned state runs on the GTK loop (WPF installs a Dispatcher host the same way).</summary>
-internal sealed class GtkUiHost : AionMeter.Service.IUiHost
-{
-    public Task Invoke(Action action) => UiLoop.Invoke(() => { action(); return true; });
-    public Task<T> Invoke<T>(Func<T> func) => UiLoop.Invoke(func);
-}

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- A2M-48: the meter's WPF-free service layer (MeterEngine, settings, stores, telemetry, boss timers, UiText) shared by the Windows App and the Linux daemon. -->
+  <!-- A2M-48: the meter's WPF-free service layer (MeterEngine, settings, stores, boss timers, UiText) shared by the Windows App and the Linux daemon. -->
   <ItemGroup>
     <ProjectReference Include="..\AionMeter.Core\AionMeter.Core.csproj" />
   </ItemGroup>

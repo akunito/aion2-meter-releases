@@ -80,17 +80,6 @@ public sealed class BuildStore
         return b;
     }
 
-    /// <summary>Writes the build as it is (id and UpdatedAt kept): the backup restore puts back what the server holds.</summary>
-    public bool Put(Build b)
-    {
-        if (!ValidId(b.Id)) return false;
-        System.IO.Directory.CreateDirectory(_dir);
-        var path = Path.Combine(_dir, b.Id + ".json");
-        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(b, Json));
-        File.Move(path + ".tmp", path, overwrite: true);
-        return true;
-    }
-
     public bool Delete(string id)
     {
         if (!ValidId(id)) return false;

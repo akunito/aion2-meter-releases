@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace AionMeter.Service;
 
 /// <summary>
-/// Bug reports a clanmate can produce without knowing where anything is (A2M-19, part 1: local bundle; part 2 sends it).
+/// Bug reports a player can produce without knowing where anything is (A2M-19): a local zip the player attaches to a GitHub issue; the meter uploads nothing.
 /// A crash writes logs\crash_&lt;ts&gt;.txt (exception + the last 200 log lines); "Report a problem" zips the last two logs, the
 /// crash files, settings.json without the solver url, BUILD-INFO.txt and the player's note into reports\report_&lt;ts&gt;.zip, plus the
 /// parts the player ticks (A2M-45: character summary, Top DPS rows, inventory; file choice in Core/Diagnostics/BugReportFiles).
@@ -57,55 +57,6 @@ public static class BugReport
         return path;
     }
 
-    // Upload to Diego's n8n webhook (A2M-19 part 2): the zip + note; the token only protects the upload endpoint (it is in the exe).
-    public const string UploadUrl = "https://example.invalid/webhook/aion2-meter-report";
-    internal const string UploadToken = "REMOVED-TOKEN";
-    private static readonly System.Net.Http.HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(60) };
-
-    /// <summary>"vX.Y.Z" for a release, "dev-&lt;sha7&gt;" for a hand-deployed build, "dev" without BUILD-INFO.</summary>
-    public static string BuildLabel()
-    {
-        var build = "dev";
-        try { var p = Path.Combine(AppContext.BaseDirectory, "BUILD-INFO.txt"); if (File.Exists(p)) foreach (var l in File.ReadLines(p)) { if (l.StartsWith("release ")) build = l[8..].Trim(); else if (l.StartsWith("upstream ") && build == "dev") build = "dev-" + l[9..16]; } } catch (IOException) { }
-        return build;
-    }
-
-    /// <summary>POSTs the zip; returns the server's id. Throws HttpRequestException on refusal (403 token, 413 size) or network errors.</summary>
-    public static async Task<string> UploadAsync(string zipPath, string note, CancellationToken ct)
-    {
-        var build = BuildLabel();
-        using var form = new System.Net.Http.MultipartFormDataContent();
-        // StringContent carries "text/plain" and n8n then treats the field as an uploaded file (Diego's first send arrived as data0/data1): no content type
-        var noteContent = new System.Net.Http.StringContent(note.Length > 900 ? note[..900] : note); noteContent.Headers.ContentType = null; form.Add(noteContent, "note");
-        var buildContent = new System.Net.Http.StringContent(build); buildContent.Headers.ContentType = null; form.Add(buildContent, "build");
-        var bytes = await File.ReadAllBytesAsync(zipPath, ct);
-        var file = new System.Net.Http.ByteArrayContent(bytes);
-        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
-        form.Add(file, "file", Path.GetFileName(zipPath));
-        using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, UploadUrl) { Content = form };
-        req.Headers.Add("X-Meter-Token", UploadToken);
-        using var resp = await Http.SendAsync(req, ct);
-        var body = await resp.Content.ReadAsStringAsync(ct);
-        if (!resp.IsSuccessStatusCode) throw new System.Net.Http.HttpRequestException($"{(int)resp.StatusCode} {body}");
-        try { using var doc = System.Text.Json.JsonDocument.Parse(body); return doc.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : ""; }
-        catch (System.Text.Json.JsonException) { return ""; }
-    }
-
-    /// <summary>Null when a send is allowed now, else the wait and a reason key: "gap" (10 s), "minute" (2/min), "hour" (5/h), "day" (10/day).</summary>
-    public static (TimeSpan Wait, string Reason)? SendBlock(AppSettings s, DateTimeOffset now)
-    {
-        s.ReportSends.RemoveAll(t => now - t > TimeSpan.FromHours(24));
-        if (s.ReportSends.Count == 0) return null;
-        var last = s.ReportSends.Max();
-        if (now - last < TimeSpan.FromSeconds(10)) return (TimeSpan.FromSeconds(10) - (now - last), "gap");
-        var minute = s.ReportSends.Where(t => now - t < TimeSpan.FromMinutes(1)).ToList();
-        if (minute.Count >= 2) return (TimeSpan.FromMinutes(1) - (now - minute.Min()), "minute");
-        var hour = s.ReportSends.Where(t => now - t < TimeSpan.FromHours(1)).ToList();
-        if (hour.Count >= 5) return (TimeSpan.FromHours(1) - (now - hour.Min()), "hour");
-        if (s.ReportSends.Count >= 10) return (TimeSpan.FromHours(24) - (now - s.ReportSends.Min()), "day");
-        return null;
-    }
-
     /// <summary>Explorer on the zip (Windows); on Linux the file manager on the reports folder through xdg-open (no portable "select this file").</summary>
     public static void Reveal(string path)
     {
@@ -115,30 +66,6 @@ public static class BugReport
             else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", Path.GetDirectoryName(path) ?? path) { UseShellExecute = false });
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { Log.Error("Could not open the reports folder", ex); }
-    }
-
-    /// <summary>
-    /// "Send to Diego" without the window (A2M-48 phase 3c, from the WPF BugReportWindow): the zip per <paramref name="policy"/>, the upload,
-    /// and the send recorded in <see cref="AppSettings.ReportSends"/> (saved) for <see cref="SendBlock"/>. Throws what Create/upload throw; the
-    /// zip path is in <see cref="SendFailure.Zip"/> when the upload failed after the zip was made. <paramref name="upload"/>/<paramref name="create"/>: tests.
-    /// </summary>
-    public static async Task<(string Zip, string Id)> SendAsync(AppSettings s, string note, Core.Diagnostics.SharePolicy policy, CancellationToken ct = default,
-        Func<string, string, CancellationToken, Task<string>>? upload = null, Func<string, Core.Diagnostics.SharePolicy, string>? create = null)
-    {
-        if (SendBlock(s, DateTimeOffset.UtcNow) is { } block) throw new InvalidOperationException($"report send blocked ({block.Reason}, {block.Wait:g})");
-        var zip = (create ?? Create)(note, policy);
-        string id;
-        try { id = await (upload ?? UploadAsync)(zip, note, ct).ConfigureAwait(true); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException or TaskCanceledException) { throw new SendFailure(zip, ex); }
-        s.ReportSends.Add(DateTimeOffset.UtcNow);
-        try { s.Save(); } catch (IOException ex) { Log.Info($"Report send not recorded in settings.json: {ex.Message}"); }
-        return (zip, id);
-    }
-
-    /// <summary>The upload failed after the zip was written: <see cref="Zip"/> stays for the user to hand over by other means.</summary>
-    public sealed class SendFailure(string zip, Exception inner) : IOException(inner is TaskCanceledException ? "timeout" : inner.Message, inner)
-    {
-        public string Zip { get; } = zip;
     }
 
     private static string Environment()

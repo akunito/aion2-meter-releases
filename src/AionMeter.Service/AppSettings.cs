@@ -162,30 +162,17 @@ public sealed class AppSettings
     public string UpdateChannel { get; set; } = "stable";
     /// <summary>Also watch the upstream project's releases (a new one means re-audit + rebase); only Diego turns this on.</summary>
     public bool CheckUpstream { get; set; } = false;
-    /// <summary>A2M-20's single switch for usage + builds + backup. Read from older files only: <see cref="Load"/> moves it into the three Share* switches (A2M-45) and it is never written again.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? Telemetry { get; set; }
-    /// <summary>A2M-45 Settings → Privacy: daily usage record (build, OS, Npcap, capture health, crash/error counts, tabs; no names).</summary>
-    public bool ShareUsage { get; set; } = true;
-    /// <summary>Anonymous builds (class, skills, levels, notes, Daevanion plan): the "5 most-liked" suggestions.</summary>
-    public bool ShareBuilds { get; set; } = true;
-    /// <summary>The Restore-from-code copy (watch list + favourite recipes, keyed by the install id). Off = restore stops working for this PC.</summary>
-    public bool ShareBackup { get; set; } = true;
-    /// <summary>A2M-45: names the player gives to unknown atlas objects (code, kind/name, maps), shared so the clan's atlas knows them.</summary>
-    public bool ShareAtlasNames { get; set; } = true;
+    // Files from builds that sent telemetry or kept a server backup still carry Telemetry, Share*, InstallId, ReportSends, *TelemetrySent…:
+    // System.Text.Json skips unknown properties by default, so they load and the next Save drops them (AppSettingsCompatTests).
     /// <summary>Bug report parts besides logs + settings (always): character summary, Top DPS rows, inventory. Remembered from the dialog too.</summary>
     public bool ReportSummary { get; set; } = true;
     public bool ReportTopDps { get; set; } = true;
     public bool ReportInventory { get; set; }
 
     /// <summary>Allocates: call it per send or per report, not per frame.</summary>
-    public Core.Diagnostics.SharePolicy CurrentSharePolicy() => new(ShareUsage, ShareBuilds, ShareBackup, ReportSummary, ReportTopDps, ReportInventory) { AtlasNames = ShareAtlasNames };
-    public bool TelemetryNoticeShown { get; set; } = false;
+    public Core.Diagnostics.SharePolicy CurrentSharePolicy() => new(ReportSummary, ReportTopDps, ReportInventory);
     /// <summary>A2M-27: the "install Npcap" message is offered on the first start without it, once; Settings → Capture re-opens it.</summary>
     public bool NpcapHelpShown { get; set; } = false;
-    public DateTimeOffset? TelemetryLastSent { get; set; }
-    /// <summary>Random id so installs can be told apart in the telemetry; nothing else is derived from it.</summary>
-    public string InstallId { get; set; } = "";
     /// <summary>Scheduled task "AION2 meter autostart" registered: the meter starts with AION2.exe and closes 60 s after it.</summary>
     public bool StartWithGame { get; set; } = false;
     /// <summary>With the task on: also close the meter 60 s after AION2.exe ends. Off by default (Diego 2026-10-11: the meter must only open by itself).</summary>
@@ -221,8 +208,6 @@ public sealed class AppSettings
     public double AtlasWidth { get; set; } = 900;
     /// <summary>Node kinds whose best areas are outlined on the atlas (up to two, English names lower-cased).</summary>
     public List<string> AtlasZoneKinds { get; set; } = new();
-    /// <summary>When bug reports were sent (UTC), pruned to 24 h: the client-side spam guard (10 s gap, 2/min, 5/h, 10/day; Diego 2026-10-10).</summary>
-    public List<DateTimeOffset> ReportSends { get; set; } = new();
     /// <summary>Broker cut taken from a sale, used by the craft profit calculator. 10 is an assumption (2026-10-10): adjust when measured on a real sale.</summary>
     public double BrokerFeePercent { get; set; } = 10;
     /// <summary>Craft tab: only recipes the stock allows now (default); off also lists those short by one or two materials (Diego, 2026-10-10).</summary>
@@ -251,22 +236,6 @@ public sealed class AppSettings
     public string QuestlogSlug { get; set; } = "";
     /// <summary>Build tab, Daevanion: skill icon over the "Skill Level Up" nodes.</summary>
     public bool DaevSkillIcons { get; set; } = true;
-    /// <summary>Build telemetry (A2M-21): per build id, when it was last sent and the build's UpdatedAt then (at most one send per build per 24 h, none without a change).</summary>
-    public Dictionary<string, BuildSent> BuildTelemetrySent { get; set; } = new();
-    public sealed record BuildSent(DateTimeOffset Sent, DateTimeOffset Updated);
-    /// <summary>2 = builds carry charhash (A2M-30): an older file has its sent marks cleared once so every build goes again with it.</summary>
-    public int BuildTelemetryVersion { get; set; }
-    public const int CurrentBuildTelemetry = 2;
-    /// <summary>A2M-30 kind "watch" (watch list + craft favourites): when it was last sent and a hash of what was sent.</summary>
-    public DateTimeOffset? StateTelemetrySent { get; set; }
-    public string StateTelemetryHash { get; set; } = "";
-
-    /// <summary>The install id doubles as the backup code (A2M-30), so it exists from the first time anything needs it.</summary>
-    public string EnsureInstallId()
-    {
-        if (InstallId.Length == 0) { InstallId = Guid.NewGuid().ToString("N"); try { Save(); } catch (IOException) { } }
-        return InstallId;
-    }
     /// <summary>Browser link of a watched item; {id} and {server} are replaced. The site is a hash-routed SPA: "/#/items/{id}" (Diego, 2026-10-09); "/item/{id}" renders blank.</summary>
     public string PriceItemUrl { get; set; } = "https://aion2.exchange/#/items/{id}";
     public double AtlasHeight { get; set; } = 760;
@@ -295,17 +264,6 @@ public sealed class AppSettings
                     // the default is now English until the user chooses.
                     s.Language = "en";
                 }
-                if (s.Telemetry is bool legacy)
-                {
-                    // A2M-45: the old single switch decides all three kinds once; the next Save drops it
-                    var p = Core.Diagnostics.SharePolicy.FromLegacyTelemetry(legacy);
-                    s.ShareUsage = p.Usage; s.ShareBuilds = p.Builds; s.ShareBackup = p.Backup; s.ShareAtlasNames = p.AtlasNames;
-                    s.Telemetry = null;
-                }
-                // a file from before the atlas switch: a player who had switched every other kind off does not start sharing by default
-                else if (!text.Contains("\"ShareAtlasNames\"", StringComparison.Ordinal))
-                    s.ShareAtlasNames = Core.Diagnostics.SharePolicy.AtlasNamesForOldFile(s.ShareUsage, s.ShareBuilds, s.ShareBackup);
-                if (s.BuildTelemetryVersion < CurrentBuildTelemetry) { s.BuildTelemetrySent.Clear(); s.BuildTelemetryVersion = CurrentBuildTelemetry; }
                 s.Language = UiText.Normalize(s.Language);
                 s.MigrateLegacyNames();
                 s.LayoutVersion = CurrentLayout;
@@ -316,7 +274,7 @@ public sealed class AppSettings
         catch (Exception ex) when (ex is IOException or JsonException)
         {
         }
-        return new AppSettings { LayoutVersion = CurrentLayout, BuildTelemetryVersion = CurrentBuildTelemetry };
+        return new AppSettings { LayoutVersion = CurrentLayout };
     }
 
     /// <summary>Folds the per-tab keys of an older file into <see cref="NamesLanguage"/> (an explicit NamesLanguage wins) and drops them.</summary>
@@ -332,7 +290,7 @@ public sealed class AppSettings
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Transient { get; init; }
 
-    /// <summary>Daemon --offline and tests: state files are written as usual, but nothing goes to the network (profile sync, price polls, Abyss Logs, questlog names, telemetry).</summary>
+    /// <summary>Daemon --offline and tests: state files are written as usual, but nothing goes to the network (profile sync, price polls, Abyss Logs, questlog names).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Offline { get; set; }
 

@@ -12,7 +12,7 @@ string? Opt(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1
 if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
 {
     Console.WriteLine("""
-        AionMeter.Overlay [--layer] [--socket PATH] [--monitor NAME] [--anchor top-right|top-left|bottom-right|bottom-left] [--scale F] [--data-dir DIR] [--tab KEY] [--help-page KEY] [--window report|restore|import] [--show|--hide|--toggle|--quit]
+        AionMeter.Overlay [--layer] [--socket PATH] [--monitor NAME] [--anchor top-right|top-left|bottom-right|bottom-left] [--scale F] [--data-dir DIR] [--tab KEY] [--help-page KEY] [--window report|import] [--show|--hide|--toggle|--quit]
           --layer     the layer-shell card (OVERLAY layer, placed by anchor + margins, dragged across outputs by itself). Default: a normal
                       window, app_id aionmeter, that Sway places, moves (Alt+drag) and resizes (Alt+right-drag) like any floating window;
                       its rect is saved in overlay.json through Sway IPC and restored on every start/show. --monitor/--anchor are layer-only
@@ -23,7 +23,7 @@ if (Array.IndexOf(args, "--help") >= 0 || Array.IndexOf(args, "-h") >= 0)
           --scale     card size factor on top of the output scale (0.5 – 3) for this run; otherwise the shared "UI scale" of ui.json
                       (Settings → Overlay, or the wheel over the resize corner)
           --data-dir  the meter's data dir: overlay.json, ui.json, and what the viewer engine reads (default $XDG_DATA_HOME/AionMeter)
-          --tab KEY   open a tab at start (settings, or a ported strip tab); --help-page KEY a help page; --window report|restore|import a dialog
+          --tab KEY   open a tab at start (settings, or a ported strip tab); --help-page KEY a help page; --window report|import a dialog
         Mouse: drag the card (its header on every tab, or any part that is not a control) to move it, also onto another output;
         right-button drag anywhere resizes it from the nearest edge or corner (like Sway's Alt+right-drag; Alt optional), and so does the gold
         bottom-right corner; the wheel there zooms. In window mode these hand the move/resize to Sway; with --layer the card does them itself
@@ -72,8 +72,6 @@ if (layer && LayerShell.Preload() is { } err)
 if (Opt("--data-dir") is { Length: > 0 } dir) AppSettings.UseAppDataDir(dir);
 // before the first log line: the daemon and this card never append to the same file
 Log.Prefix = "aionmeter-overlay";
-// settings dictionaries the build telemetry records into are edited on the UI thread, as in WPF
-UiHost.Current = new AionMeter.Overlay.Shell.GtkUiHost();
 var settings = OverlaySettings.Load(Path.Combine(AppSettings.AppDataDir, "overlay.json"));
 // --monitor (the wrapper's DP-1) is only the default: the output the card was dragged to (overlay.json Monitor) wins
 var defaultMonitor = Opt("--monitor");

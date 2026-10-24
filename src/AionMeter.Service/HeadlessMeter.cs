@@ -43,7 +43,7 @@ public sealed class HeadlessOptions
 
 /// <summary>
 /// A2M-48: what the Windows App does in the background, without a window — capture, tracker, fight history, stores, boss timers, price
-/// polls, profile sync, telemetry/backup under SharePolicy, every state file — for the Linux daemon (and its smoke test).
+/// polls, profile sync, every state file — for the Linux daemon (and its smoke test).
 /// Human lines go to <c>human</c>; with JsonEvents one JSON object per line goes to <c>json</c> (the daemon then sends human lines to stderr).
 /// </summary>
 public sealed class HeadlessMeter : IDisposable
@@ -133,7 +133,7 @@ public sealed class HeadlessMeter : IDisposable
         }
         Engine.StartCapture();
         var start = Environment.TickCount64;
-        long lastStatus = 0, nextTelemetry = start + 5 * 60_000;   // the App: first after 5 min, then every 15
+        long lastStatus = 0;
         var lastState = "";
         var ticks = 0;
         var replayRan = false;
@@ -155,7 +155,6 @@ public sealed class HeadlessMeter : IDisposable
                 if (_server is not null) Serve(st, ticks);
                 if (++ticks % 5 == 0) Alerts();
                 if (_o.StatusEverySeconds > 0 && now - lastStatus >= _o.StatusEverySeconds * 1000L) { lastStatus = now; Heartbeat(st); }
-                if (now >= nextTelemetry) { nextTelemetry = now + 15 * 60_000; _ = Engine.SendTelemetryIfDueAsync(); }
                 if (_o.OnceSeconds > 0 && now - start >= _o.OnceSeconds * 1000L) break;
                 if (_o.Replay is not null)
                 {

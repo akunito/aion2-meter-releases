@@ -129,7 +129,7 @@ public partial class NameNodeWindow : Window
     {
         var name = OtherBox.Text.Trim();
         if (name.Length == 0) { OtherBox.Focus(); return; }
-        _meter.NameObject(_code, name, Core.Atlas.AtlasShare.OtherCategory);
+        _meter.NameObject(_code, name, Core.Atlas.AtlasCategory.Other);
         Close();
     }
 

@@ -16,7 +16,7 @@ if (Flag("--help") || Flag("-h"))
           --device        libpcap device (default: settings.json CaptureDevice, else the adapter carrying the game)
           --once N        stop after N seconds (default: until SIGTERM / Ctrl+C)
           --json-events   one JSON object per line on stdout (status, heartbeat, character, fight, boss-alert, price-hit, stopped); human lines go to stderr
-          --offline       write state, but no network (profile sync, price polls, Abyss Logs, telemetry)
+          --offline       write state, but no network (profile sync, price polls, Abyss Logs)
           --verbose       mirror the log file's lines to the human stream
           --replay FILE   feed a recording through the engine as if live (stores and state files written), stop at its end
           --realtime      replay at the recorded pace;  --hold  keep running (and serving the UI) after the replay ends

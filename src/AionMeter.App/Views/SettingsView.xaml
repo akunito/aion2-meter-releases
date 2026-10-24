@@ -293,25 +293,12 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Privacy (A2M-45): one switch per kind sent to Diego's server; Telemetry refuses what is off -->
+                    <!-- Privacy (A2M-45): what Report a problem puts in its zip by default -->
                     <Border Style="{StaticResource Section}">
                         <StackPanel>
                             <TextBlock Text="{Binding SecPrivacy, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,6" Text="{Binding PrivacyIntro, Source={x:Static s:UiText.Current}}" />
-                            <CheckBox x:Name="ShareUsageBox" Style="{StaticResource DarkCheck}"
-                                      Content="{Binding ShareUsage, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareUsageHint, Source={x:Static s:UiText.Current}}" />
-                            <CheckBox x:Name="ShareBuildsBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0" Click="Share_Click"
-                                      Content="{Binding ShareBuilds, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareBuildsHint, Source={x:Static s:UiText.Current}}" />
-                            <CheckBox x:Name="ShareBackupBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0" Click="Share_Click"
-                                      Content="{Binding ShareBackup, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareBackupHint, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock x:Name="ShareBackupWarn" Style="{StaticResource Hint}" Foreground="{StaticResource Red}" Visibility="Collapsed" />
-                            <CheckBox x:Name="ShareAtlasBox" Style="{StaticResource DarkCheck}" Margin="0,4,0,0"
-                                      Content="{Binding ShareAtlasNames, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock Style="{StaticResource Hint}" Text="{Binding ShareAtlasNamesHint, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock Text="{Binding ShareReports, Source={x:Static s:UiText.Current}}" Margin="0,8,0,0" />
+                            <TextBlock Text="{Binding ShareReports, Source={x:Static s:UiText.Current}}" Margin="0,2,0,0" />
                             <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,2" Text="{Binding ShareReportsHint, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="ReportSummaryBox" Style="{StaticResource DarkCheck}" Margin="24,2,0,0"
                                       Content="{Binding ShareReportSummary, Source={x:Static s:UiText.Current}}" />
@@ -319,26 +306,6 @@
                                       Content="{Binding ShareReportTopDps, Source={x:Static s:UiText.Current}}" />
                             <CheckBox x:Name="ReportInventoryBox" Style="{StaticResource DarkCheck}" Margin="24,2,0,0"
                                       Content="{Binding ShareReportInventory, Source={x:Static s:UiText.Current}}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Backup (A2M-30): the install id is the code; the copy follows Privacy → Backup copy (watch list) and Anonymous builds -->
-                    <Border Style="{StaticResource Section}">
-                        <StackPanel>
-                            <TextBlock Text="{Binding SecBackup, Source={x:Static s:UiText.Current}}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
-                            <WrapPanel>
-                                <TextBlock Text="{Binding BackupCodeLabel, Source={x:Static s:UiText.Current}}" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,12,4" />
-                                <TextBox x:Name="BackupCodeBox" IsReadOnly="True" Width="Auto" MinWidth="330" Height="30" VerticalContentAlignment="Center"
-                                         FontFamily="Consolas" FontSize="13.5" Foreground="{StaticResource Gold}" />
-                                <Button Style="{StaticResource GhostButton}" Click="CopyCode_Click" Margin="8,0,0,0"
-                                        Content="{Binding BackupCopy, Source={x:Static s:UiText.Current}}" />
-                                <TextBlock x:Name="CopyState" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="{StaticResource Green}" />
-                            </WrapPanel>
-                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0" Text="{Binding BackupHint, Source={x:Static s:UiText.Current}}" />
-                            <TextBlock x:Name="BackupOffText" Style="{StaticResource Hint}" Margin="0,2,0,0" Foreground="{StaticResource Red}"
-                                       Text="{Binding BackupOff, Source={x:Static s:UiText.Current}}" Visibility="Collapsed" />
-                            <Button Style="{StaticResource GhostButton}" HorizontalAlignment="Left" Margin="0,8,0,0" Click="Restore_Click"
-                                    Content="{Binding BackupRestore, Source={x:Static s:UiText.Current}}" />
                         </StackPanel>
                     </Border>
 

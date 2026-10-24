@@ -5,14 +5,12 @@ using AionMeter.Service;
 namespace AionMeter.Tests;
 
 /// <summary>
-/// A2M-48 phase 3c: what the Build tab, Restore from code and Report a problem keep in AionMeter.Service (written for the Avalonia UI, used by
-/// the GTK card since A2M-50): description runs, questlog HTML, the character folder helpers, the restore flow and the report send.
+/// A2M-48 phase 3c: what the Build tab and Report a problem keep in AionMeter.Service (written for the Avalonia UI, used by
+/// the GTK card since A2M-50): description runs, questlog HTML, the character folder helpers and the report zip.
 /// UiText.Current is process-wide and EsTextTests switches it: texts are checked by their numbers, not their words.
 /// </summary>
 public class ServiceBuildTabTests
 {
-    private const string Code = "3f9c0a12b7e44d85a6c1e09f2b7d5e31";
-
     private static string TempDir()
     {
         var d = Path.Combine(Path.GetTempPath(), "a2m-buildtab-" + Guid.NewGuid().ToString("N")[..8]);
@@ -69,7 +67,7 @@ public class ServiceBuildTabTests
             Assert.Equal(Path.Combine(root, "characters", "1303-Akunita", "builds"), CharacterFolder.Builds(root, "1303-Akunita").Directory);
             Assert.Equal(Path.Combine(root, "builds"), CharacterFolder.Builds(root, "").Directory);
 
-            // a build saved through the folder the Linux tab uses is what WPF / the telemetry sweep read (characters/<key>/builds + build-active.txt)
+            // a build saved through the folder the Linux tab uses is what WPF reads (characters/<key>/builds + build-active.txt)
             var store = CharacterFolder.Builds(root, "1303-Akunita");
             var saved = store.Save(new Build { Name = "PvE", ClassId = "templar" });
             store.ActiveId = saved.Id;
@@ -91,84 +89,6 @@ public class ServiceBuildTabTests
         finally { Directory.Delete(root, true); }
     }
 
-    private static MeterEngine.RestoreSummary Summary(int kept = 0) => new(7, 5, 2, kept, true, true, true);
-
-    [Fact]
-    public async Task Restore_flow_maps_every_server_answer()
-    {
-        var fetched = 0;
-        Func<string, Task<(int, string, string?)>> Answer(int status, string body = "{}", string? error = null) => code => { fetched++; Assert.Equal(Code, code); return Task.FromResult((status, body, error)); };
-        MeterEngine.RestoreSummary Never(string c, RestorePayload p) => throw new InvalidOperationException("not applied");
-
-        var bad = await RestoreFlow.RunAsync("not a code", true, Answer(200), Never);
-        Assert.Equal(RestoreFlow.Outcome.BadCode, bad.Outcome);
-        Assert.Equal(0, fetched);   // nothing asked for a malformed code
-
-        foreach (var status in new[] { 0, 404, 429, 500, 302 })
-        {
-            var r = await RestoreFlow.RunAsync("3F9C-0A12-B7E4-4D85-A6C1-E09F-2B7D-5E31", true, Answer(status, "", status == 0 ? "network down" : null), Never);
-            Assert.Equal(RestoreFlow.Outcome.Failed, r.Outcome);
-            Assert.Null(r.Summary);
-            if (status == 0) Assert.Contains("network down", r.Text);
-            if (status is 500 or 302) Assert.Contains(status.ToString(), r.Text);
-        }
-
-        var unreadable = await RestoreFlow.RunAsync(Code, true, Answer(200, "{ nope"), Never);
-        Assert.Equal(RestoreFlow.Outcome.Failed, unreadable.Outcome);
-
-        var diskFull = await RestoreFlow.RunAsync(Code, true, Answer(200, "{\"ok\":true,\"builds\":[],\"state\":[]}"), (_, _) => throw new IOException("disk full"));
-        Assert.Equal(RestoreFlow.Outcome.Failed, diskFull.Outcome);
-        Assert.Equal("disk full", diskFull.Text);
-
-        RestorePayload? got = null;
-        var ok = await RestoreFlow.RunAsync(Code, true, Answer(200, "{\"ok\":true,\"builds\":[{\"build_id\":\"a1b2c3d4e5f6\",\"name\":\"PvE\",\"ts\":\"2026-10-11T09:30:00Z\"}],\"state\":[]}"),
-            (c, p) => { got = p; return Summary(); });
-        Assert.Equal(RestoreFlow.Outcome.Restored, ok.Outcome);
-        Assert.Equal("a1b2c3d4e5f6", Assert.Single(got!.Builds).Build.Id);
-        Assert.Equal(Summary(), ok.Summary);
-        Assert.Contains("7", ok.Text);
-        Assert.Contains("5", ok.Text);
-    }
-
-    [Fact]
-    public void Restore_line_says_when_the_backup_switch_is_off()
-    {
-        var on = RestoreFlow.Describe(Summary(), shareBackup: true);
-        var off = RestoreFlow.Describe(Summary(), shareBackup: false);
-        Assert.StartsWith(on, off);
-        Assert.True(off.Length > on.Length);
-        Assert.EndsWith(".", on);
-        Assert.True(RestoreFlow.Describe(Summary(kept: 3), true).Length > on.Length);   // "N newer here" is added
-    }
-
-    [Fact]
-    public async Task Report_send_records_the_send_and_keeps_the_zip_on_failure()
-    {
-        var s = new AppSettings { Transient = true };
-        var policy = new SharePolicy(true, true, true, true, false, false);
-        SharePolicy? zipped = null;
-        string Create(string note, SharePolicy p) { zipped = p; return "/tmp/report_x.zip"; }
-
-        var (zip, id) = await BugReport.SendAsync(s, "it broke", policy, default, (path, note, _) => { Assert.Equal("/tmp/report_x.zip", path); Assert.Equal("it broke", note); return Task.FromResult("r-42"); }, Create);
-        Assert.Equal(("/tmp/report_x.zip", "r-42"), (zip, id));
-        Assert.Equal(policy, zipped);   // the ticks decide the zip
-        Assert.Single(s.ReportSends);
-
-        // inside the 10 s gap: refused before a zip is made
-        zipped = null;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => BugReport.SendAsync(s, "again", policy, default, (_, _, _) => Task.FromResult("x"), Create));
-        Assert.Null(zipped);
-        Assert.Single(s.ReportSends);
-
-        var fresh = new AppSettings { Transient = true };
-        var fail = await Assert.ThrowsAsync<BugReport.SendFailure>(() => BugReport.SendAsync(fresh, "n", policy, default, (_, _, _) => throw new HttpRequestException("413 too big"), Create));
-        Assert.Equal("/tmp/report_x.zip", fail.Zip);
-        Assert.Contains("413", fail.Message);
-        Assert.Empty(fresh.ReportSends);   // a failed send does not count against the limits
-        var timeout = await Assert.ThrowsAsync<BugReport.SendFailure>(() => BugReport.SendAsync(fresh, "n", policy, default, (_, _, _) => throw new TaskCanceledException(), Create));
-        Assert.Equal("timeout", timeout.Message);
-    }
-
     [Fact]
     public void Report_zip_takes_the_two_newest_logs_of_the_daemon_and_of_the_linux_card()
     {
@@ -179,7 +99,7 @@ public class ServiceBuildTabTests
             Directory.CreateDirectory(logs);
             foreach (var f in new[] { "aionmeter_20261011.log", "aionmeter_20261012.log", "aionmeter_20261013.log", "aionmeter-overlay_20261012.log", "aionmeter-overlay_20261013.log", "aionmeter-overlay_20261010.log", "aionmeter-ui_20261013.log" })
                 File.WriteAllText(Path.Combine(logs, f), "x");
-            var entries = BugReportFiles.Select(Path.Combine(root, "data"), Path.Combine(root, "app"), logs, new SharePolicy(true, true, true, false, false, false)).Select(e => e.Entry).ToList();
+            var entries = BugReportFiles.Select(Path.Combine(root, "data"), Path.Combine(root, "app"), logs, new SharePolicy(false, false, false)).Select(e => e.Entry).ToList();
             Assert.Equal(["logs/aionmeter_20261013.log", "logs/aionmeter_20261012.log", "logs/aionmeter-overlay_20261013.log", "logs/aionmeter-overlay_20261012.log"], entries);
         }
         finally { Directory.Delete(root, true); }

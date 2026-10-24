@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using AionMeter.Core.Builds;
 using AionMeter.Core.Capture;
 using AionMeter.Core.Combat;
 using AionMeter.Core.Game;
@@ -23,11 +22,11 @@ internal sealed class SettingsView : HostedView
     private readonly List<int> _serverIds = new();
     private Gtk.CheckButton _barsRelative = null!, _showBoss = null!, _showGear = null!, _autoShow = null!, _showOnStart = null!, _allDesktops = null!;
     private Gtk.CheckButton _saveHistory = null!, _record = null!, _icons = null!, _abyss = null!, _checkUpdates = null!, _autoInstall = null!, _checkUpstream = null!;
-    private Gtk.CheckButton _shareUsage = null!, _shareBuilds = null!, _shareBackup = null!, _shareAtlas = null!, _repSummary = null!, _repTop = null!, _repInv = null!;
-    private Gtk.Entry _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!, _backupCode = null!;
+    private Gtk.CheckButton _repSummary = null!, _repTop = null!, _repInv = null!;
+    private Gtk.Entry _autoHide = null!, _idle = null!, _bossIdle = null!, _historyMin = null!;
     private Gtk.DropDown _language = null!, _names = null!, _maxRows = null!, _mode = null!, _historyMode = null!, _device = null!, _region = null!, _server = null!, _channel = null!;
     private Gtk.Scale _opacity = null!, _rowSize = null!, _uiScale = null!;
-    private Gtk.Label _backupWarn = null!, _backupOff = null!, _copyState = null!, _serverNow = null!, _daemonLine = null!, _restartState = null!;
+    private Gtk.Label _serverNow = null!, _daemonLine = null!, _restartState = null!;
     private Gtk.Button _restart = null!;
     private string _daemonText = "", _restartText = "";
     private Fg _restartFg = Fg.Dim;
@@ -85,7 +84,7 @@ internal sealed class SettingsView : HostedView
 
     public override void Shown()
     {
-        // a fresh editor per visit, as WPF: what the daemon saved meanwhile (set-measure, telemetry marks) is what it starts from
+        // a fresh editor per visit, as WPF: what the daemon saved meanwhile (set-measure) is what it starts from
         Shell.RefreshSettings();
         Build();
     }
@@ -251,15 +250,6 @@ internal sealed class SettingsView : HostedView
         // Privacy
         var pr = UiKit.VBox();
         pr.Append(UiKit.Hint(T.PrivacyIntro, 0));
-        pr.Append(_shareUsage = UiKit.Check(T.ShareUsage, s.ShareUsage));
-        pr.Append(UiKit.Hint(T.ShareUsageHint));
-        pr.Append(_shareBuilds = UiKit.Check(T.ShareBuilds, s.ShareBuilds, 4));
-        pr.Append(UiKit.Hint(T.ShareBuildsHint));
-        pr.Append(_shareBackup = UiKit.Check(T.ShareBackup, s.ShareBackup, 4));
-        pr.Append(UiKit.Hint(T.ShareBackupHint));
-        pr.Append(_backupWarn = UiKit.Hint("", 24, Fg.Red));
-        pr.Append(_shareAtlas = UiKit.Check(T.ShareAtlasNames, s.ShareAtlasNames, 4));
-        pr.Append(UiKit.Hint(T.ShareAtlasNamesHint));
         pr.Append(UiKit.Text(T.ShareReports));
         pr.Append(UiKit.Hint(T.ShareReportsHint, 0));
         pr.Append(_repSummary = UiKit.Check(T.ShareReportSummary, s.ReportSummary, 2));
@@ -270,38 +260,7 @@ internal sealed class SettingsView : HostedView
         UiKit.Margin(report, 24, 8, 0, 0);
         report.Halign = Gtk.Align.Start;
         pr.Append(report);
-        _shareBuilds.OnToggled += (_, _) => ShowShareWarnings();
-        _shareBackup.OnToggled += (_, _) => ShowShareWarnings();
         stack.Append(UiKit.Section(pr, T.SecPrivacy));
-
-        // Backup
-        var bk = UiKit.VBox();
-        // Avalonia wraps [label][code][Copy] in a WrapPanel; at the card's 560 px a section has ~450 px inside, so the label goes above
-        var codeLabel = UiKit.Text(T.BackupCodeLabel, 12.5, Fg.Dim);
-        codeLabel.MarginBottom = UiKit.Px(4);
-        bk.Append(codeLabel);
-        var codeRow = UiKit.HBox();
-        _backupCode = UiKit.Input(BackupCode.Format(s.EnsureInstallId()), 200);
-        _backupCode.Editable = false;
-        _backupCode.AddCssClass("k-mono");
-        _backupCode.Hexpand = true;
-        codeRow.Append(_backupCode);
-        var copy = UiKit.Ghost(T.BackupCopy, CopyCode);
-        copy.MarginStart = UiKit.Px(8);
-        copy.MarginEnd = 0;
-        codeRow.Append(copy);
-        bk.Append(codeRow);
-        bk.Append(_copyState = UiKit.Text("", 12.5, Fg.Green));
-        _copyState.Visible = false;
-        bk.Append(UiKit.Hint(T.BackupHint, 0));
-        bk.Append(_backupOff = UiKit.Hint(T.BackupOff, 0, Fg.Red));
-        // WPF: the button opens the Restore from code dialog (A2M-30); the dialog runs Service/RestoreFlow
-        var restore = UiKit.Ghost(T.RestoreTitle + "…", () => Shell.ShowRestore());
-        restore.MarginTop = UiKit.Px(10);
-        restore.Halign = Gtk.Align.Start;
-        bk.Append(restore);
-        stack.Append(UiKit.Section(bk, T.SecBackup));
-        ShowShareWarnings();
 
         // Data
         var da = UiKit.VBox();
@@ -406,27 +365,6 @@ internal sealed class SettingsView : HostedView
         UiKit.SetItems(_server, items, idx >= 0 ? idx + 1 : 0);
     }
 
-    private void ShowShareWarnings()
-    {
-        var backup = _shareBackup.Active;
-        var builds = _shareBuilds.Active;
-        _backupOff.Visible = !backup;
-        _backupWarn.SetText(!backup ? T.ShareBackupOff : !builds ? T.ShareBuildsOffBackup : "");
-        _backupWarn.Visible = !(backup && builds);
-    }
-
-    /// <summary>Wayland only lets a client set the selection with a recent input serial of its own: the Copy click is one.</summary>
-    private void CopyCode()
-    {
-        try
-        {
-            _backupCode.GetClipboard().SetText(_backupCode.GetText());
-            _copyState.SetText(T.BackupCopied);
-        }
-        catch (GLib.GException e) { _copyState.SetText(e.Message); }
-        _copyState.Visible = true;
-    }
-
     private static void Open(string path)
     {
         try
@@ -472,10 +410,6 @@ internal sealed class SettingsView : HostedView
         s.AutoInstallUpdates = _autoInstall.Active;
         s.UpdateChannel = UiKit.Selected(_channel) == 1 ? "dev" : "stable";
         s.CheckUpstream = _checkUpstream.Active;
-        s.ShareUsage = _shareUsage.Active;
-        s.ShareBuilds = _shareBuilds.Active;
-        s.ShareBackup = _shareBackup.Active;
-        s.ShareAtlasNames = _shareAtlas.Active;
         s.ReportSummary = _repSummary.Active;
         s.ReportTopDps = _repTop.Active;
         s.ReportInventory = _repInv.Active;

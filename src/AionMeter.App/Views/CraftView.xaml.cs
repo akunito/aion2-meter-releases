@@ -83,7 +83,6 @@ public partial class CraftView : UserControl
         if (sender is not Button { Tag: int output }) return;
         if (!_meter.Settings.CraftFavourites.Remove(output)) _meter.Settings.CraftFavourites.Add(output);
         _meter.Settings.Save(); Reload();
-        Telemetry.QueueState(_meter);
     }
     // aion2hub lists 41 recipe pairs with two output ids for one name and identical materials (faction/version twins, e.g. 510716007/510716019):
     // one row per name + materials + profession + level, so the list never shows the same craft twice (Diego, 2026-10-11)

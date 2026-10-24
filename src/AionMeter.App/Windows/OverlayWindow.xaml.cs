@@ -687,7 +687,6 @@ public partial class OverlayWindow : Window
         if (tab == "settings") _beforeSettings = _tab;
         else if (_tab == "settings") DropSettingsView();   // leaving the tab any way but Save discards, as closing the window did
         _tab = tab;
-        Telemetry.Count("tab." + tab);
         FooterStatusLine.Visibility = tab == "meter" ? Visibility.Visible : Visibility.Collapsed;   // DPS status + fight links belong to the meter tab only
         // the frame is for the DPS rows; the other tabs' cards draw their own border inside the same row
         PartyFrame.BorderThickness = tab == "meter" ? new Thickness(1) : new Thickness(0);

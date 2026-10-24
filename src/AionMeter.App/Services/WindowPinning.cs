@@ -47,7 +47,7 @@ internal static unsafe partial class WindowPinning
         w.Topmost = true;
         var helper = new WindowInteropHelper(w);
         // Set before the handle exists: WPF passes it as the parent of CreateWindowEx. A Window.Owner (NameNode over the
-        // overlay, Restore over Settings) already chains to the overlay.
+        // overlay) already chains to the overlay.
         if (w.Owner is null && helper.Owner == 0 && _anchor != 0) helper.Owner = _anchor;
         if (w.ShowInTaskbar)
             w.SourceInitialized += static (s, _) => NativeMethods.SetExStyle(new WindowInteropHelper((Window)s!).Handle, NativeMethods.WS_EX_APPWINDOW);

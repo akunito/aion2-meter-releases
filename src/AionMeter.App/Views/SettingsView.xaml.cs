@@ -109,14 +109,9 @@ public partial class SettingsView : UserControl
                                                      : string.Format(T.VersionRelease, _meter.Updates.Current.ToString(3), _meter.Updates.ReleaseTag);
         if (s.UpdateChannel == "dev") ChannelDev.IsChecked = true; else ChannelStable.IsChecked = true;
         CheckUpstreamBox.IsChecked = s.CheckUpstream;
-        ShareUsageBox.IsChecked = s.ShareUsage;
-        ShareBuildsBox.IsChecked = s.ShareBuilds;
-        ShareBackupBox.IsChecked = s.ShareBackup;
-        ShareAtlasBox.IsChecked = s.ShareAtlasNames;
         ReportSummaryBox.IsChecked = s.ReportSummary;
         ReportTopDpsBox.IsChecked = s.ReportTopDps;
         ReportInventoryBox.IsChecked = s.ReportInventory;
-        ShowBackupCode();
         LoadServer();
         StartWithGameBox.IsChecked = s.StartWithGame;
         CloseWithGameBox.IsChecked = s.CloseWithGame;
@@ -178,11 +173,6 @@ public partial class SettingsView : UserControl
         s.AutoInstallUpdates = AutoInstallUpdates.IsChecked == true;
         s.UpdateChannel = ChannelDev.IsChecked == true ? "dev" : "stable";
         s.CheckUpstream = CheckUpstreamBox.IsChecked == true;
-        s.ShareUsage = ShareUsageBox.IsChecked == true;
-        s.ShareBuilds = ShareBuildsBox.IsChecked == true;
-        s.ShareBackup = ShareBackupBox.IsChecked == true;
-        s.ShareAtlasNames = ShareAtlasBox.IsChecked == true;
-        if (s.ShareAtlasNames) Telemetry.QueueAtlas(_meter);   // switched on: the names answered so far go as one batch (nothing when all are sent)
         s.ReportSummary = ReportSummaryBox.IsChecked == true;
         s.ReportTopDps = ReportTopDpsBox.IsChecked == true;
         s.ReportInventory = ReportInventoryBox.IsChecked == true;
@@ -248,38 +238,6 @@ public partial class SettingsView : UserControl
         if (_loadingServer || RegionBox.SelectedIndex < 0) return;
         var keep = ServerBox.SelectedIndex > 0 && ServerBox.SelectedIndex <= _serverIds.Count ? _serverIds[ServerBox.SelectedIndex - 1] : 0;
         FillServers(ServerContext.Regions[RegionBox.SelectedIndex], keep);
-    }
-
-    private void ShowBackupCode()
-    {
-        // the render tool's throw-away settings have no id: a fixed sample keeps the picture stable
-        var id = _meter.Settings.Transient ? (_meter.Settings.InstallId.Length > 0 ? _meter.Settings.InstallId : "3f9c0a12b7e44d85a6c1e09f2b7d5e31") : _meter.Settings.EnsureInstallId();
-        BackupCodeBox.Text = Core.Builds.BackupCode.Format(id);
-        ShowShareWarnings();
-    }
-
-    /// <summary>Backup copy off: restore stops working for this PC; builds off: restore brings back only the watch list and favourites.</summary>
-    private void ShowShareWarnings()
-    {
-        var backup = ShareBackupBox.IsChecked == true;
-        var builds = ShareBuildsBox.IsChecked == true;
-        BackupOffText.Visibility = backup ? Visibility.Collapsed : Visibility.Visible;
-        ShareBackupWarn.Text = !backup ? T.ShareBackupOff : !builds ? T.ShareBuildsOffBackup : "";
-        ShareBackupWarn.Visibility = backup && builds ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private void Share_Click(object sender, RoutedEventArgs e) => ShowShareWarnings();
-
-    private void CopyCode_Click(object sender, RoutedEventArgs e)
-    {
-        try { Clipboard.SetText(BackupCodeBox.Text); CopyState.Text = T.BackupCopied; }
-        catch (System.Runtime.InteropServices.COMException ex) { CopyState.Text = ex.Message; }   // clipboard held by another app
-    }
-
-    private void Restore_Click(object sender, RoutedEventArgs e)
-    {
-        new Windows.RestoreWindow(_meter) { Owner = Window.GetWindow(this) }.ShowDialog();
-        ShowBackupCode();
     }
 
     /// <summary>The overlay follows the slider at once, so the size can be judged on the real rows.</summary>

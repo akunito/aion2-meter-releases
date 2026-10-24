@@ -115,10 +115,10 @@ public class ItemsTabTests
         Assert.Single(store.Items(Containers.AccountWarehouse));                          // carried in the list: replaced
     }
 
-    [Fact]
+    [PcapFact]
     public void LoginReplayLeavesAContiguousBagWithItsCurrencies()
     {
-        var pcap = Path.Combine(AppContext.BaseDirectory, "Fixtures", "pcaps", "login-20261009.pcap");
+        var pcap = PcapFixture.Login;
         var store = new InventoryStore(null);
         var updates = 0;
         var replay = new PcapReplaySource(GameData.Empty, pcap, realtime: false);

@@ -559,7 +559,7 @@ internal sealed partial class AtlasView : HostedView
             _nameOther.GrabFocus();
             return;
         }
-        NameNode(_nameOther.GetText(), AtlasShare.OtherCategory);
+        NameNode(_nameOther.GetText(), AtlasCategory.Other);
     }
 
     private void NameNode(string name, string category)

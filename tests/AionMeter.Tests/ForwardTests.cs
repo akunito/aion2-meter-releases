@@ -17,7 +17,7 @@ namespace AionMeter.Tests;
 /// </summary>
 public class ForwardTests(ITestOutputHelper output)
 {
-    private static string Pcap => Path.Combine(AppContext.BaseDirectory, "Fixtures", "pcaps", "login-20261009.pcap");
+    private static string Pcap => PcapFixture.Login;
     private static readonly IPEndPoint Loopback0 = new(IPAddress.Loopback, 0);
 
     private static async Task<int> WaitFor(Func<bool> cond, int ms = 10_000)
@@ -41,7 +41,7 @@ public class ForwardTests(ITestOutputHelper output)
         return events;
     }
 
-    [Fact]
+    [PcapFact]
     public async Task ForwardedReplay_DecodesTheSameEventsAsTheFile()
     {
         var direct = DirectEvents();
@@ -71,7 +71,7 @@ public class ForwardTests(ITestOutputHelper output)
     }
 
     /// <summary>The stream is the file: the same record headers and frames byte for byte (only the global header's snaplen differs).</summary>
-    [Fact]
+    [PcapFact]
     public async Task StreamBytes_AreTheRecordsOfTheFile()
     {
         var file = File.ReadAllBytes(Pcap);
@@ -102,7 +102,7 @@ public class ForwardTests(ITestOutputHelper output)
     /// A2M-27 (Wine run 2026-10-14): a realtime replay stands in for live capture, so its packets carry today's clock; with the
     /// recorded (days old) timestamps the receiver's idle check closed every fight after 1 s and History stayed empty.
     /// </summary>
-    [Fact]
+    [PcapFact]
     public async Task RealtimeReplay_ForwardsTodaysClock_SameFramesAndSpacing()
     {
         // the fixture's first 1.5 s as a small pcap (realtime replay sleeps the recorded gaps)
@@ -369,11 +369,11 @@ public class ForwardTests(ITestOutputHelper output)
 [Collection(ProcessStaticsCollection.Name)]
 public class ForwardDaemonTests(ITestOutputHelper output)
 {
-    private static string Pcap => Path.Combine(AppContext.BaseDirectory, "Fixtures", "pcaps", "login-20261009.pcap");
+    private static string Pcap => PcapFixture.Login;
 
     /// <summary>The daemon path: HeadlessMeter with --replay --forward waits for the client, forwards every packet, and a receiver's
     /// fights (the CLI's `replay tcp://`) equal the fights of the file.</summary>
-    [Fact]
+    [PcapFact]
     public async Task Daemon_ForwardsItsReplay_ReceiverPrintsTheSameFights()
     {
         var data = GameData.Load(RepoData(), "en");
@@ -454,7 +454,7 @@ public class ForwardDaemonTests(ITestOutputHelper output)
 
     /// <summary>The Wine / no-Npcap case: a meter whose capture library probe says "missing" (LibraryPresent = () =&gt; false) reads the
     /// forwarded stream anyway — packets decoded, character bound, no "Npcap missing" status, health line from the stream.</summary>
-    [Fact]
+    [PcapFact]
     public async Task Receiver_WithoutCaptureLibrary_DecodesTheForwardedStream()
     {
         var root = Path.Combine(Path.GetTempPath(), "aionmeter-fwdrx-" + Guid.NewGuid().ToString("N"));

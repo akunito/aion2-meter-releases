@@ -14,9 +14,9 @@ namespace AionMeter.Tests;
 /// </summary>
 public class RegressionTests
 {
-    private static string Pcap => Path.Combine(AppContext.BaseDirectory, "Fixtures", "pcaps", "login-20261009.pcap");
+    private static string Pcap => PcapFixture.Login;
 
-    [Fact]
+    [PcapFact]
     public void Login2026_10_09_DecodesEveryStore()
     {
         Assert.True(File.Exists(Pcap), Pcap);

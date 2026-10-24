@@ -24,15 +24,7 @@ public static class Log
 
     public static void Info(string message) => Write("INFO", message);
 
-    private static int _errors;
-    /// <summary>Errors logged since the last telemetry record.</summary>
-    public static int Errors => _errors;
-    public static void ResetErrors() => Interlocked.Exchange(ref _errors, 0);
-    public static void Error(string message, Exception? ex = null)
-    {
-        Interlocked.Increment(ref _errors);
-        Write("ERROR", ex is null ? message : $"{message}: {ex}");
-    }
+    public static void Error(string message, Exception? ex = null) => Write("ERROR", ex is null ? message : $"{message}: {ex}");
 
     private static readonly HashSet<string> SeenLists = new();
 

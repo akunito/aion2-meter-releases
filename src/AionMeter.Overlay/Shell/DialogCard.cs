@@ -1,7 +1,7 @@
 namespace AionMeter.Overlay.Shell;
 
 /// <summary>
-/// A WPF dialog on the layer-shell card's output (A2M-50: Restore from code, Report a problem, the Build tab's questlog import): a
+/// A WPF dialog on the layer-shell card's output (A2M-50: Report a problem, the Build tab's questlog import): a
 /// <see cref="LayerWindow"/> (centred, keyboard on demand, X / Esc close). Not modal; the owner talks to it through callbacks. One instance
 /// per kind: <see cref="ShowSingle{T}"/>.
 /// </summary>

@@ -5,9 +5,8 @@ namespace AionMeter.Overlay.Views;
 
 /// <summary>
 /// "Report a problem" on the card's output (A2M-50, port of the Avalonia ReportWindow; WPF Windows/BugReportWindow, A2M-19 + A2M-45): the
-/// player's note and the three Privacy ticks (character summary, Top DPS rows, inventory; saved as the next defaults), "Create zip"
-/// (reports/report_&lt;ts&gt;.zip, the folder opens) and "Send to Diego" (the zip to the report webhook through <see cref="BugReport.SendAsync"/>,
-/// under the client limits of <see cref="BugReport.SendBlock"/>, whose countdown the button shows).
+/// player's note and the three Privacy ticks (character summary, Top DPS rows, inventory; saved as the next defaults), "Save zip"
+/// (reports/report_&lt;ts&gt;.zip, the folder opens) and the GitHub issues page to attach it to.
 /// </summary>
 internal sealed class ReportWindow : DialogCard
 {
@@ -15,9 +14,7 @@ internal sealed class ReportWindow : DialogCard
     private readonly Gtk.TextView _note;
     private readonly Gtk.CheckButton _summary, _top, _inventory;
     private readonly Gtk.Label _state;
-    private readonly Gtk.Button _create, _send;
-    private readonly UiTimer _tick = new(TimeSpan.FromSeconds(1));
-    private bool _sending;
+    private readonly Gtk.Button _create;
 
     public ReportWindow(AppShell shell, string? prefill = null) : base(shell, "report", UiText.Current.ReportTitle, 560, 520)
     {
@@ -49,36 +46,20 @@ internal sealed class ReportWindow : DialogCard
         buttons.Halign = Gtk.Align.End;
         buttons.MarginTop = UiKit.Px(12);
         buttons.Append(UiKit.Ghost(T.UpdateLater, Close));
-        buttons.Append(_create = UiKit.Ghost(T.ReportCreate, Create));
-        buttons.Append(_send = UiKit.Primary(T.ReportSend, () => _ = SendAsync()));
-        _send.MarginEnd = 0;
+        buttons.Append(UiKit.Ghost(T.ReportOpenIssue, () => BuildUi.OpenUrl(AppInfo.IssuesUrl)));
+        buttons.Append(_create = UiKit.Primary(T.ReportCreate, Create));
+        _create.MarginEnd = 0;
         root.Append(buttons);
         SetContent(root);
-        _tick.Tick += Tick;
     }
 
-    protected override void Opened() { _note.GrabFocus(); _tick.Start(); Tick(); }
-
-    protected override void OnClosed() => _tick.Stop();
+    protected override void Opened() => _note.GrabFocus();
 
     private string Note()
     {
         var b = _note.GetBuffer();
         b.GetBounds(out var start, out var end);
         return b.GetText(start, end, false);
-    }
-
-    // The send button shows the remaining wait (gap/minute/hour/day limits) and stays disabled until it ends
-    private void Tick()
-    {
-        if (_sending) return;
-        var block = BugReport.SendBlock(Shell.Settings, DateTimeOffset.UtcNow);
-        if (block is null) { _send.Sensitive = true; UiKit.SetText(_send, T.ReportSend); return; }
-        var (wait, reason) = block.Value;
-        _send.Sensitive = false;
-        var span = wait.TotalHours >= 1 ? $"{(int)wait.TotalHours}h{wait.Minutes:00}" : $"{(int)wait.TotalMinutes}:{wait.Seconds:00}";
-        UiKit.SetText(_send, $"{T.ReportSend} ({span})");
-        if (reason != "gap") State(string.Format(T.ReportLimit, span));
     }
 
     private void State(string text) { _state.Visible = true; _state.SetText(text); }
@@ -111,36 +92,5 @@ internal sealed class ReportWindow : DialogCard
             Log.Error("Bug report failed", ex);
         }
         _create.Sensitive = true;
-    }
-
-    /// <summary>Create the zip and send it to Diego; on a network failure the zip stays and the reports folder opens (Discord fallback).</summary>
-    private async Task SendAsync()
-    {
-        if (BugReport.SendBlock(Shell.Settings, DateTimeOffset.UtcNow) is not null) { Tick(); return; }
-        _sending = true;
-        _create.Sensitive = _send.Sensitive = false;
-        var policy = Policy();
-        State(T.ReportSending);
-        try
-        {
-            var (zip, id) = await BugReport.SendAsync(Shell.Settings, Note(), policy);
-            Shell.Daemon.Send("reload-settings");   // ReportSends went into settings.json
-            State(string.Format(T.ReportSent, id));
-            Log.Info($"Bug report sent: {zip} → {id}");
-        }
-        catch (BugReport.SendFailure ex)
-        {
-            Log.Error("Bug report send failed", ex);
-            State(string.Format(T.ReportSendFailed, ex.Message));
-            BugReport.Reveal(ex.Zip);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
-        {
-            Log.Error("Bug report send failed", ex);
-            State(string.Format(T.ReportSendFailed, ex.Message));
-        }
-        _sending = false;
-        _create.Sensitive = true;
-        Tick();
     }
 }

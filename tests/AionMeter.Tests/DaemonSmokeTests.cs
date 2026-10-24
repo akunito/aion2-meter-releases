@@ -11,7 +11,7 @@ namespace AionMeter.Tests;
 [Collection(ProcessStaticsCollection.Name)]
 public class DaemonSmokeTests
 {
-    private static string Pcap => Path.Combine(AppContext.BaseDirectory, "Fixtures", "pcaps", "login-20261009.pcap");
+    private static string Pcap => PcapFixture.Login;
 
     private static string RepoData()
     {
@@ -20,7 +20,7 @@ public class DaemonSmokeTests
         throw new DirectoryNotFoundException("data/servers.json above " + AppContext.BaseDirectory);
     }
 
-    [Fact]
+    [PcapFact]
     public async Task LoginReplay_WritesTheStateFilesInTheDataDir()
     {
         var root = Path.Combine(Path.GetTempPath(), "aionmeter-daemon-" + Guid.NewGuid().ToString("N"));
@@ -89,7 +89,7 @@ public class DaemonSmokeTests
 
     /// <summary>A2M-48 phase 3: the UI socket. A client connects while the login capture replays (held open after its end), gets `status`,
     /// `overlay` snapshots with ranked rows, answers `ping`, lists `fights` and switches the card to one of them with `show-fight`.</summary>
-    [Fact]
+    [PcapFact]
     public async Task Socket_ServesOverlaySnapshotsAndCommands()
     {
         var root = Path.Combine(Path.GetTempPath(), "aionmeter-sock-" + Guid.NewGuid().ToString("N"));

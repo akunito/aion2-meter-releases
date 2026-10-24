@@ -79,7 +79,6 @@ public class MeterEngine : IDisposable
         };
         Inventory.Changed += OnLiveInventoryChanged;
         Tracker.EncounterFinished += OnEncounterFinished;
-        if (!settings.Transient && !viewer) Prices.Changed += () => Telemetry.QueueState(this);   // hourly polls raise it too: unchanged state is not sent
         // A recording's or the demo's bosses must not move the live respawn timers.
         Tracker.BossNoticed += n =>
         {
@@ -157,7 +156,6 @@ public class MeterEngine : IDisposable
         Core.Net.CloudflareHttp.SolverUrl = Settings.CloudflareSolverUrl;
         ApplySettingsInPlace();
         Log.Info($"Settings reloaded from settings.json (language {Settings.Language}, names {Data.Language}, measure {Settings.TargetMode}, server {Settings.ServerId})");
-        if (!Viewer && Settings.ShareAtlasNames) Telemetry.QueueAtlas(this);   // switched on in the Linux UI: the names answered so far go as one batch
         return true;
     }
 
@@ -342,13 +340,12 @@ public class MeterEngine : IDisposable
         }
         Data.Objects[code] = name;
         Log.Info($"Object {code} named \"{name}\" ({category})");
-        if (!Viewer && !Settings.Transient) Telemetry.QueueAtlas(this);   // the Linux UI is a viewer: the daemon queues once it re-reads the file
     }
 
     /// <summary>A2M-45: the player said this code is not a gathering node (category "other"): the atlas does not draw it.</summary>
     public bool IsOtherObject(int code)
     {
-        lock (_userNames) return _userNames.TryGetValue(code, out var v) && Core.Atlas.AtlasShare.IsOther(v.Category);
+        lock (_userNames) return _userNames.TryGetValue(code, out var v) && Core.Atlas.AtlasCategory.IsOther(v.Category);
     }
 
     /// <summary>The map's gathering spots for drawing: <see cref="NodeStore.Spots"/> without the codes named "other".</summary>
@@ -358,16 +355,10 @@ public class MeterEngine : IDisposable
         lock (_userNames)
         {
             var any = false;
-            foreach (var v in _userNames.Values) if (Core.Atlas.AtlasShare.IsOther(v.Category)) { any = true; break; }
-            if (any) spots.RemoveAll(sp => !sp.Seeded && _userNames.TryGetValue(sp.Code, out var v) && Core.Atlas.AtlasShare.IsOther(v.Category));
+            foreach (var v in _userNames.Values) if (Core.Atlas.AtlasCategory.IsOther(v.Category)) { any = true; break; }
+            if (any) spots.RemoveAll(sp => !sp.Seeded && _userNames.TryGetValue(sp.Code, out var v) && Core.Atlas.AtlasCategory.IsOther(v.Category));
         }
         return spots;
-    }
-
-    /// <summary>A copy of the names the player gave (code → name, category), safe off the thread that names.</summary>
-    public Dictionary<int, (string Name, string Category)> ObjectNamesSnapshot()
-    {
-        lock (_userNames) return new Dictionary<int, (string Name, string Category)>(_userNames);
     }
 
     /// <summary>A2M-48: atlas/objects.json was written by the other process (the Linux UI names nodes, the daemon asks): take its names.</summary>
@@ -380,13 +371,10 @@ public class MeterEngine : IDisposable
                 _userNames[code] = (name, category);
         foreach (var (code, (name, _)) in names) if (name.Length > 0) Data.Objects[code] = name;
         Log.Info($"atlas/objects.json reloaded ({names.Count} names)");
-        if (!Viewer) Telemetry.QueueAtlas(this);
         return true;
     }
     /// <summary>A2M-48 daemon: the closed fight with its saved file (null when not kept), on the thread that closed it.</summary>
     public event Action<FightRecord, string?>? FightClosed;
-    /// <summary>The 15-minute telemetry/backup tick the App runs from a DispatcherTimer; the daemon calls it from its loop.</summary>
-    public Task SendTelemetryIfDueAsync() => Telemetry.SendIfDueAsync(this);
     public Func<GameData, IEventSource>? CaptureFactory { get; }
     public CaptureAvailability Availability { get; }
 
@@ -554,7 +542,7 @@ public class MeterEngine : IDisposable
     private long _lastStateSave;
     private string _lastSummary = "";
 
-    // A2M-28 view-while-playing: _boundKey = the character the live packets belong to (Inventory, Character, telemetry state, the
+    // A2M-28 view-while-playing: _boundKey = the character the live packets belong to (Inventory, Character, the
     // account-warehouse feed); _sel.Viewed = the one the tabs show (ViewInventory, Builds, CurrentProfile). Both under _selGate:
     // BindCharacterStores runs on the capture thread (SelfIdentified), SelectCharacter on the UI thread.
     private readonly object _selGate = new();
@@ -620,7 +608,6 @@ public class MeterEngine : IDisposable
                 _lastSummary = "";
             }
             SetViewStore();
-            if (!Viewer) AdoptRestoredBuilds(key);
             Builds = new BuildStore(Path.Combine(dir, "builds"));
             Log.Info(pick == CharacterPick.Rebind ? $"Character stores switched by hand to {key}" : $"Viewing {key} (live data stays with {(_boundKey.Length > 0 ? _boundKey : "nobody")})");
         }
@@ -643,7 +630,6 @@ public class MeterEngine : IDisposable
             Inventory.Bind(Path.Combine(dir, "inventory.json"), Path.Combine(AppSettings.AppDataDir, "inventory.json"));
             Character.Bind(Path.Combine(dir, "character.json"), Path.Combine(AppSettings.AppDataDir, "state", "character.json"));
             SetViewStore();
-            AdoptRestoredBuilds(key);
             Builds = new BuildStore(Path.Combine(dir, "builds"));
             Log.Info($"Character stores bound to {key}");
             _lastSummary = "";
@@ -651,55 +637,6 @@ public class MeterEngine : IDisposable
         CharacterChanged?.Invoke();
         ViewInventoryChanged?.Invoke();
         _ = SyncProfileAsync(key, name, server);
-    }
-
-    /// <summary>Builds restored from the backup code before this character had a folder here (builds-restored/&lt;charhash&gt;/) join it now.</summary>
-    private void AdoptRestoredBuilds(string key)
-    {
-        if (Settings.Transient || Settings.InstallId.Length == 0) return;
-        try
-        {
-            var moved = BackupPlacement.Adopt(AppSettings.AppDataDir, Settings.InstallId, key);
-            if (moved > 0) Log.Info($"Backup: {moved} restored build(s) moved to {key}");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Error("Backup: restored builds not moved", ex); }
-    }
-
-    public sealed record RestoreSummary(int Builds, int Placed, int Waiting, int KeptLocal, bool StateFound, bool WatchRestored, bool FavouritesRestored);
-
-    /// <summary>
-    /// A2M-30 restore, on the UI thread after the server answered: the code becomes this install's id (telemetry continues under it),
-    /// builds go to the character whose hash matches or wait in builds-restored/, and the watch list / craft favourites come back only
-    /// where the local ones are empty.
-    /// </summary>
-    public RestoreSummary ApplyRestore(string code, RestorePayload payload)
-    {
-        var s = Settings;
-        s.InstallId = code;
-        s.BuildTelemetrySent.Clear();
-        s.StateTelemetrySent = null; s.StateTelemetryHash = "";
-        var placed = BackupPlacement.Place(payload.Builds, AppSettings.AppDataDir, code);
-        // what came from the server is already there: no need to send it back tomorrow
-        foreach (var r in payload.Builds) s.BuildTelemetrySent[r.Build.Id] = new AppSettings.BuildSent(r.Ts, r.Build.UpdatedAt);
-        bool stateFound = false, watchRestored = false, favRestored = false;
-        foreach (var st in payload.State)
-        {
-            if (st.Kind != BackupState.Kind) continue;
-            stateFound = true;
-            var (watch, favs) = BackupState.Parse(st.Data);
-            var local = Prices.All();
-            if (BackupState.Takes(local, watch)) { Prices.AddRange(watch); watchRestored = true; }
-            if (BackupState.Takes(s.CraftFavourites, favs)) { s.CraftFavourites.AddRange(favs); favRestored = true; }
-        }
-        try { s.Save(); } catch (IOException ex) { Log.Error("Backup: settings not saved", ex); }
-        Log.Info($"Backup restored: {payload.Builds.Count} builds ({placed.Placed} placed, {placed.Waiting} waiting, {placed.KeptLocal} newer here), state {(stateFound ? "found" : "none")}, watch {(watchRestored ? "restored" : "kept")}, favourites {(favRestored ? "restored" : "kept")}");
-        if (_boundKey.Length > 0) AdoptRestoredBuilds(_boundKey);
-        var viewed = CharacterKey;
-        if (viewed.Length > 0 && viewed != _boundKey) AdoptRestoredBuilds(viewed);
-        Builds = new BuildStore(Builds.Directory);
-        _lastSummary = "";
-        CharacterChanged?.Invoke();
-        return new RestoreSummary(payload.Builds.Count, placed.Placed, placed.Waiting, placed.KeptLocal, stateFound, watchRestored, favRestored);
     }
 
     private long _lastProfileSync;
