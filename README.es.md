@@ -419,6 +419,7 @@ build/build.sh                  # tests + zip de Windows + tarball de Linux
 build/build.sh --linux-only     # tests + tarball de Linux (se salta la publicación lenta de win-x64)
 build/build.sh --no-tests       # sin los tests (solo para iterar en local; las versiones siempre los pasan)
 VERSION=0.6.0 build/build.sh    # una versión publicada: versión en los ensamblados, "release v0.6.0" en BUILD-INFO
+tools/release.sh 0.6.0 NOTAS.md    # mantenedor: compila con tests y publica la versión en GitHub (--dev = pre-release)
 ```
 
 Los archivos y `SHA256SUMS.txt` quedan en `dist/`. Las builds sin `VERSION` son de desarrollo y nunca se actualizan solas.

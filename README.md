@@ -417,6 +417,7 @@ build/build.sh                  # tests + Windows zip + Linux tarball
 build/build.sh --linux-only     # tests + Linux tarball (skips the slow win-x64 single-file publish)
 build/build.sh --no-tests       # skip the test suite (local iteration only; releases always run it)
 VERSION=0.6.0 build/build.sh    # a release build: version in the assemblies, "release v0.6.0" in BUILD-INFO
+tools/release.sh 0.6.0 NOTES.md    # maintainer: build with tests + publish the GitHub release (--dev = pre-release)
 ```
 
 The archives and `SHA256SUMS.txt` land in `dist/`. Builds without `VERSION` are development builds and never update themselves.
