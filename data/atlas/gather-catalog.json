@@ -1,0 +1,205 @@
+{
+  "_note": "The 17 Essence Extraction node kinds (wikily.gg/aion-2/gathering, 2026-10-08). Categories as the game's Essence Extraction tab (ES). Icons: atlas/icons/<key>.png from wikily (some kinds share an icon in the game data). Object codes are learned in play: code → key goes to %AppData%\\AionMeter\\atlas\\objects.json.",
+  "categories": [
+    {
+      "key": "mineral",
+      "es": "Minerales",
+      "en": "Ore",
+      "nodes": [
+        {
+          "key": "orichalcum",
+          "en": "Orichalcum",
+          "es": "Orichalcum",
+          "zones": [
+            "Verteron",
+            "Altgard"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "gem",
+      "es": "Gemas",
+      "en": "Gems",
+      "nodes": [
+        {
+          "key": "diamond",
+          "en": "Diamond",
+          "es": "Diamante",
+          "zones": [
+            "Verteron",
+            "Altgard"
+          ]
+        },
+        {
+          "key": "ruby",
+          "en": "Ruby",
+          "es": "Rubí",
+          "zones": [
+            "Verteron",
+            "Altgard"
+          ]
+        },
+        {
+          "key": "sapphire",
+          "en": "Sapphire",
+          "es": "Zafiro",
+          "zones": [
+            "Verteron",
+            "Altgard"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "wood",
+      "es": "Tronco",
+      "en": "Logs",
+      "nodes": [
+        {
+          "key": "yggdrasil",
+          "en": "Yggdrasil",
+          "es": "Yggdrasil",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "asvata",
+          "en": "Asvata",
+          "es": "Asvata",
+          "zones": [
+            "Altgard"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "herb",
+      "es": "Hierbas",
+      "en": "Herbs",
+      "nodes": [
+        {
+          "key": "aria",
+          "en": "Aria",
+          "es": "Aria",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "targena",
+          "en": "Targena",
+          "es": "Targena",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "azpha",
+          "en": "Azpha",
+          "es": "Azpha",
+          "zones": [
+            "Altgard"
+          ]
+        },
+        {
+          "key": "calendula",
+          "en": "Calendula",
+          "es": "Caléndula",
+          "zones": [
+            "Altgard"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ingredient",
+      "es": "Ingredientes",
+      "en": "Cooking ingredients",
+      "nodes": [
+        {
+          "key": "coriolus",
+          "en": "Coriolus",
+          "es": "Coriolus",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "kukuru",
+          "en": "Kukuru",
+          "es": "Kukuru",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "mela",
+          "en": "Mela",
+          "es": "Mela",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "cypri",
+          "en": "Cypri",
+          "es": "Cypri",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "inina",
+          "en": "Inina",
+          "es": "Inina",
+          "zones": [
+            "Verteron"
+          ]
+        },
+        {
+          "key": "morfa",
+          "en": "Morfa",
+          "es": "Morfa",
+          "zones": [
+            "Altgard"
+          ]
+        },
+        {
+          "key": "ohkra",
+          "en": "Ohkra",
+          "es": "Ohkra",
+          "zones": [
+            "Altgard"
+          ]
+        },
+        {
+          "key": "raydam",
+          "en": "Raydam",
+          "es": "Raydam",
+          "zones": [
+            "Altgard"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "od",
+      "es": "Od",
+      "en": "Odyle",
+      "nodes": [
+        {
+          "key": "odyle",
+          "en": "Odyle",
+          "es": "Od",
+          "zones": [
+            "Verteron",
+            "Altgard",
+            "Reshanta"
+          ]
+        }
+      ]
+    }
+  ]
+}

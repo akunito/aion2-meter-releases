@@ -926,12 +926,12 @@ public sealed class UiText
     public string AtlasHint { get; init; } = "Drag to pan, wheel to zoom, right-click a node to name its kind. Green = node in view (units left), grey = remembered (back in … when learned), skull = field boss.";
     public string SecUpdates { get; init; } = "UPDATES";
     public string CheckUpdatesAuto { get; init; } = "Check for new versions";
-    public string UpdatesHint { get; init; } = "Shortly after start and every 2 hours, from the private build's own release page. The meter only asks which version is the newest; nothing about you or your fights is sent.";
+    public string UpdatesHint { get; init; } = "Shortly after start and every 2 hours, from this project's GitHub releases. The meter only asks which version is the newest; nothing about you or your fights is sent.";
     public string AutoInstallUpdates { get; init; } = "Install updates by itself";
     public string UpdateChannelLabel { get; init; } = "Channel";
     public string UpdateChannelStable { get; init; } = "Stable";
     public string UpdateChannelDev { get; init; } = "Development builds";
-    public string UpdateChannelHint { get; init; } = "Stable = releases marked as such. Development builds come out more often and may break; only pick it if Diego asked you to.";
+    public string UpdateChannelHint { get; init; } = "Stable = releases marked as such. Development builds come out more often and may break; only pick it to test a fix before it ships.";
     public string CheckUpstream { get; init; } = "Also watch the public upstream project (maintainer only)";
     public string SecPrivacy { get; init; } = "PRIVACY";
     public string PrivacyIntro { get; init; } = "The meter has no server of its own and sends nothing about you anywhere. A bug report is a zip saved on this PC that you attach to a GitHub issue yourself.";
@@ -1890,12 +1890,12 @@ public sealed class UiText
         AtlasHint = "Arrastra para mover, rueda para hacer zoom, clic derecho en un recurso para nombrar su tipo. Verde = recurso a la vista (unidades que quedan), gris = recordado (vuelve en … cuando se conoce), calavera = jefe de campo.",
         SecUpdates = "ACTUALIZACIONES",
         CheckUpdatesAuto = "Buscar versiones nuevas",
-        UpdatesHint = "Poco después de arrancar y cada 2 horas, en la propia página de versiones de la versión privada. El medidor solo pregunta cuál es la versión más nueva; no se envía nada sobre ti ni sobre tus combates.",
+        UpdatesHint = "Poco después de arrancar y cada 2 horas, en las versiones de GitHub de este proyecto. El medidor solo pregunta cuál es la versión más nueva; no se envía nada sobre ti ni sobre tus combates.",
         AutoInstallUpdates = "Instalar las actualizaciones solo",
         UpdateChannelLabel = "Canal",
         UpdateChannelStable = "Estable",
         UpdateChannelDev = "Versiones de desarrollo",
-        UpdateChannelHint = "Estable = versiones marcadas como tales. Las de desarrollo salen más a menudo y pueden fallar; elígelo solo si Diego te lo pidió.",
+        UpdateChannelHint = "Estable = versiones marcadas como tales. Las de desarrollo salen más a menudo y pueden fallar; elígelo solo para probar un arreglo antes de que salga.",
         CheckUpstream = "Vigilar también el proyecto público original (solo el mantenedor)",
         SecPrivacy = "PRIVACIDAD",
         PrivacyIntro = "El medidor no tiene servidor propio y no envía nada sobre ti a ningún sitio. Un informe de problema es un zip que se guarda en este PC y que tú adjuntas a un issue de GitHub.",

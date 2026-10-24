@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+# AION 2 DPS meter card (GTK 4, Wayland). Starts the capture daemon with the card and stops it when the card exits.
+#   aionmeter [--show|--hide|--toggle|--quit] [--tab KEY] [--layer] [--monitor NAME]
+# A second call hands its command to the running card and exits. Defaults for every call: ~/.config/aionmeter/launcher.conf
+# (CARD_ARGS="--layer --monitor DP-1", written by install.sh --layer).
+set -u
+CARD_ARGS=""
+CONF=${XDG_CONFIG_HOME:-$HOME/.config}/aionmeter/launcher.conf
+[ -f "$CONF" ] && . "$CONF"
+PREFIX=${AIONMETER_PREFIX:-$HOME/.local/opt/aionmeter}
+UNIT=aion2-meter-daemon.service
+SOCKET=/run/aionmeter/aionmeter.sock
+dll=$PREFIX/overlay/AionMeter.Overlay.dll
+note() { command -v notify-send >/dev/null 2>&1 && notify-send -a "AION 2 meter" "aionmeter" "$1"; echo "aionmeter: $1" >&2; }
+[ -f "$dll" ] || { note "not installed: $dll (run install.sh)"; exit 1; }
+DOTNET=${DOTNET:-$(command -v dotnet || echo "${DOTNET_ROOT:-$HOME/.dotnet}/dotnet")}
+[ -x "$DOTNET" ] || { note "the .NET 10 runtime (dotnet) is not on PATH"; exit 1; }
+export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+# Sway: the card saves its place through Sway IPC, so SWAYSOCK must point at the live session — a shell started before a sway
+# restart carries a stale path. Never "the newest socket": nested headless sways (WLR_BACKENDS=headless) are newer than the session's.
+if [ -z "${SWAYSOCK:-}" ] || [ ! -S "$SWAYSOCK" ]; then
+  for s in $(ls -t /run/user/"$(id -u)"/sway-ipc.*.sock 2>/dev/null); do
+    pid=${s%.sock}; pid=${pid##*.}
+    [ -r /proc/"$pid"/environ ] || continue
+    if ! tr '\0' '\n' < /proc/"$pid"/environ 2>/dev/null | grep -q '^WLR_BACKENDS=headless'; then export SWAYSOCK="$s"; break; fi
+  done
+fi
+run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+# pid of a live card: from its pid file, checked against /proc cmdline (stale file, reused pid). Never pkill -f: it matches this shell too.
+live_pid() {
+  [ -f "$run/aionmeter-overlay.pid" ] || return 1
+  p=$(cat "$run/aionmeter-overlay.pid" 2>/dev/null) || return 1
+  case $p in ""|*[!0-9]*) return 1;; esac
+  [ -r "/proc/$p/cmdline" ] && tr '\0' ' ' < "/proc/$p/cmdline" | grep -q AionMeter.Overlay.dll || return 1
+  echo "$p"
+}
+# shellcheck disable=SC2086
+run_card() { "$DOTNET" "$dll" --socket "$SOCKET" $CARD_ARGS "$@"; }
+if live_pid >/dev/null; then run_card "$@"; exit; fi
+case " $* " in *" --quit "*|*" --hide "*) run_card "$@"; exit;; esac
+sc() { systemctl --no-block --no-ask-password "$1" "$UNIT"; }
+sc start || note "could not start $UNIT (see install.sh: the polkit rule lets you start it without a password)"
+trap 'sc stop' EXIT
+trap 'exit 143' TERM HUP INT
+run_card "$@"

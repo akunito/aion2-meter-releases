@@ -1,0 +1,28 @@
+{
+ "map": 1110,
+ "name": "Altgard",
+ "background": "background.jpg",
+ "background_size": [
+  4096,
+  4096
+ ],
+ "date": "2026-10-09",
+ "world_to_px": {
+  "px": "(x + 409600) / 200",
+  "py": "(y + 409600) / 200",
+  "ax": [
+   0.005,
+   0.0,
+   2048.0
+  ],
+  "ay": [
+   0.0,
+   0.005,
+   2048.0
+  ],
+  "px_per_100m": 50.0,
+  "note": "fitted on 48 objects seen in map 1110 (votes 28): \u2212409,578/\u2212409,600 \u2192 \u2212409,600, same convention as Verteron"
+ },
+ "bosses": [],
+ "source": "shugoggassets.blob.core.windows.net/assets/maps/altgard/tiles/4 stitched 16x16; markers shugo.gg/maps/altgard/markers.json"
+}

@@ -1,0 +1,28 @@
+{
+ "map": 20,
+ "name": "Lower Abyss (Reshanta)",
+ "background": "background.jpg",
+ "background_size": [
+  4096,
+  4096
+ ],
+ "date": "2026-10-09",
+ "world_to_px": {
+  "px": "(x + 204800) / 100",
+  "py": "(y + 204800) / 100",
+  "ax": [
+   0.01,
+   0.0,
+   2048.0
+  ],
+  "ay": [
+   0.0,
+   0.01,
+   2048.0
+  ],
+  "px_per_100m": 100.0,
+  "note": "shugo.gg reshanta-lower tiles (4096 px, 100 cm/px); offset fitted on 36 objects seen in map 20 (median 0.5 m): \u2212204,798/\u2212204,808 \u2192 \u2212204,800"
+ },
+ "bosses": [],
+ "source": "shugoggassets.blob.core.windows.net/assets/maps/reshanta-lower/tiles/4"
+}

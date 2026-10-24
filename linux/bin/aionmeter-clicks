@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Bind to a key: click-through on/off (clicks go to the game).
+run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+p=$(cat "$run/aionmeter-overlay.pid" 2>/dev/null)
+case $p in ""|*[!0-9]*) ;; *) if tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | grep -q AionMeter.Overlay.dll; then exec kill -USR1 "$p"; fi;; esac
+echo "aionmeter: the card is not running" >&2; exit 1

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AION 2 DPS Meter
+Comment=Party DPS, boss timers, atlas, prices and builds for AION 2
+Exec=@BIN@ --show
+Icon=@ICON@
+Terminal=false
+Categories=Game;Utility;
+StartupWMClass=aionmeter

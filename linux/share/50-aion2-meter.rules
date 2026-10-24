@@ -1,0 +1,8 @@
+// AION 2 DPS meter (written by install.sh): lets @USER@ start/stop the capture daemon without a password.
+polkit.addRule(function(action, subject) {
+  if (action.id == "org.freedesktop.systemd1.manage-units" &&
+      action.lookup("unit") == "aion2-meter-daemon.service" && subject.user == "@USER@") {
+    var verb = action.lookup("verb");
+    if (verb == "start" || verb == "stop" || verb == "restart" || verb == "try-restart") return polkit.Result.YES;
+  }
+});

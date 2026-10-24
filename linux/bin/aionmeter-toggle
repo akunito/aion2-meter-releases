@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Bind to a key: hide/show the card if it runs, else start it detached.
+run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+p=$(cat "$run/aionmeter-overlay.pid" 2>/dev/null)
+case $p in ""|*[!0-9]*) ;; *) if tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | grep -q AionMeter.Overlay.dll; then exec kill -USR2 "$p"; fi;; esac
+exec setsid -f "$(dirname "$0")/aionmeter" </dev/null >/dev/null 2>&1

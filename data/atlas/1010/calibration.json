@@ -1,0 +1,250 @@
+{
+ "map": 1010,
+ "name": "Verteron",
+ "background": "background.jpg",
+ "background_size": [
+  4096,
+  4096
+ ],
+ "date": "2026-10-09",
+ "world_to_px": {
+  "px": "(x + 409600) / 200",
+  "py": "(y + 409600) / 200",
+  "ax": [
+   0.005,
+   0.0,
+   2048.0
+  ],
+  "ay": [
+   0.0,
+   0.005,
+   2048.0
+  ],
+  "px_per_100m": 50.0,
+  "note": "shugo.gg tiles (4096 px, maxZoom 4, 200 cm/px); world units cm, +x east, +y south; offset \u2212409,600 = \u22122048\u00b7200 (our 17-boss fit gave \u2212409,525: 0.4 px)"
+ },
+ "bosses": [
+  {
+   "code": 2100003,
+   "name": "Neikel of the East",
+   "pixel": [
+    1760.4,
+    1622.1
+   ],
+   "world_xy": [
+    -57517,
+    -85173
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100178,
+   "name": "Bloodfang Pnyn",
+   "pixel": [
+    1755.6,
+    2327.2
+   ],
+   "world_xy": [
+    -58488,
+    55832
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100877,
+   "name": "Sentinel K'nash",
+   "pixel": [
+    2701.9,
+    1656.0
+   ],
+   "world_xy": [
+    130784,
+    -78402
+   ],
+   "world_source": "inferred from pixel (\u00b11.2 m)"
+  },
+  {
+   "code": 2100050,
+   "name": "Kernon of the West",
+   "pixel": [
+    1577.0,
+    1830.3
+   ],
+   "world_xy": [
+    -94204,
+    -43535
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100076,
+   "name": "Kusan the Mad Gladiator",
+   "pixel": [
+    1957.5,
+    1995.7
+   ],
+   "world_xy": [
+    -18107,
+    -10451
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100141,
+   "name": "Blooming Korin",
+   "pixel": [
+    1874.9,
+    1865.7
+   ],
+   "world_xy": [
+    -34622,
+    -36461
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100177,
+   "name": "Furious Saursus",
+   "pixel": [
+    1758.7,
+    2461.1
+   ],
+   "world_xy": [
+    -57863,
+    82629
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2101016,
+   "name": "Researcher Setram",
+   "pixel": [
+    2844.3,
+    1392.8
+   ],
+   "world_xy": [
+    159268,
+    -131049
+   ],
+   "world_source": "inferred from pixel (\u00b11.2 m)"
+  },
+  {
+   "code": 2100708,
+   "name": "Centurion Demiros",
+   "pixel": [
+    2673.0,
+    2102.8
+   ],
+   "world_xy": [
+    124991,
+    10953
+   ],
+   "world_source": "inferred from pixel (\u00b11.2 m)"
+  },
+  {
+   "code": 2100989,
+   "name": "Forest Warrior Aullamu",
+   "pixel": [
+    1919.4,
+    2708.8
+   ],
+   "world_xy": [
+    -25718,
+    132156
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100077,
+   "name": "Ritualist Garshim",
+   "pixel": [
+    1912.6,
+    2147.4
+   ],
+   "world_xy": [
+    -27083,
+    19888
+   ],
+   "world_source": "inferred from pixel (\u00b11.2 m)"
+  },
+  {
+   "code": 2100718,
+   "name": "Divine Ansas",
+   "pixel": [
+    2764.7,
+    2224.7
+   ],
+   "world_xy": [
+    143336,
+    35344
+   ],
+   "world_source": "inferred from pixel (\u00b11.2 m)"
+  },
+  {
+   "code": 2100582,
+   "name": "Heretic Layla",
+   "pixel": [
+    2141.6,
+    2523.1
+   ],
+   "world_xy": [
+    18723,
+    95025
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100991,
+   "name": "Chaser Taulo",
+   "pixel": [
+    1729.0,
+    2641.1
+   ],
+   "world_xy": [
+    -63800,
+    118621
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100876,
+   "name": "Harvest Manager Moshav",
+   "pixel": [
+    2634.4,
+    1565.8
+   ],
+   "world_xy": [
+    117274,
+    -96444
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100079,
+   "name": "Bodyguard Teegant",
+   "pixel": [
+    2141.0,
+    2047.0
+   ],
+   "world_xy": [
+    18601,
+    -205
+   ],
+   "world_source": "boss-list packet"
+  },
+  {
+   "code": 2100040,
+   "name": "Rotten Kutar",
+   "pixel": [
+    1911.5,
+    1644.1
+   ],
+   "world_xy": [
+    -27290,
+    -80782
+   ],
+   "world_source": "boss-list packet"
+  }
+ ],
+ "source": "https://shugoggassets.blob.core.windows.net/assets/maps/verteron/tiles/4/{x}/{y}.webp stitched 16x16"
+}

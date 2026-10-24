@@ -1,0 +1,33 @@
+# AION 2 DPS meter capture daemon (written by install.sh). Started and stopped by the `aionmeter` launcher, never at boot.
+# A system unit with User= because a user unit cannot be granted the capture capabilities. Same uid as the game, so the game's
+# /proc/<pid>/fd is readable without CAP_SYS_PTRACE. SIGTERM saves the fight in progress.
+[Unit]
+Description=AION 2 DPS meter daemon (passive capture)
+ConditionPathExists=@PREFIX@/daemon/aionmeter-daemon.dll
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+Environment=HOME=@HOME@ DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+WorkingDirectory=@PREFIX@/daemon
+ExecStart=@DOTNET@ @PREFIX@/daemon/aionmeter-daemon.dll --data-dir @DATA@ --socket /run/aionmeter/aionmeter.sock
+# Not $XDG_RUNTIME_DIR: a system unit has none, and with PrivateTmp the /tmp fallback is invisible to the card.
+RuntimeDirectory=aionmeter
+RuntimeDirectoryMode=0750
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+KillSignal=SIGTERM
+TimeoutStopSec=20
+Restart=on-failure
+RestartSec=10
+Nice=5
+# Not ProtectHome/ProtectProc: it reads the game's /proc/<pid>/fd and writes into the data dir in your home.
+ProtectSystem=strict
+ReadWritePaths=@DATA@
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
